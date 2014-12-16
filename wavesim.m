@@ -6,6 +6,8 @@ classdef wavesim
         V   % potential array used in simulation
         info % diagnostics information on convergence
         grid % simgrid object
+        bandwidth
+        first_row %start of simulation
      %%internal
         k % wave number
         k_red % k-i*epsilon
@@ -20,6 +22,8 @@ classdef wavesim
             % and the wavelength is fixed to 1 unit. 
             % window_size (step size) is the size of the exponential window
             % (in wavelengths)
+            fftw('planner','patient'); %optimize fft2 and ifft2 at first use
+
             lambda = 1;
             obj.grid = grid;
             obj.epsilon = 1/window_size;
@@ -57,7 +61,7 @@ classdef wavesim
             obj.info.trunc_g0_k_max = max(abs(obj.g0_k(:)));
             obj.info.trunc_P = wavesim.energy(g_x);
             obj.info.truncation_loss_P = obj.info.trunc_P/obj.info.full_P;
-            obj.info.truncation_loss_g0_k_max = obj.info.full_g0_k_max/obj.info.full_g0_k_max;
+            obj.info.truncation_loss_g0_k_max = obj.info.trunc_g0_k_max/obj.info.full_g0_k_max;
             
             %% Set up refractive index map for simulation. 
             % The map should have an average refractive index of 1 (or close?)
@@ -86,11 +90,13 @@ classdef wavesim
             obj.V(:, end-B+1:end) = min(obj.V(:,end-B+1:end), ones(grid.Ny, 1) * epsilon_boundary);
   %        keyboard;
             %% Low pass filter potential function V
+            obj.bandwidth = bandwidth;
             width = round(min(grid.Nx, grid.Ny)*bandwidth);
             w_x = [zeros(ceil((grid.Nx-width)/2),1); tukeywin(width, 0.125); zeros(floor((grid.Nx-width)/2),1)];
             w_y = [zeros(ceil((grid.Ny-width)/2),1); tukeywin(width, 0.125); zeros(floor((grid.Ny-width)/2),1)].';
             win2d = fftshift(bsxfun(@times, w_x, w_y));
             obj.V = ifft2(win2d.*fft2(obj.V));
+            obj.first_row = B+1;
         end;
         function E_tot = exec(obj, source)
             %% Execute simulation
@@ -134,6 +140,29 @@ classdef wavesim
                 end;
             end;
             imagesc(log(abs(E_tot))); colorbar;
+        end;
+        function analyze(obj)
+            %% Displays various information
+            g = obj.grid;
+            inf = obj.info;
+            disp(['Size of simulation: ', num2str(g.Nx*g.dx), ' wavelengths']);
+            disp(['Number of samples per wavelength: ', num2str(1/g.dx)]);
+            disp(['Relative bandwidth reserved for refractive index map: ', num2str(obj.bandwidth)]);
+            disp(['Smallest feature in refractive index map: ', num2str(g.dx/obj.bandwidth), ' wavelengths']);
+            disp(['Smallest feature in field: ', num2str(g.dx/(1-obj.bandwidth)), ' wavelengths']);
+            disp(['Truncation of Green function causes loss factor of ', num2str(1-min(inf.truncation_loss_P, inf.truncation_loss_g0_k_max)), ' per step']);
+
+            %% Given an estimate for the stability of the simulation
+            %% estimate exponent of divergence by calculating local average of V
+            % the local average is calculated by convolving with |g_x|
+            g_x_abs_f = fft2(abs(ifft2(obj.g0_k)));
+            Vconv = ifft2(fft2(obj.V).*g_x_abs_f/g_x_abs_f(1,1));
+            Vconv_max = max(abs(Vconv(:)));
+            %divergence_homogeneous = abs(p_factor * g0_k_max); 
+            divergence_worst_case = abs(Vconv_max * inf.trunc_g0_k_max); 
+            %disp(['Divergence exponent in homogeneous medium ', num2str(divergence_homogeneous)]);
+            disp(['Divergence exponent, worst case ', num2str(divergence_worst_case)]);
+            disp(['Total divergence single pass ', num2str(divergence_worst_case^(min(g.Nx, g.Ny)*g.dx/obj.epsilon),'%E')]);            
         end;
     end
     methods(Static)
