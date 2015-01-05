@@ -28,8 +28,8 @@ classdef wavesim
             obj.grid = grid;
             obj.epsilon = 1/window_size;
             obj.k = 2*pi/lambda;
-            obj.k_red = obj.k-1.0i*obj.epsilon;
-            V_offset = obj.k_red^2-obj.k^2; %potential needed to convert from k-ieps^2 to k^2
+            obj.k_red = sqrt(obj.k^2 + 2.0i*obj.k*obj.epsilon); %obj.k+1.0i*obj.epsilon;
+            V_offset = obj.k^2-obj.k_red^2; %potential of background medium (n=1)  [remove k_red^2 = potential for which Green function is constructed]
             %% construct bare Green function.
             % The function is the solution for a medium with some
             % attenuation (k -> k-i epsilon).
@@ -52,7 +52,7 @@ classdef wavesim
             g_x = ifft2(obj.g0_k);
             obj.info.full_g0_k_max = max(abs(obj.g0_k(:)));
             obj.info.full_P = wavesim.energy(g_x);
-            threshold = exp(-11);
+            threshold = exp(-15);%11);
             radius_index = find(abs(g_x(1,:))<threshold, 1);
             radius2 = grid.x_range(radius_index)^2;
             f_mask = @(x,y) x.^2+y.^2<radius2;
@@ -68,7 +68,7 @@ classdef wavesim
             % The map is automatically scaled to size Nx-2B, Ny-2B, where
             % B is the boundar y width. The boundary width defaults to 1.5
             % times the window size.
-            B = radius_index*2;
+            B = round(radius_index*1.0)*2;
             obj.V = ones(grid.Ny, grid.Nx); %background refractive index
             obj.V(B+1:end-B, B+1:end-B) = imresize(refractive_index, [grid.Ny-2*B, grid.Nx-2*B]);
             obj.V = (obj.V.^2-1) * obj.k^2 + V_offset; % convert refractive index to potential (remove '0-potential', the potential for which g0_k was constructed) 
@@ -98,48 +98,43 @@ classdef wavesim
             obj.V = ifft2(win2d.*fft2(obj.V));
             obj.first_row = B+1;
         end;
-        function E_tot = exec(obj, source)
+        function E_x = exec(obj, source)
             %% Execute simulation
-            E_tot = 0;
-            E_x = 0;
+            E_x = 0;%ifft2(obj.g0_k.*fft2(full(source)));
             threshold = exp(-35);
-            energy_threshold = 1E-9;
-            en_prev=1;
+            energy_threshold = 1E-11;
+            en=0;
             inter_step=5;
+            B = obj.first_row-1;
+            source(1:B,:)=0;
+            source((end-B):end,:)=0;
+            source(:, 1:B)=0;
+            source(:, (end-B):end)=0;
             for it=1:1000
-                if it<2
-                    E_x = ifft2(obj.g0_k.*fft2(E_x.*obj.V+source));
-                else
-                    E_x = ifft2(obj.g0_k.*fft2(E_x.*obj.V));
-                end;
-                
-                %apply threshold to avoid accumulation of machine precision errors
-                E_x = E_x .* (abs(E_x)>threshold);
-                E_tot = E_tot + E_x;
-
-                if (mod(it,inter_step)==1)
-                    %dispField = bsxfun(@multiply, E_x, reference'); %interesting image: shows scattering
-                    %mean free path?
-                    %imagesc(real(E_x));
-                    %imagesc(log(abs(fft2(E_x)))); colorbar;
-                    imagesc(log(abs(E_x))); colorbar;
-                    %plot(log(abs(E_x(:,end/2))));
-                    %plot(p_range/k, abs(fft(E_x(:,end/2))).^2);
-                    %rgb = imoverlay(mat2gray(abs(scattered)), t<0, [0 1 0], 0.25);
-                    %imshow(rgb, 'InitialMagnification', 'fit');
-                    %en = energy(E_x);
-                    en = 2*real(E_tot(:)'*E_x(:));%energy increase for this step
-                    disp(['Added energy ', num2str(en)]);
-                    if (abs(en) < energy_threshold)
-                        disp('Reached steady state');
+                E_x = ifft2(obj.g0_k.*fft2(source-E_x.*obj.V));
+            %    E_x = E_x .* (abs(E_x)>threshold); %apply threshold to avoid accumulation of machine precision errors. Really needed?
+            %    if (0) %(mod(it,2)==0)
+            %        mask = abs(E_tot+E_x) > abs(E_tot);
+            %        E_x(mask) = 0;
+            %        E_tot = E_tot + E_x;
+            %        clear mask;
+            %    else
+            %        E_tot = E_tot + E_x;
+            %    end;
+                if (mod(it,inter_step)==0)
+                    en_prev = en;
+                    en = wavesim.energy(E_x);
+                    disp(['Added energy ', num2str(en-en_prev)]);
+                    if (abs(en-en_prev) < energy_threshold)
+                        disp(['Reached steady state in ' num2str(it) ' iterations']);
                         break;
                     end;
-                    disp(['Ratio ', num2str((en/en_prev)^(1/(2*inter_step)))]);
-                    en_prev = en;
+                    disp(['Ratio ', num2str(((en-en_prev)/en_prev)^(1/(2*inter_step)))]);
+                    imagesc(log(abs(E_x))); colorbar;
                     title(it); pause(0.5);
                 end;
             end;
-            imagesc(log(abs(E_tot))); colorbar;
+            imagesc(log(abs(E_x))); colorbar;
         end;
         function analyze(obj)
             %% Displays various information
