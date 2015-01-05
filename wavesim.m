@@ -103,10 +103,10 @@ classdef wavesim
             E_tot = 0;
             E_x = 0;
             threshold = exp(-35);
-            energy_threshold = 1E-9;
+            energy_threshold = 1E-11;
             en_prev=1;
             inter_step=5;
-            for it=1:1000
+            for it=1:2000
                 if it<2
                     E_x = ifft2(obj.g0_k.*fft2(E_x.*obj.V+source));
                 else
@@ -134,12 +134,12 @@ classdef wavesim
                         disp('Reached steady state');
                         break;
                     end;
-                    disp(['Ratio ', num2str((en/en_prev)^(1/(2*inter_step)))]);
+                    disp(['Ratio ', num2str((abs(en/en_prev))^(1/(2*inter_step)))]);
                     en_prev = en;
                     title(it); pause(0.5);
                 end;
             end;
-            imagesc(log(abs(E_tot))); colorbar;
+            imagesc(log(abs(E_tot))); title(it); colorbar;
         end;
         function analyze(obj)
             %% Displays various information
