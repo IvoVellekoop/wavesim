@@ -100,8 +100,7 @@ classdef wavesim
         end;
         function E_x = exec(obj, source)
             %% Execute simulation
-            E_x = 0;%ifft2(obj.g0_k.*fft2(full(source)));
-            threshold = exp(-35);
+            E_x = 0;
             energy_threshold = 1E-11;
             en=0;
             inter_step=5;
@@ -112,7 +111,6 @@ classdef wavesim
             source(:, (end-B):end)=0;
             for it=1:1000
                 E_x = ifft2(obj.g0_k.*fft2(source-E_x.*obj.V));
-            %    E_x = E_x .* (abs(E_x)>threshold); %apply threshold to avoid accumulation of machine precision errors. Really needed?
             %    if (0) %(mod(it,2)==0)
             %        mask = abs(E_tot+E_x) > abs(E_tot);
             %        E_x(mask) = 0;
