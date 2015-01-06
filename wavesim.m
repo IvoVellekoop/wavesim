@@ -50,6 +50,7 @@ classdef wavesim
             % First find the distance at which g_x drops below threshold
             % then sets all values outside this radius to 0.
             g_x = ifft2(obj.g0_k);
+            g00 = g_x(1,1);
             obj.info.full_g0_k_max = max(abs(obj.g0_k(:)));
             obj.info.full_P = wavesim.energy(g_x);
             threshold = exp(-15);%11);
@@ -96,29 +97,38 @@ classdef wavesim
             w_y = [zeros(ceil((grid.Ny-width)/2),1); tukeywin(width, 0.125); zeros(floor((grid.Ny-width)/2),1)].';
             win2d = fftshift(bsxfun(@times, w_x, w_y));
             obj.V = ifft2(win2d.*fft2(obj.V));
+            
+            %% t matrix approach
+            disp(max(abs(obj.V(:)))*max(abs(obj.g0_k(:))));
+            mV = mean(obj.V(:));
+            g00 = conj(mV)/abs(mV)*abs(g00);
+            obj.V = obj.V ./ (1+g00*obj.V);
+            obj.g0_k = obj.g0_k - g00;
+            
+            disp(max(abs(obj.V(:)))*max(abs(obj.g0_k(:))));
             obj.first_row = B+1;
         end;
         function E_x = exec(obj, source)
             %% Execute simulation
             E_x = 0;
             energy_threshold = 1E-11;
+            threshold = exp(-20);
             en=0;
-            inter_step=5;
+            inter_step=10;
             B = obj.first_row-1;
             source(1:B,:)=0;
             source((end-B):end,:)=0;
             source(:, 1:B)=0;
             source(:, (end-B):end)=0;
             for it=1:1000
+                E_prev = E_x;
                 E_x = ifft2(obj.g0_k.*fft2(source-E_x.*obj.V));
-            %    if (0) %(mod(it,2)==0)
-            %        mask = abs(E_tot+E_x) > abs(E_tot);
-            %        E_x(mask) = 0;
-            %        E_tot = E_tot + E_x;
-            %        clear mask;
-            %    else
-            %        E_tot = E_tot + E_x;
-            %    end;
+                E_x = (abs(E_x)>threshold) .* E_x;
+               % if (mod(it,2)~=1)
+               %     mask = abs(E_x) > abs(E_prev);
+               %     E_x(mask) = E_prev(mask);
+               %     clear mask;
+               % end;
                 if (mod(it,inter_step)==0)
                     en_prev = en;
                     en = wavesim.energy(E_x);
