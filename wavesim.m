@@ -99,13 +99,13 @@ classdef wavesim
             obj.V = ifft2(win2d.*fft2(obj.V));
             
             %% t matrix approach
-            disp(max(abs(obj.V(:)))*max(abs(obj.g0_k(:))));
-            mV = mean(obj.V(:));
-            g00 = conj(mV)/abs(mV)*abs(g00);
-            obj.V = obj.V ./ (1+g00*obj.V);
-            obj.g0_k = obj.g0_k - g00;
+            %disp(max(abs(obj.V(:)))*max(abs(obj.g0_k(:))));
+            %mV = mean(obj.V(:));
+            %g00 = conj(mV)/abs(mV)*abs(g00);
+            %obj.V = obj.V ./ (1+g00*obj.V);
+            %obj.g0_k = obj.g0_k - g00;
             
-            disp(max(abs(obj.V(:)))*max(abs(obj.g0_k(:))));
+            %disp(max(abs(obj.V(:)))*max(abs(obj.g0_k(:))));
             obj.first_row = B+1;
         end;
         function E_x = exec(obj, source)
