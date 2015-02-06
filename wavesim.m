@@ -71,6 +71,7 @@ classdef wavesim
             
             
             g_x = ifft2(obj.g0_k);
+            g00 = g_x(1,1);
             obj.info.full_g0_k_max = max(abs(obj.g0_k(:)));
             obj.info.full_P = wavesim.energy(g_x);
                         
@@ -135,11 +136,13 @@ classdef wavesim
             w_y = [zeros(ceil((obj.grid.Ny-width)/2),1); tukeywin(width, 0.125); zeros(floor((obj.grid.Ny-width)/2),1)].';
             win2d = fftshift(bsxfun(@times, w_x, w_y));
             obj.V = ifft2(win2d.*fft2(obj.V));
+
                         
             %% applying damping to potential field
             figure(5); imagesc(real(damping)); colorbar;
             
             obj.V = obj.V.*damping;
+
         end;
             
         function [E_x] = exec(obj, source)
@@ -148,9 +151,9 @@ classdef wavesim
             %single pulse source
             E_x = full(source);
             energy_threshold = 1E-11;
+            threshold = exp(-20);
             en=0;
             inter_step=10;
-            
             source = zeros(obj.grid.Ny,obj.grid.Nx);
             
 %             % cw-source
@@ -184,6 +187,7 @@ classdef wavesim
 %                     - conj(obj.g0_k).* (B - VS_k)) ...
 %                     + GS_k + conj(obj.g0_k) .* (C-D));
                 
+
                 if (mod(it,inter_step)==0)
                     toc;
                     en_prev = en;
