@@ -8,7 +8,11 @@ classdef wavesim
         grid; % simgrid object
         bandwidth;
         background; % background mask
-        g_curve
+        g_curve;
+		callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
+		callback_interval; %the callback is called every 'callback_interval' steps. Default = 5
+		energy_threshold; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
+		max_iterations; %or when 'max_iterations' is reached. Default 10000
      %%internal
         k; % wave number
         k_red; % k-i*epsilon
@@ -17,111 +21,79 @@ classdef wavesim
     end
         
     methods
-        function obj=wavesim(refractive_index, bandwidth)
+        function obj=wavesim(refractive_index, pixel_size, lambda, boundary, bandwidth)
+			%% Constructs a wave simulation object
+			%	refractive_index = refractive index map (need not have an average value of 1)
+			%	pixel_size = size of a pixel in the refractive_index map, e.g. in um
+			%   wavelength = free space wavelength (same unit as pixel_size, e. g. um)
+			%	boundary = extra space to add around simulation to simulate absorbing boundaries, in pixels 
+			%
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
+			
+			%% set default options
+			obj.callback = wavesim.default_callback;
+			obj.callback_interval = 5;
+            obj.energy_threshold = 1E-12;
+			obj.max_iterations = 10000;
 
             %% Determine constants based on refractive_index map
-			dx = 1/4; %hard coded: 4 grid points per wavelength
-            lambda = 1;
-            n_min = min(refractive_index(:));
+			n_min = min(refractive_index(:));
             n_max = max(refractive_index(:));
             n_center = sqrt((n_max^2 + n_min^2) / 2); %central refractive index (refractive index that k_r is based on)
             obj.k = n_center * (2*pi/lambda);
             
-			%determine optimum value for epsilon (epsilon = 1/step size)
-            epsmin = (2*pi/lambda)^2 * 0.05;
-            obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2)*1.1;
+			%% determine optimum value for epsilon (epsilon = 1/step size)
+            epsmin = (2*pi/lambda) / (boundary*dx); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
+            obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2) * 1.1; %the factor 1.1 is a safety margin to account for rounding errors.
             obj.k_red = sqrt(obj.k^2 + 1.0i*obj.epsilon);
+		
+			%% setup grid, taking into account required boundary. Pad to next power of 2 when needed
+			obj.grid = simgrid(n_size+2*boundary, pixel_size);
             
-			%% make sure that size is a multiple of 2 (for simgrid), then setup coordinates
-			n_size = ceil(size(refractive_index)/2)*2;
-			refractive_index = padarray(refractive_index, size(refractive_index)-n_size, n_center, 'post');
-            obj.grid = simgrid(n_size(2), n_size(1), dx);
-            disp(['epsilon = ',num2str(obj.epsilon)]);
-      
 			%% Calculate Green function for k_red (reduced k vector)
             f_g0_k = @(px, py) 1./(px.^2+py.^2-obj.k_red^2);
             obj.g0_k = bsxfun(f_g0_k, obj.grid.px_range, obj.grid.py_range);
-
-            %% truncate Green function in x-space to have a finite support
-            % for the convolution.
-            % This operation is slightly lossy!
-            % First find the distance at which g_x drops below threshold
-            % then sets all values outside this radius to 0.
-            threshold = exp(-10);   % threshold amplitude for cutting off the greens function
-            g_x = ifft2(obj.g0_k);
-            g_radius = find(abs(g_x(1,:)) < threshold, 1);
-            % checking grid size if green's function radius will fit
-            % (otherwise new simulation is started with bigger sample)
-            if (g_radius > obj.grid.y_margin) || (g_radius > obj.grid.x_margin)
-                obj = wavesim(padarray(refractive_index, [g_radius, g_radius], n_center),bandwidth);
-                return
-            end            
-            f_mask = @(x,y) x.^2+y.^2 < obj.grid.x_range(g_radius)^2;
-            %%%g_x = g_x .* bsxfun(f_mask, obj.grid.x_range, obj.grid.y_range);
-            %%%obj.g0_k = fft2(g_x);
-            
-            %% Potential map (V==k_r^2-k^2).
-            obj.background = true(obj.grid.Ny,obj.grid.Nx);
-            obj.background(obj.grid.y_margin+1:end-obj.grid.y_margin,obj.grid.x_margin+1:end-obj.grid.x_margin) = false;
-            obj.V = ones(obj.grid.Ny, obj.grid.Nx) * (obj.k^2-obj.k_red^2);
-            obj.V(~obj.background) = (refractive_index*2*pi/lambda).^2-obj.k_red^2;
-            
-            %% defining damping curve
-            obj.g_curve = 1-linspace(0,1,g_radius).^2;
-            damping_x = [ zeros(1,obj.grid.x_margin-g_radius), obj.g_curve(end:-1:1),...
-                         ones(1,obj.grid.Nx - 2*obj.grid.x_margin),...
-                         obj.g_curve, zeros(1,obj.grid.x_margin-g_radius)];
-            
-            damping_y = [ zeros(1,obj.grid.y_margin-g_radius), obj.g_curve(end:-1:1),...
-                         ones(1,obj.grid.Ny - 2*obj.grid.y_margin),...
-                         obj.g_curve, zeros(1,obj.grid.y_margin-g_radius)];        
-        
-            damping = damping_y' * damping_x;         
+      
+            %% Potential map (V==k_r^2-k^2). (First pad refractive index map)
+            refractive_index = padarray(refractive_index, obj.grid.N-size(refractive_index), n_center, 'post');
+            obj.V = (refractive_index*2*pi/lambda).^2-obj.k_red^2;
              
             %% Low pass filter potential function V
             obj.bandwidth = bandwidth;
-            width = round(min(obj.grid.Nx, obj.grid.Ny)*bandwidth);
-            w_x = [zeros(ceil((obj.grid.Nx-width)/2),1); tukeywin(width, 0.125); zeros(floor((obj.grid.Nx-width)/2),1)];
-            w_y = [zeros(ceil((obj.grid.Ny-width)/2),1); tukeywin(width, 0.125); zeros(floor((obj.grid.Ny-width)/2),1)].';
-            win2d = fftshift(bsxfun(@times, w_x, w_y));
+            width = round(min(obj.grid.N)*bandwidth/2)*2;
+            win2d = tukeywin(width, 0.125) * tukeywin(width, 0.125).';
+            win2d = fftshift(padarray(win2d, obj.grid.N-size(win2d), 0));
             obj.V = ifft2(win2d.*fft2(obj.V));
-            obj.V = obj.V.*damping;
+            
+			%% defining damping curve
+            obj.g_curve = 1-linspace(0, 1, obj.grid.x_padding).^2;
+            damping_x = [ ones(1, obj.grid.N(2)-obj.grid.padding(2)), obj.g_curve, obj.g_curve(end:-1:1)];
+            damping_y = [ ones(1, obj.grid.N(1)-obj.grid.padding(1)), obj.g_curve, obj.g_curve(end:-1:1)];
+            obj.V = obj.V * damping_y' * damping_x;         
+			keyboard;
         end;
             
         function [E_x] = exec(obj, source)
             %% Execute simulation
             E_x = 0;
-            energy_threshold = 1E-12;
-            en=0;
-            inter_step=5;
             source(obj.background) = 0;
                         
-            tic;
-            N_it = 10000;
-            en_all = zeros(1,N_it/inter_step);
-            for it=1:N_it
-				%E_x = ifft2(obj.g0_k .* fft2(obj.V.*E_x+source));
+            en_all = zeros(1, obj.max_iterations);
+            for it=1:obj.max_iterations
+				%% perform the iteration
+				%old method: E_x = ifft2(obj.g0_k .* fft2(obj.V.*E_x+source));
                 E_a = ifft2(obj.g0_k .* fft2(obj.V.*E_x+source));
-				E_x = ifft2(conj(obj.g0_k) .* fft2(conj(obj.V).*(E_x-E_a))) + E_a;       
-                if (mod(it,inter_step)==0)
-                    toc;
-                    en_prev = en;
-                    en = wavesim.energy(E_x);
-                    en_all(it/inter_step)=en;
-                  plot(en_all); title(it); pause(0.1);
-                    disp(['Added energy ', num2str(en-en_prev)]);
-                    if (abs(en-en_prev) < energy_threshold)
-                        disp(['Reached steady state in ' num2str(it) ' iterations']);
-                        break;
-                    end;
-                    disp(['Ratio ', num2str(((en-en_prev)/en_prev)^(1/(2*inter_step)))]);
-                    %plot(real(E_x(:,end/2)));title(it);pause(0.1);
-                    %imagesc(((real(E_x)))); colorbar; title(it); pause(0.1);
-                    tic;
+				E_x = ifft2(conj(obj.g0_k) .* fft2(conj(obj.V).*(E_x-E_a))) + E_a;
+        
+				en_all(it) = wavesim.energy(E_x);
+				if (mod(it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
+					obj.callback(E_x, en_all(1:it));
+				end;
+                if (abs(en_all(end)-en(all(end-1))) < obj.energy_threshold) %abort when threshold is reached
+                    disp(['Reached steady state in ' num2str(it) ' iterations']);
+                    break;
                 end;
-            end;
-            
+            end;            
         end;
         
         function analyze(obj)
@@ -151,6 +123,14 @@ classdef wavesim
     methods(Static)
         function en = energy(E_x)
             en= E_x(:)' * E_x(:);
+        end;
+		
+		%default callback function. Shows real value of field, and total energy evolution
+		function default_callback(E_x, energy)
+		    subplot(2,1,2); plot(real(E_x(:,end/2)));
+			subplot(2,1,1); plot(energy); title(it);
+			disp(['Added energy ', num2str(energy(end)-energy(end-1))]); 
+			drawnow;
         end;
     end
 end

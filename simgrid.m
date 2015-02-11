@@ -13,23 +13,23 @@ classdef simgrid
         py_range % grid point coordinates in Fourier transformed y-dimension
     end
     methods
-       function obj = simgrid(Nx, Ny, dx)
+       function obj = simgrid(min_size, dx)
             % Construct a wave simulation grid object with specified width,
-            % height, and resolution. Nx and Ny must be even.
-            %% setup coordinates
-            obj.Nx = 2^nextpow2(Nx);
-            obj.Ny = 2^nextpow2(Ny);
-            obj.x_margin = (obj.Nx - Nx)/2;
-            obj.y_margin = (obj.Ny - Ny)/2;
-  
+            % min_size = [height,width], minimum required size (will be rounded up)
+			% dx = step size of grid (in arbitrary units)
+			%% setup coordinates
+            obj.N = 2^nextpow2(min_size);
+            obj.padding = obj.N - min_size; %total amoung of padding. Usually placed at right and bottom sides only (non-centric)
             obj.dx = dx;
-            obj.x_range = fftshift(-obj.Nx/2:obj.Nx/2-1)*dx;
-            obj.y_range = fftshift(-obj.Ny/2:obj.Ny/2-1).'*dx;
-            obj.px_range = 2*pi*fftshift(-obj.Nx/2:obj.Nx/2-1)/(dx*obj.Nx);
-            obj.py_range = 2*pi*fftshift(-obj.Ny/2:obj.Ny/2-1).'/(dx*obj.Ny);
-            
-            disp(['data size set to [',num2str(obj.Nx),',',num2str(obj.Ny),']']);
+            obj.x_range = simgrid.symrange(obj.N(2))*dx;
+            obj.y_range = simgrid.symrange(obj.N(1)).'*dx;
+            obj.px_range = 2*pi*simgrid.symrange(obj.N(2))/(dx*obj.Nx);
+            obj.py_range = 2*pi*simgrid.symrange(obj.N(1)).'/(dx*obj.Ny);
        end
+	methods(Static)
+		function range = symrange(N)
+			return fftshift(-N/2:N/2-1);
+		end;
     end
 end
 
