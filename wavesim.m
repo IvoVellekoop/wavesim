@@ -56,16 +56,13 @@ classdef wavesim
       
             %% Potential map (V==k_r^2-k^2). (First pad refractive index map)
             refractive_index = padarray(refractive_index, obj.grid.N-size(refractive_index), n_center, 'post');
-            obj.V = ones(obj.grid.Ny, obj.grid.Nx) * (obj.k^2-obj.k_red^2);
-            obj.V(1:size(refractive_index,1), 1:size(refractive_index,2)) = (refractive_index*2*pi/lambda).^2-obj.k_red^2;
-            
+            obj.V = (refractive_index*2*pi/lambda).^2-obj.k_red^2;
              
             %% Low pass filter potential function V
             obj.bandwidth = bandwidth;
-            width = round(min(obj.grid.N)*bandwidth);
-            w_x = [zeros(ceil((obj.grid.N(2)-width)/2),1); tukeywin(width, 0.125); zeros(floor((obj.grid.N(2)-width)/2),1)];
-            w_y = [zeros(ceil((obj.grid.N(1)-width)/2),1); tukeywin(width, 0.125); zeros(floor((obj.grid.N(1)-width)/2),1)].';
-            win2d = fftshift(bsxfun(@times, w_x, w_y));
+            width = round(min(obj.grid.N)*bandwidth/2)*2;
+            win2d = tukeywin(width, 0.125) * tukeywin(width, 0.125).';
+            win2d = fftshift(padarray(win2d, obj.grid.N-size(win2d), 0));
             obj.V = ifft2(win2d.*fft2(obj.V));
             
 			%% defining damping curve
@@ -73,6 +70,7 @@ classdef wavesim
             damping_x = [ ones(1, obj.grid.N(2)-obj.grid.padding(2)), obj.g_curve, obj.g_curve(end:-1:1)];
             damping_y = [ ones(1, obj.grid.N(1)-obj.grid.padding(1)), obj.g_curve, obj.g_curve(end:-1:1)];
             obj.V = obj.V * damping_y' * damping_x;         
+			keyboard;
         end;
             
         function [E_x] = exec(obj, source)
