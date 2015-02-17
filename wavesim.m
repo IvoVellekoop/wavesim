@@ -21,7 +21,7 @@ classdef wavesim
     end
         
     methods
-        function obj=wavesim(refractive_index, pixel_size, lambda, boundary, bandwidth)
+        function obj=wavesim(refractive_index, pixel_size, lambda, boundary, bandwidth, epsilon)
 			%% Constructs a wave simulation object
 			%	refractive_index = refractive index map (need not have an average value of 1)
 			%	pixel_size = size of a pixel in the refractive_index map, e.g. in um
@@ -48,6 +48,9 @@ classdef wavesim
             obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2) * 1.35; %the factor 1.1 is a safety margin to account for rounding errors.
             obj.k_red2 = obj.k^2 + 1.0i*obj.epsilon; %k reduced squared
             
+            if exist('epsilon','var')
+                obj.epsilon = epsilon
+            end
 			%% setup grid, taking into account required boundary. Pad to next power of 2 when needed
 			obj.grid = simgrid(size(refractive_index)+2*boundary, pixel_size);
             
