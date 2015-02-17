@@ -8,14 +8,14 @@ classdef wavesim
         grid; % simgrid object
         bandwidth;
         background; % background mask
-        g_curve;
-		callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
+		gpuEnabled; % logical to check if simulation are ran on the GPU (default: false)
+        callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
 		callback_interval; %the callback is called every 'callback_interval' steps. Default = 5
 		energy_threshold; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
 		max_iterations; %or when 'max_iterations' is reached. Default 10000
      %%internal
         k; % wave number
-        k_red; % k-i*epsilon
+        k_red2; % k0^2+i*epsilon
         epsilon; % 1/'window size'
         g0_k; % bare Green's function used in simulation
     end
@@ -31,11 +31,12 @@ classdef wavesim
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
 			
 			%% set default options
-			obj.callback = wavesim.default_callback;
-			obj.callback_interval = 5;
-            obj.energy_threshold = 1E-12;
-			obj.max_iterations = 10000;
-
+			obj.callback = @wavesim.default_callback;
+			obj.callback_interval = 1000;
+            obj.energy_threshold = 1E-15;
+			obj.max_iterations = 100000;
+            obj.gpuEnabled = false;
+            
             %% Determine constants based on refractive_index map
 			n_min = min(refractive_index(:));
             n_max = max(refractive_index(:));
@@ -43,57 +44,84 @@ classdef wavesim
             obj.k = n_center * (2*pi/lambda);
             
 			%% determine optimum value for epsilon (epsilon = 1/step size)
-            epsmin = (2*pi/lambda) / (boundary*dx); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
-            obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2) * 1.1; %the factor 1.1 is a safety margin to account for rounding errors.
-            obj.k_red = sqrt(obj.k^2 + 1.0i*obj.epsilon);
-		
+            epsmin = (2*pi/lambda) / (boundary*pixel_size); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
+            obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2) * 1.35; %the factor 1.1 is a safety margin to account for rounding errors.
+            obj.k_red2 = obj.k^2 + 1.0i*obj.epsilon; %k reduced squared
+            
 			%% setup grid, taking into account required boundary. Pad to next power of 2 when needed
-			obj.grid = simgrid(n_size+2*boundary, pixel_size);
+			obj.grid = simgrid(size(refractive_index)+2*boundary, pixel_size);
             
 			%% Calculate Green function for k_red (reduced k vector)
-            f_g0_k = @(px, py) 1./(px.^2+py.^2-obj.k_red^2);
+            f_g0_k = @(px, py) 1./(px.^2+py.^2-obj.k_red2);
             obj.g0_k = bsxfun(f_g0_k, obj.grid.px_range, obj.grid.py_range);
-      
+            
             %% Potential map (V==k_r^2-k^2). (First pad refractive index map)
             refractive_index = padarray(refractive_index, obj.grid.N-size(refractive_index), n_center, 'post');
-            obj.V = (refractive_index*2*pi/lambda).^2-obj.k_red^2;
+            obj.V = (refractive_index*2*pi/lambda).^2-obj.k_red2;
              
             %% Low pass filter potential function V
             obj.bandwidth = bandwidth;
             width = round(min(obj.grid.N)*bandwidth/2)*2;
             win2d = tukeywin(width, 0.125) * tukeywin(width, 0.125).';
-            win2d = fftshift(padarray(win2d, obj.grid.N-size(win2d), 0));
+            win2d = fftshift(padarray(win2d, (obj.grid.N-size(win2d))/2, 0));
             obj.V = ifft2(win2d.*fft2(obj.V));
             
 			%% defining damping curve
-            obj.g_curve = 1-linspace(0, 1, obj.grid.x_padding).^2;
-            damping_x = [ ones(1, obj.grid.N(2)-obj.grid.padding(2)), obj.g_curve, obj.g_curve(end:-1:1)];
-            damping_y = [ ones(1, obj.grid.N(1)-obj.grid.padding(1)), obj.g_curve, obj.g_curve(end:-1:1)];
-            obj.V = obj.V * damping_y' * damping_x;         
-			keyboard;
+            d_curve = 1-linspace(0, 1, boundary).^2;
+            damping_x = [ ones(1, obj.grid.N(2)-obj.grid.padding(2)-2*boundary), d_curve, zeros(1, obj.grid.padding(2)), d_curve(end:-1:1)];
+            damping_y = [ ones(1, obj.grid.N(1)-obj.grid.padding(1)-2*boundary), d_curve, zeros(1, obj.grid.padding(1)), d_curve(end:-1:1)];
+            
+            obj.V = obj.V .* (damping_y' * damping_x);
+            obj.background = damping_y' * damping_x < 1;
         end;
             
         function [E_x] = exec(obj, source)
             %% Execute simulation
-            E_x = 0;
+            [a,b] = size(source);
+            
+            % Scaling source size to grid size            
+            source = padarray(source,obj.grid.N - size(source), 'post');
             source(obj.background) = 0;
-                        
-            en_all = zeros(1, obj.max_iterations);
-            for it=1:obj.max_iterations
-				%% perform the iteration
-				%old method: E_x = ifft2(obj.g0_k .* fft2(obj.V.*E_x+source));
-                E_a = ifft2(obj.g0_k .* fft2(obj.V.*E_x+source));
-				E_x = ifft2(conj(obj.g0_k) .* fft2(conj(obj.V).*(E_x-E_a))) + E_a;
-        
-				en_all(it) = wavesim.energy(E_x);
+
+            %% Check whether gpu computation option is enabled
+            if obj.gpuEnabled
+                E_x = zeros(size(source),'gpuArray');
+                E_k = zeros(size(source),'gpuArray');
+                obj.g0_k = gpuArray(obj.g0_k);
+                obj.V = gpuArray(obj.V);
+                source = gpuArray(source);
+                en_all = zeros(1, obj.max_iterations,'gpuArray');
+            else
+                E_x = 0;
+                en_all = zeros(1, obj.max_iterations);
+            end
+            
+            %% simulation iterations
+             for it=1:obj.max_iterations
+% 				old method: 
+%                E_x = ifft2(obj.g0_k .* fft2(obj.V.*E_x+source));
+%                 E_a = ifft2(obj.g0_k .* fft2(obj.V.*E_x+source));
+% 				E_x = ifft2(conj(obj.g0_k) .* fft2(conj(obj.V).*(E_x-E_a))) + E_a;
+                
+                E_k = obj.g0_k .* fft2(obj.V.*E_x + source);
+                E_x = ifft2(E_k) + conj(obj.V) .* ifft2(conj(obj.g0_k) .* (fft2(E_x) - E_k));
+                
+                en_all(it) = wavesim.energy(E_x);
 				if (mod(it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
-					obj.callback(E_x, en_all(1:it));
+					obj.callback(E_x, en_all(1:it), b/2);
 				end;
-                if (abs(en_all(end)-en(all(end-1))) < obj.energy_threshold) %abort when threshold is reached
+                
+                if it>100 && (abs(en_all(it)-en_all(it-1)) > 1e3 || isnan(abs(en_all(it)-en_all(it-1)))) % abort when simulation increased too much
+                    disp('simulation diverged');
+                    break;
+                end
+                    
+                if (it>100 && abs(en_all(it)-en_all(it-1)) < obj.energy_threshold) %abort when threshold is reached
                     disp(['Reached steady state in ' num2str(it) ' iterations']);
                     break;
                 end;
-            end;            
+            end;
+            E_x = gather(E_x(1:a,1:b));
         end;
         
         function analyze(obj)
@@ -122,13 +150,14 @@ classdef wavesim
     end
     methods(Static)
         function en = energy(E_x)
-            en= E_x(:)' * E_x(:);
+            en= sum(abs(E_x(:)).^2);
         end;
 		
 		%default callback function. Shows real value of field, and total energy evolution
-		function default_callback(E_x, energy)
-		    subplot(2,1,2); plot(real(E_x(:,end/2)));
-			subplot(2,1,1); plot(energy); title(it);
+		function default_callback(E_x, energy, cross_section)		    
+			subplot(2,1,1); plot(energy); title(length(energy));
+            subplot(2,1,2); plot(real(E_x(:,cross_section)));
+% 			subplot(2,1,2); imagesc(real(E_x));
 			disp(['Added energy ', num2str(energy(end)-energy(end-1))]); 
 			drawnow;
         end;
