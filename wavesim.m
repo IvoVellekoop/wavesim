@@ -33,7 +33,7 @@ classdef wavesim
 			%% set default options
 			obj.callback = @wavesim.default_callback;
 			obj.callback_interval = 1000;
-            obj.energy_threshold = 1E-15;
+            obj.energy_threshold = 1E-9; % fraction of initially added energy
 			obj.max_iterations = 100000;
             obj.gpuEnabled = false;
             
@@ -45,12 +45,14 @@ classdef wavesim
             
 			%% determine optimum value for epsilon (epsilon = 1/step size)
             epsmin = (2*pi/lambda) / (boundary*pixel_size); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
-            obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2) * 1.35; %the factor 1.1 is a safety margin to account for rounding errors.
-            obj.k_red2 = obj.k^2 + 1.0i*obj.epsilon; %k reduced squared
+            obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2) * 1.25; %the factor 1.1 is a safety margin to account for rounding errors.
             
-            if exist('epsilon','var')
-                obj.epsilon = epsilon
+            if exist('epsilon','var') % check if epsilon is given
+                obj.epsilon = epsilon;
             end
+            
+            obj.k_red2 = obj.k^2 + 1.0i*obj.epsilon; %k reduced squared
+                        
 			%% setup grid, taking into account required boundary. Pad to next power of 2 when needed
 			obj.grid = simgrid(size(refractive_index)+2*boundary, pixel_size);
             
@@ -78,12 +80,11 @@ classdef wavesim
             obj.background = damping_y' * damping_x < 1;
         end;
             
-        function [E_x] = exec(obj, source)
-            %% Execute simulation
+        function [E_x,success] = exec(obj, source)
+            %% Execute simulation 
+            % Scaling source size to grid size
             [a,b] = size(source);
-            
-            % Scaling source size to grid size            
-            source = padarray(source,obj.grid.N - size(source), 'post');
+            source = padarray(source,obj.grid.N - [a,b], 'post');
             source(obj.background) = 0;
 
             %% Check whether gpu computation option is enabled
@@ -92,39 +93,42 @@ classdef wavesim
                 E_k = zeros(size(source),'gpuArray');
                 obj.g0_k = gpuArray(obj.g0_k);
                 obj.V = gpuArray(obj.V);
-                source = gpuArray(source);
+                source = gpuArray(full(source)); % gpu does not support sparse matrices
                 en_all = zeros(1, obj.max_iterations,'gpuArray');
             else
                 E_x = 0;
                 en_all = zeros(1, obj.max_iterations);
             end
             
+            success = true;
             %% simulation iterations
              for it=1:obj.max_iterations
-% 				old method: 
-%                E_x = ifft2(obj.g0_k .* fft2(obj.V.*E_x+source));
-%                 E_a = ifft2(obj.g0_k .* fft2(obj.V.*E_x+source));
-% 				E_x = ifft2(conj(obj.g0_k) .* fft2(conj(obj.V).*(E_x-E_a))) + E_a;
-                
+                E_old = E_x; % previous iteration
                 E_k = obj.g0_k .* fft2(obj.V.*E_x + source);
                 E_x = ifft2(E_k) + conj(obj.V) .* ifft2(conj(obj.g0_k) .* (fft2(E_x) - E_k));
                 
-                en_all(it) = wavesim.energy(E_x);
-				if (mod(it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
-					obj.callback(E_x, en_all(1:it), b/2);
+                en_all(it) = wavesim.energy(E_x - E_old);
+                
+                if it == 1 % after first iteration the energy threshold is determined
+                    threshold = obj.energy_threshold * en_all(1);
+                end
+                
+				if (mod(it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback					
+                    obj.callback(E_x(:,b/2), en_all(1:it), threshold);
 				end;
                 
-                if it>100 && (abs(en_all(it)-en_all(it-1)) > 1e3 || isnan(abs(en_all(it)-en_all(it-1)))) % abort when simulation increased too much
+                if it>100 && (abs(en_all(it) > 10 * en_all(1) || isnan(abs(en_all(it))))) % abort when added energy is more than 10 times the initial added energy
                     disp('simulation diverged');
+                    success = false;
                     break;
                 end
                     
-                if (it>100 && abs(en_all(it)-en_all(it-1)) < obj.energy_threshold) %abort when threshold is reached
+                if it>100 && abs(en_all(it)) < obj.energy_threshold * en_all(1) % simulation finished when energy threshold is reached
                     disp(['Reached steady state in ' num2str(it) ' iterations']);
                     break;
                 end;
             end;
-            E_x = gather(E_x(1:a,1:b));
+            E_x = gather(E_x);
         end;
         
         function analyze(obj)
@@ -157,11 +161,14 @@ classdef wavesim
         end;
 		
 		%default callback function. Shows real value of field, and total energy evolution
-		function default_callback(E_x, energy, cross_section)		    
-			subplot(2,1,1); plot(energy); title(length(energy));
-            subplot(2,1,2); plot(real(E_x(:,cross_section)));
-% 			subplot(2,1,2); imagesc(real(E_x));
-			disp(['Added energy ', num2str(energy(end)-energy(end-1))]); 
+		function default_callback(E_cross, energy, threshold)		    
+			subplot(2,1,1); plot(1:length(energy),log10(energy),'b',[1,length(energy)],log10(threshold)*ones(1,2),'--r'); 
+            title(length(energy));  xlabel('# iterations'); ylabel('log(energy added)');
+            
+            subplot(2,1,2); plot(real(E_cross)); title('midline cross-section')
+            xlabel('y (\lambda / 4)'); ylabel('real(E_x)');
+			
+            disp(['Added energy ', num2str(energy(end))]); 
 			drawnow;
         end;
     end
