@@ -34,7 +34,7 @@ classdef wavesim
 			obj.callback = @wavesim.default_callback;
 			obj.callback_interval = 1000;
             obj.energy_threshold = 1E-9; % fraction of initially added energy
-			obj.max_iterations = 100000;
+			obj.max_iterations = 200000;
             obj.gpuEnabled = false;
             
             %% Determine constants based on refractive_index map
@@ -45,7 +45,7 @@ classdef wavesim
             
 			%% determine optimum value for epsilon (epsilon = 1/step size)
             epsmin = (2*pi/lambda) / (boundary*pixel_size); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
-            obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2) * 1.25; %the factor 1.1 is a safety margin to account for rounding errors.
+            obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2) * 1.3; %the factor 1.1 is a safety margin to account for rounding errors.
             
             if exist('epsilon','var') % check if epsilon is given
                 obj.epsilon = epsilon;
@@ -104,8 +104,8 @@ classdef wavesim
             %% simulation iterations
              for it=1:obj.max_iterations
                 E_old = E_x; % previous iteration
-                E_k = obj.g0_k .* fft2(obj.V.*E_x + source);
-                E_x = ifft2(E_k) + conj(obj.V) .* ifft2(conj(obj.g0_k) .* (fft2(E_x) - E_k));
+                E_ak = obj.g0_k .* fft2(obj.V.*E_x + source);
+                E_x = ifft2(E_ak) + conj(obj.V) .* ifft2(conj(obj.g0_k) .* (fft2(E_x) - E_ak));
                 
                 en_all(it) = wavesim.energy(E_x - E_old);
                 
@@ -114,7 +114,7 @@ classdef wavesim
                 end
                 
 				if (mod(it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback					
-                    obj.callback(E_x(:,b/2), en_all(1:it), threshold);
+                    obj.callback(E_x(:,round(b/2)), en_all(1:it), threshold);
 				end;
                 
                 if it>100 && (abs(en_all(it) > 10 * en_all(1) || isnan(abs(en_all(it))))) % abort when added energy is more than 10 times the initial added energy
