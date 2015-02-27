@@ -37,6 +37,20 @@ classdef wavesim
 			obj.max_iterations = 200000;
             obj.gpuEnabled = false;
             
+            %% setup grid, taking into account required boundary. Pad to next power of 2 when needed
+			obj.grid = simgrid(size(refractive_index)+2*boundary, pixel_size);
+            
+            %% padding refractive index to match simulation grid           
+            refractive_index = padarray(refractive_index, (2*boundary+obj.grid.padding)/2, 'replicate', 'both');
+            refractive_index = circshift(refractive_index,-(2*boundary+obj.grid.padding)/2);
+            
+            %% Low pass filter refractive index
+            obj.bandwidth = bandwidth;
+            width = round(min(obj.grid.N)*bandwidth/2)*2;
+            win2d = tukeywin(width, 0.125) * tukeywin(width, 0.125).';
+            win2d = fftshift(padarray(win2d, (obj.grid.N-size(win2d))/2, 0));
+            refractive_index = ifft2(win2d.*fft2(refractive_index));
+            
             %% Determine constants based on refractive_index map
 			n_min = min(refractive_index(:));
             n_max = max(refractive_index(:));
@@ -45,33 +59,22 @@ classdef wavesim
             
 			%% determine optimum value for epsilon (epsilon = 1/step size)
             epsmin = (2*pi/lambda) / (boundary*pixel_size); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
-            obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2) * 1.3; %the factor 1.1 is a safety margin to account for rounding errors.
+            obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2); %the factor 1.1 is a safety margin to account for rounding errors.
             
             if exist('epsilon','var') % check if epsilon is given
                 obj.epsilon = epsilon;
             end
             
-            obj.k_red2 = obj.k^2 + 1.0i*obj.epsilon; %k reduced squared
-                        
-			%% setup grid, taking into account required boundary. Pad to next power of 2 when needed
-			obj.grid = simgrid(size(refractive_index)+2*boundary, pixel_size);
+            obj.k_red2 = obj.k^2 + 1.0i*obj.epsilon; %k reduced squared                        
             
 			%% Calculate Green function for k_red (reduced k vector)
             f_g0_k = @(px, py) 1./(px.^2+py.^2-obj.k_red2);
             obj.g0_k = bsxfun(f_g0_k, obj.grid.px_range, obj.grid.py_range);
             
-            %% Potential map (V==k_r^2-k^2). (First pad refractive index map)
-            refractive_index = padarray(refractive_index, obj.grid.N-size(refractive_index), n_center, 'post');
-            obj.V = (refractive_index*2*pi/lambda).^2-obj.k_red2;
-             
-            %% Low pass filter potential function V
-            obj.bandwidth = bandwidth;
-            width = round(min(obj.grid.N)*bandwidth/2)*2;
-            win2d = tukeywin(width, 0.125) * tukeywin(width, 0.125).';
-            win2d = fftshift(padarray(win2d, (obj.grid.N-size(win2d))/2, 0));
-            obj.V = ifft2(win2d.*fft2(obj.V));
-            
-			%% defining damping curve
+            %% Potential map (V==k^2-k_r^2). (First pad refractive index map)            
+            obj.V = (refractive_index*2*pi/lambda).^2-obj.k_red2;                        
+                       
+			%% Absorbing boundaries
             d_curve = 1-linspace(0, 1, boundary).^2;
             damping_x = [ ones(1, obj.grid.N(2)-obj.grid.padding(2)-2*boundary), d_curve, zeros(1, obj.grid.padding(2)), d_curve(end:-1:1)];
             damping_y = [ ones(1, obj.grid.N(1)-obj.grid.padding(1)-2*boundary), d_curve, zeros(1, obj.grid.padding(1)), d_curve(end:-1:1)];
