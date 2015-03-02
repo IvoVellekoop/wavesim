@@ -34,7 +34,7 @@ classdef wavesim
 			obj.callback = @wavesim.default_callback;
 			obj.callback_interval = 1000;
             obj.energy_threshold = 1E-9; % fraction of initially added energy
-			obj.max_iterations = 200000;
+			obj.max_iterations = 500000;
             obj.gpuEnabled = false;
             
             %% setup grid, taking into account required boundary. Pad to next power of 2 when needed
@@ -93,7 +93,6 @@ classdef wavesim
             %% Check whether gpu computation option is enabled
             if obj.gpuEnabled
                 E_x = zeros(size(source),'gpuArray');
-                E_k = zeros(size(source),'gpuArray');
                 obj.g0_k = gpuArray(obj.g0_k);
                 obj.V = gpuArray(obj.V);
                 source = gpuArray(full(source)); % gpu does not support sparse matrices
