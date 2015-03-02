@@ -32,9 +32,9 @@ classdef wavesim
 			
 			%% set default options
 			obj.callback = @wavesim.default_callback;
-			obj.callback_interval = 1000;
+			obj.callback_interval = 10;
             obj.energy_threshold = 1E-9; % fraction of initially added energy
-			obj.max_iterations = 500000;
+			obj.max_iterations = 100000;
             obj.gpuEnabled = false;
             
             %% setup grid, taking into account required boundary. Pad to next power of 2 when needed
@@ -49,7 +49,7 @@ classdef wavesim
             width = round(min(obj.grid.N)*bandwidth/2)*2;
             win2d = tukeywin(width, 0.125) * tukeywin(width, 0.125).';
             win2d = fftshift(padarray(win2d, (obj.grid.N-size(win2d))/2, 0));
-            refractive_index = ifft2(win2d.*fft2(refractive_index));
+            refractive_index = real(ifft2(win2d.*fft2(refractive_index))); %we don't want to add an imaginary part to the refractive index
             
             %% Determine constants based on refractive_index map
 			n_min = min(refractive_index(:));
@@ -60,7 +60,6 @@ classdef wavesim
 			%% determine optimum value for epsilon (epsilon = 1/step size)
             epsmin = (2*pi/lambda) / (boundary*pixel_size); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
             obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2); %the factor 1.1 is a safety margin to account for rounding errors.
-            
             if exist('epsilon','var') % check if epsilon is given
                 obj.epsilon = epsilon;
             end
@@ -104,11 +103,13 @@ classdef wavesim
             
             success = true;
             %% simulation iterations
-             for it=1:obj.max_iterations
+            for it=1:obj.max_iterations
                 E_old = E_x; % previous iteration
-                E_ak = obj.g0_k .* fft2(obj.V.*E_x + source);
-                E_x = ifft2(E_ak) + conj(obj.V) .* ifft2(conj(obj.g0_k) .* (fft2(E_x) - E_ak));
-                
+               % E_ak = obj.g0_k .* fft2(obj.V.*E_x + source);
+               % E_x = ifft2(E_ak) + conj(obj.V) .* ifft2(conj(obj.g0_k) .* (fft2(E_x) - E_ak));
+               % experimental new method:
+                E_x = E_x - 1.0i/(sqrt(2)*obj.epsilon)*obj.V .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x + source)));
+               
                 en_all(it) = wavesim.energy(E_x - E_old);
                 
                 if it == 1 % after first iteration the energy threshold is determined
