@@ -34,7 +34,7 @@ classdef wavesim
 			obj.callback = @wavesim.default_callback;
 			obj.callback_interval = 10;
             obj.energy_threshold = 1E-9; % fraction of initially added energy
-			obj.max_iterations = 100000;
+			obj.max_iterations = 500;
             obj.gpuEnabled = false;
             
             %% setup grid, taking into account required boundary. Pad to next power of 2 when needed
@@ -47,7 +47,7 @@ classdef wavesim
             %% Low pass filter refractive index
             obj.bandwidth = bandwidth;
             width = round(min(obj.grid.N)*bandwidth/2)*2;
-            win2d = tukeywin(width, 0.125) * tukeywin(width, 0.125).';
+            win2d = gausswin(width) * gausswin(width).';
             win2d = fftshift(padarray(win2d, (obj.grid.N-size(win2d))/2, 0));
             refractive_index = real(ifft2(win2d.*fft2(refractive_index))); %we don't want to add an imaginary part to the refractive index
             
@@ -56,14 +56,14 @@ classdef wavesim
             n_max = max(refractive_index(:));
             n_center = sqrt((n_max^2 + n_min^2) / 2); %central refractive index (refractive index that k_r is based on)
             obj.k = n_center * (2*pi/lambda);
-            
+
 			%% determine optimum value for epsilon (epsilon = 1/step size)
             epsmin = (2*pi/lambda) / (boundary*pixel_size); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
-            obj.epsilon = max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2); %the factor 1.1 is a safety margin to account for rounding errors.
+            obj.epsilon = 2*max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2); %the factor 1.1 is a safety margin to account for rounding errors.
             if exist('epsilon','var') % check if epsilon is given
                 obj.epsilon = epsilon;
-            end
-            
+            end            
+
             obj.k_red2 = obj.k^2 + 1.0i*obj.epsilon; %k reduced squared                        
             
 			%% Calculate Green function for k_red (reduced k vector)
@@ -72,7 +72,7 @@ classdef wavesim
             
             %% Potential map (V==k^2-k_r^2). (First pad refractive index map)            
             obj.V = (refractive_index*2*pi/lambda).^2-obj.k_red2;                        
-                       
+
 			%% Absorbing boundaries
             d_curve = 1-linspace(0, 1, boundary).^2;
             damping_x = [ ones(1, obj.grid.N(2)-obj.grid.padding(2)-2*boundary), d_curve, zeros(1, obj.grid.padding(2)), d_curve(end:-1:1)];
@@ -109,8 +109,12 @@ classdef wavesim
                % E_x = ifft2(E_ak) + conj(obj.V) .* ifft2(conj(obj.g0_k) .* (fft2(E_x) - E_ak));
                % experimental new method:
                 E_x = E_x - 1.0i/(sqrt(2)*obj.epsilon)*obj.V .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x + source)));
-               
+
                 en_all(it) = wavesim.energy(E_x - E_old);
+                
+                W = 20;
+                d = 50;
+                E_x(a/3 + [-d/2:d/2],[1:b/2-40-W/2,b/2-40+W/2:b/2+40-W/2,b/2+40+W/2:b]) = 0;               
                 
                 if it == 1 % after first iteration the energy threshold is determined
                     threshold = obj.energy_threshold * en_all(1);
