@@ -34,7 +34,7 @@ classdef wavesim
 			obj.callback = @wavesim.default_callback;
 			obj.callback_interval = 10;
             obj.energy_threshold = 1E-9; % fraction of initially added energy
-			obj.max_iterations = 500;
+			obj.max_iterations = 10000;
             obj.gpuEnabled = false;
             
             %% setup grid, taking into account required boundary. Pad to next power of 2 when needed
@@ -111,10 +111,6 @@ classdef wavesim
                 E_x = E_x - 1.0i/(sqrt(2)*obj.epsilon)*obj.V .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x + source)));
 
                 en_all(it) = wavesim.energy(E_x - E_old);
-                
-                W = 20;
-                d = 50;
-                E_x(a/3 + [-d/2:d/2],[1:b/2-40-W/2,b/2-40+W/2:b/2+40-W/2,b/2+40+W/2:b]) = 0;               
                 
                 if it == 1 % after first iteration the energy threshold is determined
                     threshold = obj.energy_threshold * en_all(1);
