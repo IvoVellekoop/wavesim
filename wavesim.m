@@ -32,7 +32,7 @@ classdef wavesim
 			
 			%% set default options
 			obj.callback = @wavesim.default_callback;
-			obj.callback_interval = 1000;
+			obj.callback_interval = 100;
             obj.energy_threshold = 1E-9; % fraction of initially added energy
 			obj.max_iterations = 10000;
             obj.gpuEnabled = false;
@@ -45,10 +45,9 @@ classdef wavesim
             refractive_index = circshift(refractive_index,-(2*boundary+obj.grid.padding)/2);
             
             %% Low pass filter refractive index
-            obj.bandwidth = bandwidth;
-            width = round(min(obj.grid.N)*bandwidth/2)*2;
-            win2d = gausswin(width) * gausswin(width).';
-            win2d = fftshift(padarray(win2d, (obj.grid.N-size(win2d))/2, 0));
+            bandwidth = 1/4;
+            win2d = gausswin(obj.grid.N(1)/2,1/bandwidth) * gausswin(obj.grid.N(2)/2,1/bandwidth).';
+            win2d = fftshift(padarray(win2d, (obj.grid.N-size(win2d))/2));
             refractive_index = real(ifft2(win2d.*fft2(refractive_index))); %we don't want to add an imaginary part to the refractive index
             
             %% Determine constants based on refractive_index map
@@ -104,19 +103,18 @@ classdef wavesim
             success = true;
             %% simulation iterations
             for it=1:obj.max_iterations
-                E_old = E_x; % previous iteration
-               % E_ak = obj.g0_k .* fft2(obj.V.*E_x + source);
-               % E_x = ifft2(E_ak) + conj(obj.V) .* ifft2(conj(obj.g0_k) .* (fft2(E_x) - E_ak));
-               % experimental new method:
-                E_x = E_x - 1.0i/(sqrt(2)*obj.epsilon)*obj.V .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x + source)));
+                E_fft = fftshift(abs(fft2(E_x)));
 
+                E_old = E_x; % previous iteration
+
+                E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x + source)));
                 en_all(it) = wavesim.energy(E_x - E_old);
-                
+          
                 if it == 1 % after first iteration the energy threshold is determined
                     threshold = obj.energy_threshold * en_all(1);
                 end
                 
-				if (mod(it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback					
+				if (mod(it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                     obj.callback(E_x(:,round(b/2)), en_all(1:it), threshold);
 				end;
                 
@@ -164,7 +162,8 @@ classdef wavesim
         end;
 		
 		%default callback function. Shows real value of field, and total energy evolution
-		function default_callback(E_cross, energy, threshold)		    
+		function default_callback(E_cross, energy, threshold)
+            figure(1);
 			subplot(2,1,1); plot(1:length(energy),log10(energy),'b',[1,length(energy)],log10(threshold)*ones(1,2),'--r'); 
             title(length(energy));  xlabel('# iterations'); ylabel('log(energy added)');
             
