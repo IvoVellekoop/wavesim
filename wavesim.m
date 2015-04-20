@@ -32,7 +32,7 @@ classdef wavesim
 			
 			%% set default options
 			obj.callback = @wavesim.default_callback;
-			obj.callback_interval = 100;
+			obj.callback_interval = 50;
             obj.energy_threshold = 1E-9; % fraction of initially added energy
 			obj.max_iterations = 10000;
             obj.gpuEnabled = false;
@@ -103,12 +103,10 @@ classdef wavesim
             success = true;
             %% simulation iterations
             for it=1:obj.max_iterations
-                E_fft = fftshift(abs(fft2(E_x)));
-
                 E_old = E_x; % previous iteration
 
                 E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x + source)));
-                en_all(it) = wavesim.energy(E_x - E_old);
+               en_all(it) = wavesim.energy(E_x - E_old);
           
                 if it == 1 % after first iteration the energy threshold is determined
                     threshold = obj.energy_threshold * en_all(1);
