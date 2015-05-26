@@ -32,7 +32,7 @@ classdef wavesim
 			
 			%% set default options
 			obj.callback = @wavesim.default_callback;
-			obj.callback_interval = 300;
+			obj.callback_interval = 500;
             obj.energy_threshold = 1E-9; % fraction of initially added energy
 			obj.max_iterations = 10000;
             obj.gpuEnabled = false;
