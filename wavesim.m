@@ -38,14 +38,21 @@ classdef wavesim
             obj.gpuEnabled = false;
             
             %% setup grid, taking into account required boundary. Pad to next power of 2 when needed
-			obj.grid = simgrid(size(refractive_index)+2*boundary, pixel_size);
+			if length(boundary) == 1
+                boundary = [boundary,boundary];
+            end
+            
+            obj.grid = simgrid(size(refractive_index)+2*boundary, pixel_size);
             
             %% padding refractive index to match simulation grid           
             refractive_index = padarray(refractive_index, (2*boundary+obj.grid.padding)/2, 'replicate', 'both');
             refractive_index = circshift(refractive_index,-(2*boundary+obj.grid.padding)/2);
             
             %% Low pass filter refractive index
-            bandwidth = 1/4;
+            if exist('bandwidth','var') % check if bandwidth is given
+                bandwidth = 1/4;    % default value for bandwidth
+            end          
+ 
             win2d = gausswin(obj.grid.N(1)/2,1/bandwidth) * gausswin(obj.grid.N(2)/2,1/bandwidth).';
             win2d = fftshift(padarray(win2d, (obj.grid.N-size(win2d))/2));
             refractive_index = real(ifft2(win2d.*fft2(refractive_index))); %we don't want to add an imaginary part to the refractive index
@@ -57,8 +64,8 @@ classdef wavesim
             obj.k = n_center * (2*pi/lambda);
 
 			%% determine optimum value for epsilon (epsilon = 1/step size)
-            epsmin = (2*pi/lambda) / (boundary*pixel_size); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
-            obj.epsilon = 2*max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2); %the factor 1.1 is a safety margin to account for rounding errors.
+            epsmin = (2*pi/lambda) / (max(boundary)*pixel_size); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
+            obj.epsilon = 1.1*max(epsmin, (2*pi/lambda)^2 * (n_max^2 - n_min^2)/2); %the factor 1.1 is a safety margin to account for rounding errors.
             if exist('epsilon','var') % check if epsilon is given
                 obj.epsilon = epsilon;
             end            
@@ -73,9 +80,10 @@ classdef wavesim
             obj.V = (refractive_index*2*pi/lambda).^2-obj.k_red2;                        
 
 			%% Absorbing boundaries
-            d_curve = 1-linspace(0, 1, boundary).^2;
-            damping_x = [ ones(1, obj.grid.N(2)-obj.grid.padding(2)-2*boundary), d_curve, zeros(1, obj.grid.padding(2)), d_curve(end:-1:1)];
-            damping_y = [ ones(1, obj.grid.N(1)-obj.grid.padding(1)-2*boundary), d_curve, zeros(1, obj.grid.padding(1)), d_curve(end:-1:1)];
+            d_curve_x = 1-linspace(0, 1, boundary(2)).^2;   % curve of horizontal absorbing layer
+            d_curve_y = 1-linspace(0, 1, boundary(1)).^2;   % curve of vertical absorbing layer
+            damping_x = [ ones(1, obj.grid.N(2)-obj.grid.padding(2)-2*boundary(2)), d_curve_x, zeros(1, obj.grid.padding(2)), d_curve_x(end:-1:1)];
+            damping_y = [ ones(1, obj.grid.N(1)-obj.grid.padding(1)-2*boundary(1)), d_curve_y, zeros(1, obj.grid.padding(1)), d_curve_y(end:-1:1)];
             
             obj.V = obj.V .* (damping_y' * damping_x);
             obj.background = damping_y' * damping_x < 1;
