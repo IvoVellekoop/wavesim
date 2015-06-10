@@ -111,10 +111,8 @@ classdef wavesim
             success = true;
             %% simulation iterations
             for it=1:obj.max_iterations
-                E_old = E_x; % previous iteration
-
-                E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x + source)));
-               en_all(it) = wavesim.energy(E_x - E_old);
+                [E_x, diff_energy] = single_step(obj, E_x, source);
+                en_all(it) = diff_energy;
           
                 if it == 1 % after first iteration the energy threshold is determined
                     threshold = obj.energy_threshold * en_all(1);
@@ -137,6 +135,16 @@ classdef wavesim
             end;
             E_x = gather(E_x);
         end;
+
+        function [E_x, energy_diff] = single_step(obj, E_x, source) 
+            % performs a single iteration of the algorithm
+            % returns difference energy (todo: optimize difference energy
+            % calculation)
+            diff = - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x + source)));
+            E_x = E_x+diff;
+            energy_diff = wavesim.energy(diff);
+        end;
+               
         
         function analyze(obj)
             %% Displays various information
