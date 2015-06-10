@@ -32,9 +32,9 @@ classdef wavesim
 			
 			%% set default options
 			obj.callback = @wavesim.default_callback;
-			obj.callback_interval = 500;
+			obj.callback_interval = 1000;
             obj.energy_threshold = 1E-9; % fraction of initially added energy
-			obj.max_iterations = 10000;
+			obj.max_iterations = 999;
             obj.gpuEnabled = false;
             
             %% setup grid, taking into account required boundary. Pad to next power of 2 when needed
@@ -175,7 +175,7 @@ classdef wavesim
             
             subplot(2,1,2); plot(real(E_cross)); title('midline cross-section')
             xlabel('y (\lambda / 4)'); ylabel('real(E_x)');
-			
+            			
             disp(['Added energy ', num2str(energy(end))]); 
 			drawnow;
         end;
