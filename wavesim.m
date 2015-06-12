@@ -32,9 +32,9 @@ classdef wavesim
 			
 			%% set default options
 			obj.callback = @wavesim.default_callback;
-			obj.callback_interval = 1000;
-            obj.energy_threshold = 1E-9; % fraction of initially added energy
-			obj.max_iterations = 999;
+			obj.callback_interval = 10;
+            obj.energy_threshold = 1E-5; % fraction of initially added energy
+			obj.max_iterations = 150000;
             obj.gpuEnabled = false;
             
             %% setup grid, taking into account required boundary. Pad to next power of 2 when needed
@@ -49,13 +49,13 @@ classdef wavesim
             refractive_index = circshift(refractive_index,-(2*boundary+obj.grid.padding)/2);
             
             %% Low pass filter refractive index
-            if exist('bandwidth','var') % check if bandwidth is given
-                bandwidth = 1/4;    % default value for bandwidth
-            end          
- 
-            win2d = gausswin(obj.grid.N(1)/2,1/bandwidth) * gausswin(obj.grid.N(2)/2,1/bandwidth).';
-            win2d = fftshift(padarray(win2d, (obj.grid.N-size(win2d))/2));
-            refractive_index = real(ifft2(win2d.*fft2(refractive_index))); %we don't want to add an imaginary part to the refractive index
+%             if exist('bandwidth','var') % check if bandwidth is given
+%                 bandwidth = 1/4;    % default value for bandwidth
+%             end          
+%  
+%             win2d = gausswin(obj.grid.N(1)/2,1/bandwidth) * gausswin(obj.grid.N(2)/2,1/bandwidth).';
+%             win2d = fftshift(padarray(win2d, (obj.grid.N-size(win2d))/2));
+%             refractive_index = real(ifft2(win2d.*fft2(refractive_index))); %we don't want to add an imaginary part to the refractive index
             
             %% Determine constants based on refractive_index map
 			n_min = min(refractive_index(:));
@@ -97,12 +97,12 @@ classdef wavesim
             source(obj.background) = 0;
 
             %% Check whether gpu computation option is enabled
-            if obj.gpuEnabled
-                E_x = zeros(size(source),'gpuArray');
+            if obj.gpuEnabled                
                 obj.g0_k = gpuArray(obj.g0_k);
                 obj.V = gpuArray(obj.V);
-                source = gpuArray(full(source)); % gpu does not support sparse matrices
+                E_0 = ifft2(obj.g0_k.*fft2(gpuArray(full(source)))); % gpu does not support sparse matrices
                 en_all = zeros(1, obj.max_iterations,'gpuArray');
+                E_x = E_0;
             else
                 E_x = 0;
                 en_all = zeros(1, obj.max_iterations);
@@ -111,7 +111,7 @@ classdef wavesim
             success = true;
             %% simulation iterations
             for it=1:obj.max_iterations
-                [E_x, diff_energy] = single_step(obj, E_x, source);
+                [E_x, diff_energy] = single_step(obj, E_x, E_0);
                 en_all(it) = diff_energy;
           
                 if it == 1 % after first iteration the energy threshold is determined
@@ -140,9 +140,15 @@ classdef wavesim
             % performs a single iteration of the algorithm
             % returns difference energy (todo: optimize difference energy
             % calculation)
-            diff = - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x + source)));
-            E_x = E_x+diff;
-            energy_diff = wavesim.energy(diff);
+            Eold = E_x;
+            
+            %New method
+%             D = - obj.V./(obj.V + 2.0i*obj.epsilon);
+%             U = -obj.g0_k./conj(obj.g0_k);
+%             E_x = (ifft2(U.*fft2(D.*E_x)) + source);
+
+            E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x))-source);
+            energy_diff = wavesim.energy(E_x-Eold);
         end;
                
         
