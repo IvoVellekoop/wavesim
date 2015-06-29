@@ -8,7 +8,7 @@ classdef wavesim
         grid; % simgrid object
 		gpuEnabled = false; % logical to check if simulation are ran on the GPU (default: false)
         callback = @wavesim.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
-		callback_interval = 100; %the callback is called every 'callback_interval' steps. Default = 5
+		callback_interval = 1000; %the callback is called every 'callback_interval' steps. Default = 5
 		energy_threshold = 1E-9; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
 		max_iterations = 1E4; %or when 'max_iterations' is reached. Default 10000
      %%internal
