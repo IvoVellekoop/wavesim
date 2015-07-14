@@ -113,6 +113,7 @@ classdef wavesim
                     break;
                 end                               
             end;
+            %E_x = (1.0i*obj.V/obj.epsilon).*gather(E_x); % converts gpu array back to normal array
             E_x = gather(E_x); % converts gpu array back to normal array
             %% Simulation finished
             if success && abs(en_all(it)) < threshold
@@ -127,7 +128,10 @@ classdef wavesim
             % returns difference energy (todo: optimize difference energy
             % calculation)
             Eold = E_x;
-            E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x+source)));
+            E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x+source))); %wavesim version 
+            %E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .*
+            %fft2(obj.V.*E_x)))+ifft2(obj.g0_k.*fft2(source)); %cutout preconditioner on source
+            %E_x = E_x - (1.0i*obj.V/obj.epsilon).*E_x+ifft2(obj.g0_k.*(fft2(obj.V.*(1.0i*obj.V/obj.epsilon).* E_x))) + ifft2(obj.g0_k .* fft2(source)); %version 6
             energy_diff = wavesim.energy(E_x-Eold);
         end
                        
@@ -135,11 +139,11 @@ classdef wavesim
             %% Displays various information
             g = obj.grid;
             inf = obj.info;
-            disp(['Size of simulation: ', num2str(g.Nx*g.dx), ' wavelengths']);
+            disp(['Size of simulation: ', num2str(g.N*g.dx), ' wavelengths']); %num2str(g.Nx*g.dx)
             disp(['Number of samples per wavelength: ', num2str(1/g.dx)]);
-            disp(['Relative bandwidth reserved for refractive index map: ', num2str(obj.bandwidth)]);
-            disp(['Smallest feature in refractive index map: ', num2str(g.dx/obj.bandwidth), ' wavelengths']);
-            disp(['Smallest feature in field: ', num2str(g.dx/(1-obj.bandwidth)), ' wavelengths']);
+            disp(['Relative bandwidth reserved for refractive index map: ', num2str(obj.bandwidth)]); % unknown bandwidth
+            disp(['Smallest feature in refractive index map: ', num2str(g.dx/obj.bandwidth), ' wavelengths']); % unknown bandwidth
+            disp(['Smallest feature in field: ', num2str(g.dx/(1-obj.bandwidth)), ' wavelengths']); % unknown bandwidth
             disp(['Truncation of Green function causes loss factor of ', num2str(1-min(inf.truncation_loss_P, inf.truncation_loss_g0_k_max)), ' per step']);
 
             %% Given an estimate for the stability of the simulation
