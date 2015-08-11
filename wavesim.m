@@ -8,8 +8,8 @@ classdef wavesim
         grid; % simgrid object
 		gpuEnabled = false; % logical to check if simulation are ran on the GPU (default: false)
         callback = @wavesim.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
-		callback_interval = 1000; %the callback is called every 'callback_interval' steps. Default = 5
-		energy_threshold = 1E-9; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
+		callback_interval = 100; %the callback is called every 'callback_interval' steps. Default = 5
+		energy_threshold = 1E-4; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
 		max_iterations = 1E4; %1E4; %or when 'max_iterations' is reached. Default 10000
         it; %iteration
         time; % time comsumption
@@ -50,8 +50,8 @@ classdef wavesim
             refractive_index = circshift(refractive_index,round(-(2*boundaries.width+obj.grid.padding)/2));
 
             %% Determine constants based on refractive_index map
-			n_min = min(abs(refractive_index(:)));
-            n_max = max(abs(refractive_index(:)));
+			n_min = min(abs(refractive_index(:))); 
+            n_max = max(abs(refractive_index(:))); 
             n_center = sqrt((n_max^2 + n_min^2) / 2); %central refractive index (refractive index that k_r is based on)
             obj.k = n_center * (2*pi/options.lambda);
             
@@ -145,6 +145,71 @@ classdef wavesim
             %fft2(obj.V.*E_x)))+ifft2(obj.g0_k.*fft2(source)); %cutout preconditioner on source
             %E_x = E_x - (1.0i*obj.V/obj.epsilon).*E_x+ifft2(obj.g0_k.*(fft2(obj.V.*(1.0i*obj.V/obj.epsilon).* E_x))) + ifft2(obj.g0_k .* fft2(source)); %version 6
             energy_diff = wavesim.energy(E_x-Eold);
+        end
+        
+        function [E_propagation, en_all , time, success] = psudopropagation(obj, source, numberiter,frame)
+            %%% Execute simulation 
+            time=0;
+            tic;
+            %% Scaling source size to grid size
+            source = padarray(source,obj.grid.N - size(source), 'post');
+
+            %% Check whether gpu computation option is enabled
+            if obj.gpuEnabled                
+                obj.g0_k = gpuArray(obj.g0_k);
+                obj.V = gpuArray(obj.V);
+                source = gpuArray(source);
+                en_all = zeros(1, numberiter+1,'gpuArray');
+                E_x = ifft2(obj.g0_k .* fft2(source));
+                %% Propagation of field parameter
+                E_propagation=gpuArray(zeros(size(E_x,1),size(E_x,2),round(numberiter/frame)));
+                E_propagation(:,:,1)=E_x; %inital field
+            else
+                E_x = ifft2(obj.g0_k .* fft2(source));
+                en_all = zeros(1, numberiter+1);
+                %% Propagation of field parameter
+                E_propagation=zeros(size(E_x,1),size(E_x,2),round(numberiter/frame));
+                E_propagation(:,:,1)=E_x; %inital field
+            end
+        
+            %% Energy thresholds (convergence and divergence criterion)
+            en_all(1) = wavesim.energy(E_x);
+            threshold = obj.energy_threshold * en_all(1); % 
+            div_thresh = 10 * en_all(1);
+            
+            %% simulation iterations
+            success = true;
+            obj.it = 1;            
+            while en_all(obj.it) >= threshold && obj.it <= numberiter
+                obj.it = obj.it+1;
+                [E_x, diff_energy] = single_step(obj, E_x, source);
+                
+                %E_propagation(obj.it,:)=E_x;
+                en_all(obj.it) = diff_energy;
+                
+                if (mod(obj.it, frame)==0) %now and then, call the callback function to give user feedback
+                    E_propagation(:,:,(obj.it/frame))=E_x;
+                end;
+				if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
+                    disp(['Iteration loop:' num2str(obj.it)]);
+                    obj.callback(E_x(:,end/2), en_all(1:obj.it), threshold);
+				end;
+                
+                if abs(en_all(obj.it)) > div_thresh || isnan(en_all(obj.it)) % abort when added energy is more than 10 times the initial added energy
+                    success = false;
+                    break;
+                end
+            end;
+            E_propagation=gather(E_propagation);  % converts gpu array back to normal array
+            %% Simulation finished
+            obj.time=toc;
+            time=obj.time;
+            if success && abs(en_all(obj.it)) < threshold
+                disp(['Reached steady state in ' num2str(obj.it) ' iterations']);
+                disp(['Time comsumption: ' num2str(obj.time) ' s']);
+            elseif ~success
+                disp('simulation diverged');
+            end
         end
                        
         function analyze(obj)
