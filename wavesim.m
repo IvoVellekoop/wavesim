@@ -8,8 +8,8 @@ classdef wavesim
         grid; % simgrid object
 		gpuEnabled = false; % logical to check if simulation are ran on the GPU (default: false)
         callback = @wavesim.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
-		callback_interval = 100; %the callback is called every 'callback_interval' steps. Default = 5
-		energy_threshold = 1E-4; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
+		callback_interval = 1000; %the callback is called every 'callback_interval' steps. Default = 5
+		energy_threshold = 1E-9; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
 		max_iterations = 1E4; %1E4; %or when 'max_iterations' is reached. Default 10000
         it; %iteration
         time; % time comsumption
@@ -59,8 +59,12 @@ classdef wavesim
             if isfield(options,'epsilon') % check if epsilon is given as input
                 obj.epsilon = options.epsilon;
             else
-                epsmin = (2*pi/options.lambda) / (max(boundaries.width)*options.pixel_size); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
-                obj.epsilon = 1.1*max(epsmin, (2*pi/options.lambda)^2 * (n_max^2 - n_min^2)/2); %the factor 1.1 is a safety margin to account for rounding errors.
+                %epsmin = (2*pi/options.lambda) / (max(boundaries.width)*options.pixel_size); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
+                %epsmin=26.36/(max(boundaries.width)*options.pixel_size)-0.276;%empirical
+                %formular for threshold width of g0(r)=1e-2
+                %epsmin = 10*(26.36/options.lambda/(max(boundaries.width)*options.pixel_size)-0.276); %5X-10X of empirical formular
+                epsmin = (56.43/options.lambda/(max(boundaries.width)*options.pixel_size)-0.2468); %empirical formular for threshold width of g0(r)=1e-3
+                obj.epsilon = 1.0*max(epsmin, (2*pi/options.lambda)^2 * (n_max^2 - n_min^2)/2); %the factor 1.1 is a safety margin to account for rounding errors.
             end  
     
 			%% Calculate Green function for k_red (reduced k vector: k_red^2 = k_0^2 + 1.0i*epsilon)
