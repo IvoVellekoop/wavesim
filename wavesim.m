@@ -43,11 +43,15 @@ classdef wavesim
             [options,boundaries] = wavesim.readout_input(options,boundaries,size(refractive_index));
             
             %% setup grid, taking into account required boundary. Pad to next power of 2 when needed
-            obj.grid = simgrid(size(refractive_index)+2*boundaries.width, options.pixel_size);
+            %obj.grid = simgrid(size(refractive_index)+2*boundaries.width, options.pixel_size);
+            obj.grid = simgrid(size(refractive_index)+2*boundaries.width+boundaries.free, options.pixel_size); % adding minimum free space
             
-            %% Padding refractive index to match simulation grid           
+            %% Padding refractive index to match simulation grid
+            obj.grid.padding=obj.grid.padding+boundaries.free;% adding minimum free space
             refractive_index = padarray(refractive_index, round((2*boundaries.width+obj.grid.padding)/2), 'replicate', 'both');
             refractive_index = circshift(refractive_index,round(-(2*boundaries.width+obj.grid.padding)/2));
+            
+            
 
             %% Determine constants based on refractive_index map
 			n_min = min(abs(refractive_index(:))); 
@@ -261,6 +265,9 @@ classdef wavesim
            end
            
            % fill in boundary settings
+           if ~isfield(boundaries,'free') % if no free gap parameters are given
+               boundaries.free=[0 0];
+           end
            if ~isfield(boundaries,'width') % if no bonudary parameters are given
                boundaries.width = floor( (2.^nextpow2(size) - size)/4); % width of the absorbing boundary
                boundaries.xcurve = 1-linspace(0, 1, boundaries.width(2)).^2;   % damping curve of horizontal absorbing boundary
