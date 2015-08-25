@@ -9,7 +9,7 @@ function [ sol ] = PlaneWaveSol_2D( k, theta, x, y )
 
     k1 = k * cos(theta);
     k2 = k * sin(theta);
-    sol = exp(1.0i * (k1 * x + k2 * y + pi/2));
+    sol = exp(1.0i * (k1 * x + k2 * y-pi/2));
     
 end
 
