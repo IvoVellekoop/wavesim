@@ -85,7 +85,11 @@ classdef wavesim
             %% Apply absorbing boundaries on potential map
             obj.V = obj.V(1:size(damping_y,2),1:size(damping_x,2)) .* (damping_y' * damping_x);
             
-        end;       
+        end;
+        function epsilonmin=epsiloncondition(obj)
+           epsilonmin=sqrt(max(max(obj.V.^2)));
+           disp(['the minimum value of epsilon is ' num2str(epsilonmin)]);
+        end
                
         function [E_x, iter, time, success] = exec(obj, source)
             %%% Execute simulation 
