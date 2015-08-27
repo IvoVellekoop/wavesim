@@ -121,11 +121,11 @@ classdef wavesim
             obj.it = 1;            
             while abs(en_all(obj.it)) >= threshold && obj.it <= obj.max_iterations
                 obj.it = obj.it+1;
-                [E_x, diff_energy] = single_step(obj, E_x, source);
-                en_all(obj.it) = diff_energy;
-                
+                Eold = E_x;
+                E_x = single_step(obj, E_x, source);
+                en_all(obj.it) = wavesim.energy(E_x-Eold);
 				if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
-                    obj.callback(E_x(:,end/2), en_all(1:obj.it), threshold);
+                    obj.callback(E_x(end/2,:), en_all(1:obj.it), threshold);
 				end;
                 
                 if abs(en_all(obj.it)) > div_thresh || isnan(en_all(obj.it)) % abort when added energy is more than 10 times the initial added energy
@@ -149,14 +149,10 @@ classdef wavesim
 
         function [E_x, energy_diff] = single_step(obj, E_x, source) 
             % performs a single iteration of the algorithm
-            % returns difference energy (todo: optimize difference energy
-            % calculation)
-            Eold = E_x;
             E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x+source))); %wavesim version 
             %E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .*
             %fft2(obj.V.*E_x)))+ifft2(obj.g0_k.*fft2(source)); %cutout preconditioner on source
             %E_x = E_x - (1.0i*obj.V/obj.epsilon).*E_x+ifft2(obj.g0_k.*(fft2(obj.V.*(1.0i*obj.V/obj.epsilon).* E_x))) + ifft2(obj.g0_k .* fft2(source)); %version 6
-            energy_diff = wavesim.energy(E_x-Eold);
         end
         
         function [E_propagation, en_all , time, success] = psudopropagation(obj, source, numberiter,frame)
@@ -204,7 +200,7 @@ classdef wavesim
                 end;
 				if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                     disp(['Iteration loop:' num2str(obj.it)]);
-                    obj.callback(E_x(:,end/2), en_all(1:obj.it), threshold);
+                    obj.callback(E_x(end/2,:), en_all(1:obj.it), threshold);
 				end;
                 
                 if abs(en_all(obj.it)) > div_thresh || isnan(en_all(obj.it)) % abort when added energy is more than 10 times the initial added energy
