@@ -173,6 +173,13 @@ classdef wavesim
                 E_propagation=gpuArray(zeros(size(E_x,1),size(E_x,2),round(numberiter/frame)));
                 E_propagation(:,:,1)=E_x; %inital field
             else
+                %{
+                %filtering high frequency of source term
+                source_k=fft2(source);
+                source_k(1,3*end/4:end)=0;
+                source_k(1,1:end/4)=0;
+                source = ifft2(source_k);
+                %}
                 E_x = ifft2(obj.g0_k .* fft2(source));
                 en_all = zeros(1, numberiter+1);
                 %% Propagation of field parameter
