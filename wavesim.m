@@ -5,7 +5,6 @@ classdef wavesim
     properties
         V;   % potential array used in simulation
         info; % diagnostics information on convergence
-        grid; % simgrid object
 		gpuEnabled = false; % logical to check if simulation are ran on the GPU (default: false)
         callback = @wavesim.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
 		callback_interval = 1000; %the callback is called every 'callback_interval' steps. Default = 5
@@ -15,89 +14,70 @@ classdef wavesim
         time; % time comsumption
      %%internal
         k; % wave number
-        epsilon; % 1/'window size'
+        epsilon; 
+        epsilonmin; 
         g0_k; % bare Green's function used in simulation
         %performance
 
     end
         
     methods
-        function obj=wavesim(refractive_index, options, boundaries)
+        function obj=wavesim(sample, options)
 			%% Constructs a wave simulation object
 			%	refractive_index = refractive index map (need not have an average value of 1)
 			%	options.pixel_size = size of a pixel in the refractive_index map, e.g. in um
 			%   options.wavelength = free space wavelength (same unit as pixel_size, e. g. um)
             %   options.epsilon = convergence parameter
-            %	boundaries.width = extra space to add around simulation to simulate absorbing boundaries, in pixels
-			%   boundaries.xcurve = shape of the damping curve horizontal boundary
-            %   boundaries.ycurve = shape of the damping curve vertical boundary
+
                         
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             %% Read out constructor options and fill out missing properties with defualt values
             if nargin == 1
+                sample = struct;
                 options = struct;
-                boundaries = struct;
-            elseif nargin == 2
-                boundaries = struct;
             end
-            [options,boundaries] = wavesim.readout_input(options,boundaries,size(refractive_index));
-            
-            %% setup grid, taking into account required boundary. Pad to next power of 2 when needed
-            %obj.grid = simgrid(size(refractive_index)+2*boundaries.width, options.pixel_size);
-            obj.grid = simgrid(size(refractive_index)+2*boundaries.width+boundaries.free, options.pixel_size); % adding minimum free space
-            
-            %% Padding refractive index to match simulation grid
-            obj.grid.padding=obj.grid.padding+boundaries.free;% adding minimum free space
-            refractive_index = padarray(refractive_index, round((2*boundaries.width+obj.grid.padding)/2), 'replicate', 'both');
-            refractive_index = circshift(refractive_index,round(-(2*boundaries.width+obj.grid.padding)/2));
+            options = wavesim.readout_input(options);
             
             
-
             %% Determine constants based on refractive_index map
-			n_min = min(abs(refractive_index(:))); 
-            n_max = max(abs(refractive_index(:))); 
+			n_min = min(min(abs(sample.refractive_index(1:sample.N(1),1:sample.N(2))))); 
+            n_max = max(max(abs(sample.refractive_index(1:sample.N(1),1:sample.N(2))))); 
             n_center = sqrt((n_max^2 + n_min^2) / 2); %central refractive index (refractive index that k_r is based on)
-            obj.k = n_center * (2*pi/options.lambda);
+            obj.k = n_center * (2*pi/options.lambda);   
             
-			%% Determine optimum value for epsilon, otherwise use given epsilon (epsilon = 1/step size)
-            if isfield(options,'epsilon') % check if epsilon is given as input
+            %% Stability condition
+            fluctuation = abs((sample.refractive_index(1:sample.N(1),1:sample.N(2))*2*pi/options.lambda).^2-obj.k^2).^2;
+            % old version:(2*pi/options.lambda)^2 * (n_max^2 - n_min^2)/2
+            obj.epsilonmin = max(sqrt(fluctuation(:)));
+            if (options.epsilon > obj.epsilonmin)
                 obj.epsilon = options.epsilon;
             else
-                %epsmin = (2*pi/options.lambda) / (max(boundaries.width)*options.pixel_size); %epsilon cannot be smaller, or green function would wrap around boundary (pre-factor needed!)
-                %epsmin=26.36/(max(boundaries.width)*options.pixel_size)-0.276;%empirical
-                %formular for threshold width of g0(r)=1e-2
-                %epsmin = 10*(26.36/options.lambda/(max(boundaries.width)*options.pixel_size)-0.276); %5X-10X of empirical formular
-                epsmin = (56.43/options.lambda/(max(boundaries.width)*options.pixel_size)-0.2468); %empirical formular for threshold width of g0(r)=1e-3
-                obj.epsilon = 1.0*max(epsmin, (2*pi/options.lambda)^2 * (n_max^2 - n_min^2)/2); %the factor 1.1 is a safety margin to account for rounding errors.
+                obj.epsilon = max(sample.BCepsmin,obj.epsilonmin); %compare epsilon from BC and MoBorn
             end  
-    
-			%% Calculate Green function for k_red (reduced k vector: k_red^2 = k_0^2 + 1.0i*epsilon)
+            
+            %% Calculate Green function for k_red (reduced k vector: k_red^2 = k_0^2 + 1.0i*epsilon)
             f_g0_k = @(px, py) 1./(px.^2+py.^2-(obj.k^2 + 1.0i*obj.epsilon));
-            obj.g0_k = bsxfun(f_g0_k, obj.grid.px_range, obj.grid.py_range);
+            obj.g0_k = bsxfun(f_g0_k, sample.grid.px_range, sample.grid.py_range);
             
             %% Potential map (V==k^2-k_0^2-1i*epsilon). (First pad refractive index map)            
-            obj.V = (refractive_index*2*pi/options.lambda).^2-(obj.k^2 + 1.0i*obj.epsilon);                        
+            obj.V = (sample.refractive_index*2*pi/options.lambda).^2-(obj.k^2 + 1.0i*obj.epsilon);
             
-            %% Absorbing boundaries
-            damping_x = [ ones(1, obj.grid.N(2)-obj.grid.padding(2)-2*boundaries.width(2)), boundaries.xcurve, zeros(1, obj.grid.padding(2)), fliplr(boundaries.xcurve)];
-            damping_y = [ ones(1, obj.grid.N(1)-obj.grid.padding(1)-2*boundaries.width(1)), boundaries.ycurve, zeros(1, obj.grid.padding(1)), fliplr(boundaries.ycurve)];
-                        
             %% Apply absorbing boundaries on potential map
-            obj.V = obj.V(1:size(damping_y,2),1:size(damping_x,2)) .* (damping_y' * damping_x);
-            
-        end;
-        function epsilonmin=epsiloncondition(obj)
-           epsilonmin=sqrt(max(max(obj.V.^2)));
-           disp(['the minimum value of epsilon is ' num2str(epsilonmin)]);
+            obj.V = obj.V(1:size(sample.damping_y,2),1:size(sample.damping_x,2)) .* (sample.damping_y' * sample.damping_x); 
+               
+        end
+        
+        function epsilon = epsiloncondition(obj)
+           disp(['the minimum value of epsilon is ' num2str(obj.epsilonmin)]);
         end
                
-        function [E_x, iter, time, success] = exec(obj, source)
+        function [E_x, iter, time, success] = exec(sample,obj, source)
             %%% Execute simulation 
             time=0;
             iter=1;
             tic;
             %% Scaling source size to grid size
-            source = padarray(source,obj.grid.N - size(source), 'post');
+            source = padarray(source,sample.grid.N - size(source), 'post');
 
             %% Check whether gpu computation option is enabled
             if obj.gpuEnabled                
@@ -123,16 +103,16 @@ classdef wavesim
                 obj.it = obj.it+1;
                 Eold = E_x;
                 E_x = single_step(obj, E_x, source);
-                en_all(obj.it) = wavesim.energy(E_x-Eold);
+                en_all(obj.it) = wavesim.energy(E_x - Eold);
 				if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                     obj.callback(E_x(end/2,:), en_all(1:obj.it), threshold);
-				end;
+                end
                 
                 if abs(en_all(obj.it)) > div_thresh || isnan(en_all(obj.it)) % abort when added energy is more than 10 times the initial added energy
                     success = false;
                     break;
                 end                               
-            end;
+            end
             %E_x = (1.0i*obj.V/obj.epsilon).*gather(E_x); % converts gpu array back to normal array
             E_x = gather(E_x); % converts gpu array back to normal array
             %% Simulation finished
@@ -257,36 +237,16 @@ classdef wavesim
         end
     end
     methods(Static)
-        function [options,boundaries] = readout_input(options,boundaries,size)
+        function options = readout_input(options)
            % function reading out all given constructor options and filling
            % in default values for missing properties
-           
            % wavelength in real(V) = 0
            if ~isfield(options,'lambda')
                options.lambda = 1; % in um
            end
-
            % size of pixels
            if ~isfield(options,'pixel_size')
                options.pixel_size = 1/4*options.lambda; % in um
-           end
-           
-           % fill in boundary settings
-           if ~isfield(boundaries,'free') % if no free gap parameters are given
-               boundaries.free=[0 0];
-           end
-           if ~isfield(boundaries,'width') % if no bonudary parameters are given
-               boundaries.width = floor( (2.^nextpow2(size) - size)/4); % width of the absorbing boundary
-               boundaries.xcurve = 1-linspace(0, 1, boundaries.width(2)).^2;   % damping curve of horizontal absorbing boundary
-               boundaries.xcurve = 1-linspace(0, 1, boundaries.width(2)).^2;   % curve of vertical absorbing layer
-           end
-                    
-           if ~isfield(boundaries,'xcurve') || boundaries.width(2) ~= length(boundaries.xcurve) % if width is given but not xcurve
-               boundaries.xcurve = 1-linspace(0, 1, boundaries.width(2)).^2;
-           end
-           
-           if ~isfield(boundaries,'ycurve') || boundaries.width(1) ~= length(boundaries.ycurve) % if width is given but not ycurve
-               boundaries.ycurve = 1-linspace(0, 1, boundaries.width(1)).^2;
            end
         end
         
@@ -305,6 +265,6 @@ classdef wavesim
             			
             disp(['Added energy ', num2str(energy(end))]); 
 			drawnow;
-        end;
+        end
     end
 end
