@@ -40,10 +40,7 @@ classdef wavesim
             
             
             %% Determine constants based on refractive_index map
-			n_min = min(min(abs(sample.refractive_index(1:sample.N(1),1:sample.N(2))))); 
-            n_max = max(max(abs(sample.refractive_index(1:sample.N(1),1:sample.N(2))))); 
-            n_center = sqrt((n_max^2 + n_min^2) / 2); %central refractive index (refractive index that k_r is based on)
-            obj.k = n_center * (2*pi/options.lambda);   
+            obj.k = sample.n_center * (2*pi/options.lambda);   
             
             %% Stability condition
             fluctuation = abs((sample.refractive_index(1:sample.N(1),1:sample.N(2))*2*pi/options.lambda).^2-obj.k^2).^2;

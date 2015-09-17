@@ -42,12 +42,12 @@ classdef PSTD
             if (options.dt < obj.dtmin)
                 obj.dt = options.dt;
             else
-                obj.dt = 0.9*(2/sqrt(2)*sample.grid.dx/pi/PSTD.c);
+                obj.dt = 0.9*obj.dtmin; %add 0.9 factor to decrease dt
             end  
             
             % Time array
-            obj.number_of_time_steps = round(options.time_duration/obj.dt);
-            obj.time = (0:options.number_of_time_steps)*obj.dt;
+            obj.number_of_time_steps = round(options.time_duration/obj.dt)+2; %+2 for initial time and time at final step
+            obj.time = (0:obj.number_of_time_steps+1)*obj.dt;
    
             %% Initialize updating coefficients;
             %obj.coeff = fftshift(obj.c2*options.dt^2./sample.refractive_index);
@@ -67,12 +67,13 @@ classdef PSTD
     
         end
         
-        function [En, SumE, avg_time, success] = exec(sample,obj, source)
+        function [En, SumE, avg_time, AmpE, success] = exec(sample,obj, source)
             %% preallocate the loop variables
             Enm = zeros(sample.grid.N(1),sample.grid.N(2)); % field at timestep = n-1
             En = zeros(sample.grid.N(1),sample.grid.N(2));  % field at timestep = n
             Enp = zeros(sample.grid.N(1),sample.grid.N(2)); % field at timestep = n+1
             SumE = zeros(sample.grid.N(1),sample.grid.N(2)); %sum of filed En
+            AmpE = zeros(sample.grid.N(1),sample.grid.N(2));
             
             
             %% initialize_sources_2d (scaling source size to grid size)
@@ -91,14 +92,15 @@ classdef PSTD
                 En = gpuArray(En);
                 Enp = gpuArray(Enp);
                 SumE = gpuArray(SumE);
+                AmpE = gpuArray(SumE);
                 source = gpuArray(source);
                 obj.coeff = gpuArray(obj.coeff);
                 obj.koperator = gpuArray(obj.koperator);
-                %Enm = source; %ifft2(obj.koperator .* fft2(source));
-                %En = Enm;
+                %Enm = source.value;
+                %En = source.value;
             else
-                %Enm = source; %ifft2(obj.koperator .* fft2(source));
-                %En = Enm;
+                %Enm = source.value;
+                %En = source.value;
             end
                         
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -109,24 +111,26 @@ classdef PSTD
             current_time = 0;
             avg_time = 0;
             cover_time = max(sample.N)*sample.grid.dx/PSTD.c; % time of wave propagation thorug whole medium
-            source.timeseries(round(cover_time/obj.dt/4):end) = 0; 
+             %source.timeseries(round(cover_time/obj.dt/4):end) = 0; 
             
-            for time_step = 1:obj.number_of_time_steps
+            for time_step = 2:obj.number_of_time_steps-1
                 
                 current_time  = current_time + obj.dt;
                 
                 %%update_source;
-                source_value =0;
-                %source_value = source.timeseries(time_step)*source.value;  
+                %source_term =0;
+                %source_term = source.timeseries(time_step)*source.value;  
+                source_term = (source.timeseries(time_step+1) - source.timeseries(time_step-1))/2/obj.dt*source.value; 
+                %En = En + source.timeseries(time_step)*source.value; 
            
                 %%update_fields_2d;
                 Enp = 2*En - Enm ...
-                        +bsxfun(@times, obj.coeff , ...
-                            (-source_value + (ifft2( ...
-                                              bsxfun(@times, obj.koperator, fft2(En))))));
-                %%update_source;
-                %source_value = source.timeseries(time_step)*source.value; 
-                Enp = Enp + source.timeseries(time_step)*source.value; 
+                        + bsxfun(@times, obj.coeff , ...
+                            (-source_term + (ifft2( ...
+                                              bsxfun(@times, obj.koperator, fft2( En ))))));
+                                          
+                %Enp = 2*En - Enm + obj.coeff .*(-source_term + (ifft2( obj.koperator.*fft2(En) )));
+                
    
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 %%capture sampled wave fields_2d;
@@ -136,13 +140,16 @@ classdef PSTD
                     disp(['time_step ', num2str(time_step)]);
                 end
                 if (current_time > cover_time)
+                    AmpE = AmpE + abs(En)*obj.dt;
                     SumE = SumE + En*obj.dt;
                     avg_time  = avg_time + obj.dt;
                 end
                 
                 %% updating field
-                Enm=En;
-                En=Enp;
+                %En(1:sample.N(1),1) = 1;
+                %Enp(1:sample.N(1),1) = 1;
+                Enm = En;
+                En = Enp;
     
             end %end timestep
             SumE = SumE / avg_time;
@@ -171,7 +178,7 @@ classdef PSTD
         %default callback function. Shows real value of field
 		function default_callback(E,sample,current_time)
             figure(1);
-            imagesc(sample.grid.x_range,sample.grid.y_range,abs(E(1:sample.grid.N(1),2:sample.grid.N(2))));
+            imagesc(sample.grid.x_range,sample.grid.y_range,real(E(1:sample.N(1),2:sample.N(2))));
             title(['time =' num2str(current_time) ' s'])
             xlabel('x (m)','FontSize',14); ylabel('y (m)','FontSize',14);
             h = colorbar; set(get(h,'Title'),'String','Re(E) (a.u.)','FontSize',14);

@@ -6,9 +6,15 @@ function obj = SampleMedium(refractive_index, options, boundaries)
            %   boundaries.xcurve = shape of the damping curve horizontal boundary
            %   boundaries.ycurve = shape of the damping curve vertical boundary
            obj.N = size(refractive_index);
+           
+            %% Determine constants based on refractive_index map
+            obj.PPW = options.lambda/options.pixel_size;
+			obj.n_min = min(abs(refractive_index(:))); 
+            obj.n_max = max(abs(refractive_index(:))); 
+            obj.n_center = sqrt((obj.n_max^2 + obj.n_min^2) / 2); %central refractive index (refractive index that k_r is based on)
           
             
-           % fill in boundary settings
+           %% fill in boundary settings
            if ~isfield(boundaries,'free') % if no free gap parameters are given
                boundaries.free=[0 0];
            end
@@ -25,7 +31,8 @@ function obj = SampleMedium(refractive_index, options, boundaries)
            if ~isfield(boundaries,'ycurve') || boundaries.width(1) ~= length(boundaries.ycurve) % if width is given but not ycurve
                boundaries.ycurve = 1-linspace(0, 1, boundaries.width(1)).^2;
            end
-                       
+          
+           
             %% Setup grid, taking into account required boundary; adding minimum free space and padding to next power of 2 when needed
             % Determine the problem space boundaries including boundary
             % Determining the problem space size in grid.N
