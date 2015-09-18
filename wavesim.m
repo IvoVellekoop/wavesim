@@ -15,7 +15,7 @@ classdef wavesim
      %%internal
         k; % wave number
         epsilon; 
-        epsilonmin; 
+        epsilonmin=0; 
         g0_k; % bare Green's function used in simulation
         %performance
 
@@ -32,10 +32,10 @@ classdef wavesim
                         
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             %% Read out constructor options and fill out missing properties with defualt values
-            if nargin == 1
-                sample = struct;
-                options = struct;
-            end
+            %if nargin == 1
+            %    sample = struct;
+            %    options = struct;
+            %end
             options = wavesim.readout_input(options);
             
             
@@ -46,6 +46,7 @@ classdef wavesim
             fluctuation = abs((sample.refractive_index(1:sample.N(1),1:sample.N(2))*2*pi/options.lambda).^2-obj.k^2).^2;
             % old version:(2*pi/options.lambda)^2 * (n_max^2 - n_min^2)/2
             obj.epsilonmin = max(sqrt(fluctuation(:)));
+            if isempty(obj.epsilonmin); obj.epsilonmin = 0; end;
             if (options.epsilon > obj.epsilonmin)
                 obj.epsilon = options.epsilon;
             else

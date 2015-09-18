@@ -67,13 +67,13 @@ classdef PSTD
     
         end
         
-        function [En, SumE, avg_time, AmpE, success] = exec(sample,obj, source)
+        function [En, SumE, RMS, avg_time, n_time, success] = exec(sample,obj, source)
             %% preallocate the loop variables
             Enm = zeros(sample.grid.N(1),sample.grid.N(2)); % field at timestep = n-1
             En = zeros(sample.grid.N(1),sample.grid.N(2));  % field at timestep = n
             Enp = zeros(sample.grid.N(1),sample.grid.N(2)); % field at timestep = n+1
             SumE = zeros(sample.grid.N(1),sample.grid.N(2)); %sum of filed En
-            AmpE = zeros(sample.grid.N(1),sample.grid.N(2));
+            RMS = zeros(sample.grid.N(1),sample.grid.N(2));
             
             
             %% initialize_sources_2d (scaling source size to grid size)
@@ -92,7 +92,7 @@ classdef PSTD
                 En = gpuArray(En);
                 Enp = gpuArray(Enp);
                 SumE = gpuArray(SumE);
-                AmpE = gpuArray(SumE);
+                RMS = gpuArray(SumE);
                 source = gpuArray(source);
                 obj.coeff = gpuArray(obj.coeff);
                 obj.koperator = gpuArray(obj.koperator);
@@ -112,7 +112,7 @@ classdef PSTD
             avg_time = 0;
             cover_time = max(sample.N)*sample.grid.dx/PSTD.c; % time of wave propagation thorug whole medium
              %source.timeseries(round(cover_time/obj.dt/4):end) = 0; 
-            
+            n_time=0;
             for time_step = 2:obj.number_of_time_steps-1
                 
                 current_time  = current_time + obj.dt;
@@ -140,8 +140,9 @@ classdef PSTD
                     disp(['time_step ', num2str(time_step)]);
                 end
                 if (current_time > cover_time)
-                    AmpE = AmpE + abs(En)*obj.dt;
-                    SumE = SumE + En*obj.dt;
+                    RMS = RMS + (En.^2*obj.dt);
+                    SumE = SumE + real(En*exp(2.0i*pi*source.sinusoidal.frequency*current_time));
+                    n_time= n_time+1;
                     avg_time  = avg_time + obj.dt;
                 end
                 
@@ -152,7 +153,8 @@ classdef PSTD
                 En = Enp;
     
             end %end timestep
-            SumE = SumE / avg_time;
+            SumE = SumE / n_time;
+            RMS = sqrt ( RMS / avg_time);
             end_time = cputime;
             total_time_in_minutes = (end_time - start_time)/60;
             disp(['Total simulation time is ' num2str(total_time_in_minutes) ' minutes.']);
