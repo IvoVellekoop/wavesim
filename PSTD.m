@@ -1,11 +1,12 @@
 classdef PSTD
-    %Simulation of the 2-D wave equation using PSTD
+    % Simulation of the 2-D wave equation using PSTD
     % Saroch Leedumrongwatthanakun 2015
     
     properties
         coeff;   % coefficient
         info; % diagnostics information on cover of field on medium
 		gpuEnabled = false; % logical to check if simulation are ran on the GPU (default: false)
+        callbackEnabled = true; % logical to display time evolution of wave solution
         callback = @PSTD.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the real value of the field.
         callback_interval = 100; %the callback is called every 'callback_interval' steps. Default = 5
         dt; % time step
@@ -21,16 +22,12 @@ classdef PSTD
         eps_0 = 8.854187817e-12; % permittivity of free space               
         mu_0  = 4*pi*1e-7; % permeability of free space   
         c = 1/sqrt(PSTD.mu_0*PSTD.eps_0); % speed of light in free space
-        c2 = 1/(PSTD.mu_0*PSTD.eps_0); % squre of speed of light in free space
+        c2 = 1/(PSTD.mu_0*PSTD.eps_0); % square of speed of light in free space
     end
  
     methods
         function obj = PSTD(sample, options)
             %% Constructs a wave simulation object
-			%	refractive_index = refractive index map (need not have an average value of 1)
-			%	options.pixel_size = size of a pixel in the refractive_index map, e.g. in um
-			%   options.wavelength = free space wavelength (same unit as pixel_size, e. g. um)
-            %   options.time_size = size of time step in each loop in second
             
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             
@@ -50,14 +47,12 @@ classdef PSTD
             obj.time = (0:obj.number_of_time_steps+1)*obj.dt;
    
             %% Initialize updating coefficients;
-            %obj.coeff = fftshift(obj.c2*options.dt^2./sample.refractive_index);
             obj.coeff = obj.c2*options.dt^2./(sample.refractive_index.^2);
             obj.coeff = obj.coeff(1:size(sample.damping_y,2),1:size(sample.damping_x,2)) .* (sample.damping_y' * sample.damping_x); 
             
             %%  Calculate PSTD operator
             %kOper1 = @(px, py) 1.0i*(px+py); %ik
             %obj.k = (bsxfun(kOper1, sample.grid.px_range, sample.grid.py_range));
-
             
             kOper2 = @(px, py) -(px.^2+py.^2); %-k^2
             obj.koperator = (bsxfun(kOper2, sample.grid.px_range, sample.grid.py_range));
@@ -67,32 +62,26 @@ classdef PSTD
     
         end
         
-        function [En, SumE, RMS, avg_time, n_time, success] = exec(sample,obj, source)
+        function [En, Eavg, RMS, avg_time, n_time, success] = exec(sample,obj, source)
             %% preallocate the loop variables
             Enm = zeros(sample.grid.N(1),sample.grid.N(2)); % field at timestep = n-1
             En = zeros(sample.grid.N(1),sample.grid.N(2));  % field at timestep = n
             Enp = zeros(sample.grid.N(1),sample.grid.N(2)); % field at timestep = n+1
-            SumE = zeros(sample.grid.N(1),sample.grid.N(2)); %sum of filed En
+            Eavg = zeros(sample.grid.N(1),sample.grid.N(2)); %sum of filed En
             RMS = zeros(sample.grid.N(1),sample.grid.N(2));
             
             
             %% initialize_sources_2d (scaling source size to grid size)
             source.value = padarray(source.value,sample.grid.N - size(source.value), 'post');
-            %source = (1/PSTD.eps_0)*ifft2(bsxfun(@times, obj.k, fft2(source)));
-            %source = circshift(source,round(-(2*boundaries.width+sample.grid.padding)/2));
-             
-            % copy waveform of the waveform type to waveform of the source 
             source.timeseries = source.magnitude_factor * source.timeseries; 
-            %source.timeseries = source.magnitude_factor * source.WaveForm(source,obj.time); 
-            %source.waveform = source.magnitude_factor * waveforms.source.waveform_type.waveform;
             
             %% Check whether gpu computation option is enabled
             if obj.gpuEnabled                
                 Enm = gpuArray(Enm);
                 En = gpuArray(En);
                 Enp = gpuArray(Enp);
-                SumE = gpuArray(SumE);
-                RMS = gpuArray(SumE);
+                Eavg = gpuArray(Eavg);
+                RMS = gpuArray(RMS);
                 source = gpuArray(source);
                 obj.coeff = gpuArray(obj.coeff);
                 obj.koperator = gpuArray(obj.koperator);
@@ -111,17 +100,16 @@ classdef PSTD
             current_time = 0;
             avg_time = 0;
             cover_time = max(sample.N)*sample.grid.dx/PSTD.c; % time of wave propagation thorug whole medium
-             %source.timeseries(round(cover_time/obj.dt/4):end) = 0; 
+            %source.timeseries(round(cover_time/obj.dt/4):end) = 0; 
             n_time=0;
             for time_step = 2:obj.number_of_time_steps-1
                 
                 current_time  = current_time + obj.dt;
                 
                 %%update_source;
-                %source_term =0;
-                %source_term = source.timeseries(time_step)*source.value;  
                 source_term = (source.timeseries(time_step+1) - source.timeseries(time_step-1))/2/obj.dt*source.value; 
-                %En = En + source.timeseries(time_step)*source.value; 
+                %En = En + source_term; 
+                %source_term =0;
            
                 %%update_fields_2d;
                 Enp = 2*En - Enm ...
@@ -135,25 +123,23 @@ classdef PSTD
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 %%capture sampled wave fields_2d;
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
-               	if (mod(time_step, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
+               	if obj.callbackEnabled && (mod(time_step, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                     obj.callback(En,sample,current_time);
                     disp(['time_step ', num2str(time_step)]);
                 end
                 if (current_time > cover_time)
                     RMS = RMS + (En.^2*obj.dt);
-                    SumE = SumE + real(En*exp(2.0i*pi*source.sinusoidal.frequency*current_time));
+                    Eavg = Eavg + real(En*exp(2.0i*pi*source.sinusoidal.frequency*current_time));
                     n_time= n_time+1;
                     avg_time  = avg_time + obj.dt;
                 end
                 
                 %% updating field
-                %En(1:sample.N(1),1) = 1;
-                %Enp(1:sample.N(1),1) = 1;
                 Enm = En;
                 En = Enp;
     
             end %end timestep
-            SumE = SumE / n_time;
+            Eavg = Eavg / n_time;
             RMS = sqrt ( RMS / avg_time);
             end_time = cputime;
             total_time_in_minutes = (end_time - start_time)/60;
@@ -169,18 +155,21 @@ classdef PSTD
            % in default values for missing properties
            % wavelength in real(V) = 0
            if ~isfield(options,'lambda')
-               options.lambda = 1; % in um
+               options.lambda = 1e-6; % in m
            end
            % size of pixels
            if ~isfield(options,'pixel_size')
-               options.pixel_size = 1/4*options.lambda; % in um
+               options.pixel_size = 1/4*options.lambda; % in m
+           end
+           % dt
+           if ~isfield(options,'dt')
+               options.dt = 0.9*(2/sqrt(2)*options.pixel_size/pi/PSTD.c); % in s
            end
         end
         
         %default callback function. Shows real value of field
 		function default_callback(E,sample,current_time)
-            figure(1);
-            imagesc(sample.grid.x_range,sample.grid.y_range,real(E(1:sample.N(1),2:sample.N(2))));
+            figure(1); imagesc(sample.grid.x_range,sample.grid.y_range,real(E(1:sample.N(1),2:sample.N(2))));
             title(['time =' num2str(current_time) ' s'])
             xlabel('x (m)','FontSize',14); ylabel('y (m)','FontSize',14);
             h = colorbar; set(get(h,'Title'),'String','Re(E) (a.u.)','FontSize',14);
