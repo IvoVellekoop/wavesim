@@ -1,75 +1,27 @@
-function [ sol ] = PlaneWaveSol_2D( k, theta,initalphase,h, x, y )
-% ANALYTIC_SOL_2D 
+function [ sol ] = PlaneWaveSol_2D( k, theta, h, x, y )
+% ANALYTIC_SOL_2D
 % Compute the analytic solution to the Helmholtz equation in 2D in
 % homogeneous medim
 % param:
 %   k: wavenumber k=k0*n (d²u/dx² + k² * u = 0)
-%   Theta: parameter of the solution.
-%   x, y: set of the points
+%   theta: angle of the wave
+%   h: grid sixe
+%   x, y: meshgrid of coordinates (todo: change to bsxfun)
+kx = k * cos(theta);
+ky = k * sin(theta);
 
-    kx = k * cos(theta);
-    ky = k * sin(theta);
-    %sol = exp(1.0i * (kx * x + ky * y -pi/2));
-    %sol = ( - exp(1.0i * abs(kx * x + ky * y - initalphase)) + exp(1.0i*abs(kx * x + ky * y))); % normalized
-    %sol = (1/(2*k^2))*( - exp(1.0i * abs(kx * x + ky * y - initalphase)) + exp(1.0i*abs(kx * x + ky * y))); % [o h]
-    %sol = (1/(2*k^2))*( - exp(1.0i * (kx * x + ky * y - initalphase/2)) + exp(1.0i*(kx * x + ky * y + initalphase/2))); % [-h/2 h/2]
-    
-    % delta source
-    %sol = (1/(2*k^2))* (exp(1.0i*(kx * x + ky * y))); 
-    
-    % Triangle source [-h/2 h/2]
-    %sol = (-2.0i/(k^3*h))*(exp(1.0i * (kx * x + ky * y - initalphase/2))...
-    %                           + exp(1.0i*(kx * x + ky * y + initalphase/2))- 2*exp(1.0i*(kx * x + ky * y))); 
-    % sol = ( 8.0i*sin(initalphase/4)^2/(k^3*h) )*exp(1.0i * abs( kx * x + ky * y ));
-    
-    % Triangle source [-h h]
-    %sol = ( (-1.0i*(cos(initalphase)-1))/(k^3*h) )*exp(1.0i * abs( kx * x + ky * y ));
-    
-    %Sinc function
-%    sol = (h/(4*pi*k))*exp(-1.0i * abs(kx * x + ky * y)).*(...
- %               (sgn(x-x')-1)*(-expint(-1.0i*((initalphase-pi)*x')./h)+expint((-1.0i*(initalphase+pi)*x')./h))...
-  %              +((sgn(x-x')+1)*exp(2.0i * abs(kx * x + ky * y)))...
-   %             .*(-expint(-1.0i*((pi-initalphase)*x')./h)+expint((+1.0i*(initalphase+pi)*x')./h)));
-   
-   %sol = (- h / (4 * pi * kx)) * (...
-   %     exp(1.0i * kx * x) .* (  expint(-1.0i * (-h*kx+pi) * x / h)-2.0i*pi - expint(1.0i * (h*kx+pi) * x/h)) -... 
-   %     exp(-1.0i * kx * x) .* ( -expint(-1.0i * (h*kx-pi)* x / h)-2.0i*pi   + expint(-1.0i* (h*kx+pi) * x/h)) +...
-   %     -2.0i*pi*exp(1.0i * kx * x) -2.0i*pi*exp(-1.0i * kx * x));
-   
-   %Adding factor 1/2
-    
-    %    sol = (- h / (8 * pi * (kx + ky))) * (...
-    %      exp(1.0i * (kx * x + ky * y)) .* (  expint(-1.0i * (-h*kx+pi) * x / h)-2.0i*pi - expint(1.0i * (h*kx+pi) * x/h)) -... 
-    %      exp(-1.0i * (kx * x + ky * y)) .* ( -expint(-1.0i * (h*kx-pi)* x / h)-2.0i*pi   + expint(-1.0i* (h*kx+pi) * x/h)) +...
-    %      -2.0i*pi*exp(1.0i * (kx * x + ky * y)) - 2.0i*pi*exp(-1.0i * (kx * x + ky * y)));
-    
-        %sol = (- h / (8 * pi * (kx + ky))) * (...
-        %    exp(1.0i * (kx * x + ky * y)) .* (  expint(-1.0i * (-h*kx+pi) * x / h)-2.0i*pi - expint(1.0i * (h*kx+pi) * x/h)) -... 
-        %    exp(-1.0i * (kx * x + ky * y)) .* ( -expint(-1.0i * (h*kx-pi)* x / h)-2.0i*pi   + expint(-1.0i* (h*kx+pi) * x/h))) +...
-        %    (1.0i*h/2/(kx+ky))*cos(kx * x + ky * y);
-        
-         %sol = (- h / (8 * pi * (kx + ky))) * (...
-         %   exp(1.0i * (kx * x + ky * y)) .* (  expint(-1.0i * (-h*kx+pi) * x / h)-2.0i*pi - expint(1.0i * (h*kx+pi) * x/h)) -... 
-         %   exp(-1.0i * (kx * x + ky * y)) .* ( -expint(-1.0i * (h*kx-pi)* x / h)-2.0i*pi   + expint(-1.0i* (h*kx+pi) * x/h))) +...
-         %   (1.0i*h/2/(kx+ky))*cos(kx * x + ky * y);
-        
-          sol = (- h / (4 * pi * (kx + ky))) * (...
-            exp(1.0i * (kx * x + ky * y)) .* (  expint(-1.0i * (-h*kx+pi) * x / h) - expint(1.0i * (h*kx+pi) * x/h)) -... 
-            exp(-1.0i * (kx * x + ky * y)) .* ( -expint(-1.0i * (h*kx-pi)* x / h)  + expint(-1.0i* (h*kx+pi) * x/h))) +...
-            (1.0i*h/2/(kx+ky))*exp(1.0i * (kx * x + ky * y));
-        
-        
-        %(2/h)*Sinc(2*pix/h) (integral of source term is one)
-        %         sol = (- 1 / (2 * pi * (kx + ky))) * (...
-        %    exp(1.0i * (kx * x + ky * y)) .* (  expint(-1.0i * (-h*kx+pi) * x / h)-2.0i*pi - expint(1.0i * (h*kx+pi) * x/h)) -... 
-        %    exp(-1.0i * (kx * x + ky * y)) .* ( -expint(-1.0i * (h*kx-pi)* x / h)-2.0i*pi   + expint(-1.0i* (h*kx+pi) * x/h))) +...
-        %    (1.0i/(kx+ky))*cos(kx * x + ky * y);
-        
-       %Sinc(2*pix/h) (amplitube correct but pahse is not not correct at x close to x0)
-       % sol = (- h / (8 * pi * (kx + ky))) * (...
-       %     exp(1.0i * (kx * x + ky * y)) .* (  expint(-1.0i * (-h*kx+2*pi) * x / h)-2.0i*pi - expint(1.0i * (h*kx+2*pi) * x/h)) -... 
-       %     exp(-1.0i * (kx * x + ky * y)) .* ( -expint(-1.0i * (h*kx-2*pi)* x / h)-2.0i*pi   + expint(-1.0i* (h*kx+2*pi) * x/h))) +...
-       %     (1.0i*h/2/(kx+ky))*cos(kx * x + ky * y);
-       
+%finding the exact solution is not trivial because
+%the source is not an exact delta function. 
+%The best correspondence with the discrete representation
+%is found by assuming that the source is a sinc function with a width
+%matching the grid spacing (i. e. the source is band-limited)
+
+%todo: find out why factor 1/4pi is correct (solution with Mathematica
+%gave 1/8pi prefactor for expint term?)
+sol = 1.0i*h/(2*k)*exp(1.0i * (kx * x + ky * y))... %<--propagating plane wave.
+    -h/(4*pi*k) * (...
+    exp(1.0i * (kx * x + ky * y)) .* (  expint(-1.0i * (-h*kx+pi) * x / h) - expint(1.0i * (h*kx+pi) * x/h)) -...
+    exp(-1.0i * (kx * x + ky * y)) .* ( -expint(-1.0i * (h*kx-pi)* x / h)  + expint(-1.0i* (h*kx+pi) * x/h)));
+
 end
 
