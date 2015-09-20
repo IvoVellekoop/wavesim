@@ -19,9 +19,9 @@ classdef simgrid
             obj.N = pow2(nextpow2(min_size));
             obj.padding = obj.N - min_size; %total amoung of padding. Usually placed at right and bottom sides only (non-centric)
             obj.dx = dx;
-            obj.x_range = (0:(obj.N(2)-1))*dx; %xcoor = linspace(min_x,max_x,nx);
-            obj.y_range = (0:(obj.N(1)-1)).'*dx;
-            obj.px_range = 2*pi*simgrid.symrange(obj.N(2))/(dx*obj.N(2)); 
+            obj.x_range = (0:(obj.N(2)-1))*dx; %obj.x_range = linspace(min_x,max_x,obj.N(2));
+            obj.y_range = (0:(obj.N(1)-1)).'*dx; %obj.y_range = linspace(min_y,max_y,obj.N(1));
+            obj.px_range = 2*pi*simgrid.symrange(obj.N(2))/(dx*obj.N(2));
             obj.py_range = 2*pi*simgrid.symrange(obj.N(1)).'/(dx*obj.N(1));
        end
     end
