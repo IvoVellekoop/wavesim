@@ -93,7 +93,6 @@ classdef wavesim
             threshold = obj.energy_threshold * en_all(1); %
             
             %% simulation iterations
-            success = true;
             obj.it = 1;
             while abs(en_all(obj.it)) >= threshold && obj.it <= obj.max_iterations
                 obj.it = obj.it+1;
@@ -109,7 +108,6 @@ classdef wavesim
             
             %% Simulation finished
             obj.time=toc;
-            time=obj.time;
             if abs(en_all(obj.it)) < threshold
                 disp(['Reached steady state in ' num2str(obj.it) ' iterations']);
                 disp(['Time comsumption: ' num2str(obj.time) ' s']);
@@ -118,7 +116,7 @@ classdef wavesim
             end
         end
         
-        function [E_x, energy_diff] = single_step(obj, E_x, source)
+        function E_x = single_step(obj, E_x, source)
             % performs a single iteration of the algorithm
             E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x+source))); %wavesim version
             %E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .*
