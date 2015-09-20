@@ -1,61 +1,52 @@
-function obj = SampleMedium(refractive_index, options, boundaries)
-      % SampleMedium - Generation of refractive index map of a medium with absorption boundary layer
-      % Saroch Leedumrongwatthanakun 2015
-      % SampleMedium object:
-           %   boundaries.width = extra space to add around simulation to simulate absorbing boundaries, in pixels
-           %   boundaries.xcurve = shape of the damping curve horizontal boundary
-           %   boundaries.ycurve = shape of the damping curve vertical boundary
-           obj.N = size(refractive_index);
-           
-            %% Determine constants based on refractive_index map
-            obj.PPW = options.lambda/options.pixel_size;
-			obj.n_min = min(abs(refractive_index(:))); 
-            obj.n_max = max(abs(refractive_index(:))); 
-            obj.n_center = sqrt((obj.n_max^2 + obj.n_min^2) / 2); %central refractive index (refractive index that k_r is based on)
-          
-            
-           %% fill in boundary settings
-           if ~isfield(boundaries,'free') % if no free gap parameters are given
-               boundaries.free=[0 0];
-           end
-           if ~isfield(boundaries,'width') % if no bonudary parameters are given
-               boundaries.width = floor( (2.^nextpow2(size) - size)/4); % width of the absorbing boundary
-               boundaries.xcurve = 1-linspace(0, 1, boundaries.width(2)).^2;   % damping curve of horizontal absorbing boundary
-               boundaries.ycurve = 1-linspace(0, 1, boundaries.width(1)).^2;   % curve of vertical absorbing layer
-           end
-                    
-           if ~isfield(boundaries,'xcurve') || boundaries.width(2) ~= length(boundaries.xcurve) % if width is given but not xcurve
-               boundaries.xcurve = 1-linspace(0, 1, boundaries.width(2)).^2;
-           end
-           
-           if ~isfield(boundaries,'ycurve') || boundaries.width(1) ~= length(boundaries.ycurve) % if width is given but not ycurve
-               boundaries.ycurve = 1-linspace(0, 1, boundaries.width(1)).^2;
-           end
-          
-           
-            %% Setup grid, taking into account required boundary; adding minimum free space and padding to next power of 2 when needed
-            % Determine the problem space boundaries including boundary
-            % Determining the problem space size in grid.N
-            obj.grid = simgrid(size(refractive_index)+2*boundaries.width+boundaries.free, options.pixel_size); 
-            
-            %% Padding refractive index to match simulation grid
-            obj.grid.padding=obj.grid.padding+boundaries.free;% adding minimum free space
-            obj.refractive_index = padarray(refractive_index, round((2*boundaries.width+obj.grid.padding)/2), 'replicate', 'both');
-            obj.refractive_index = circshift(obj.refractive_index,round(-(2*boundaries.width+obj.grid.padding)/2));
-            
-                      
-			%% Determine optimum value for epsilon, otherwise use given epsilon
-            obj.BCepsmin = (56.43/options.lambda/(max(boundaries.width)*options.pixel_size)-0.2468); %empirical formular for threshold width of g0(r)=1e-3                                      
-            
-            %% Absorbing boundaries
-            obj.damping_x = [ ones(1, obj.grid.N(2)-obj.grid.padding(2)-2*boundaries.width(2)), boundaries.xcurve, zeros(1, obj.grid.padding(2)), fliplr(boundaries.xcurve)];
-            obj.damping_y = [ ones(1, obj.grid.N(1)-obj.grid.padding(1)-2*boundaries.width(1)), boundaries.ycurve, zeros(1, obj.grid.padding(1)), fliplr(boundaries.ycurve)];
-                        
-            %% Apply absorbing boundaries on potential map
-            obj.refractive_index = obj.refractive_index(1:size(obj.damping_y,2),1:size(obj.damping_x,2));
-            %obj.refractive_index = obj.refractive_index(1:size(obj.damping_y,2),1:size(obj.damping_x,2)) .* (obj.damping_y' * obj.damping_x);
-            
-           
-            %obj.refractive_index = obj.refractive_index(1:size(obj.damping_y,2),1:size(obj.damping_x,2)) + 1.0i .* (obj.damping_y' * obj.damping_x) - 1.0i;
+function obj = SampleMedium(refractive_index, options)
+% SampleMedium - Generates a sample object for use in wave
+% simulations (wavesim, PSTD, FDTD)
+% internally, the object stores a map of the relative dielectric
+% constant (e_r), which is the refractive index squared. The e_r map
+% is padded with absorbing boundaries, and then expanded to the next
+% multiple of 2^N in each dimension (for fast fourier transform)
+%
+% refractive_index   = refractive index map, may be complex, need not
+%                      be square
+% options.pixel_size = size of a grid pixel
+% options.boundary_widths = vector with widths of the absorbing
+%                          boundary (in pixels) for each dimension. Set element
+%                          to 0 for periodic boundary.
+% options.boundary_strength = maximum value of imaginary part of e_r
+%                             in the boundary
+%
+% returned object:
+% obj.e_r = relative dielectric constand map, with absorbing
+%           boundaries appended, and padded to nearest multiple of 2^k,2^m
+% obj.e_r_max = maximum real part of obj.e_r
+% obj.e_r_min = minimum real part of obj.e_r
+% obj.e_r_center = (e_r_max+e_r_min)/2
+% obj.roi = size of the original refractive index map without padding
+% obj.grid = simgrid object, with x and k ranges
+% Saroch Leedumrongwatthanakun 2015
+
+%calculate size of dielectric constant map
+B = options.boundary_widths;
+S = size(refractive_index);
+obj.grid = simgrid(S+2*B, options.pixel_size); %padds to next power of 2 in each dimension
+obj.roi = cell(2);
+obj.roi{1} = B(1)+(1:S(1)); %the region of interest is between the boundaries
+obj.roi{2} = B(2)+(1:S(2)); %the region of interest is between the boundaries
+
+%calculate e_r and min/max values
+obj.e_r = refractive_index.^2;
+obj.e_r_min = min(real(obj.e_r(:)));
+obj.e_r_max = max(real(obj.e_r(:)));
+obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;
+
+%add absorbing boundaries
+obj.e_r = padarray(obj.e_r, B, 'replicate', 'both'); %absorbing boundaries
+x = [(B(2):-1:1), zeros(1,S(2)), (1:B(2))] / max(B(2),1);
+y = [(B(1):-1:1), zeros(1,S(1)), (1:B(1))].' / max(B(1),1);
+BG = 1.0i*options.boundary_strength;
+f_boundary = @(x, y) min(x.^2 + y.^2, 1).^2;
+obj.e_r = obj.e_r + BG * bsxfun(f_boundary, x, y);
+
+%add zero padding
+obj.e_r = padarray(obj.e_r, obj.grid.N - size(obj.e_r), BG, 'post');
 end
-  
