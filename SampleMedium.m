@@ -43,10 +43,10 @@ obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;
 obj.e_r = padarray(obj.e_r, B, 'replicate', 'both'); %absorbing boundaries
 x = [(B(2):-1:1), zeros(1,S(2)), (1:B(2))] / max(B(2),1);
 y = [(B(1):-1:1), zeros(1,S(1)), (1:B(1))].' / max(B(1),1);
-BG = 1.0i*options.boundary_strength;
+BS = 1.0i*options.boundary_strength;
 f_boundary = @(x, y) min(x.^2 + y.^2, 1).^2;
-obj.e_r = obj.e_r + BG * bsxfun(f_boundary, x, y);
+obj.e_r = obj.e_r + BS * bsxfun(f_boundary, x, y);
 
 %add zero padding
-obj.e_r = padarray(obj.e_r, obj.grid.N - size(obj.e_r), BG, 'post');
+obj.e_r = padarray(obj.e_r, obj.grid.N - size(obj.e_r), obj.e_r_center+BS, 'post');
 end

@@ -3,160 +3,140 @@ classdef PSTD
     % Saroch Leedumrongwatthanakun 2015
     
     properties
-        coeff;   % coefficient
+        c1;   % coefficients
+        c2;
+        c3;
+        grid; %simgrid object
+        roi; %position of simulation area with respect to padded array
+        x_range;
+        y_range;
+        lambda;
+        
         info; % diagnostics information on cover of field on medium
 		gpuEnabled = false; % logical to check if simulation are ran on the GPU (default: false)
         callback = @PSTD.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the real value of the field.
         callback_interval = 100; %the callback is called every 'callback_interval' steps. Default = 5
         dt; % time step
-        time; % time
-        number_of_time_steps; % a number of time step
-    %%internal
-        k; % wave number
-        koperator; % k domain
+        it; %iteration
+        time; % time consumption
+        energy_threshold = 1E-9; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
+        max_iterations = 4E3; %or when 'max_iterations' is reached. Default 10000
+        koperator; % k domain laplacian
         dtmin; %samll time step at sutible pixel_size
     end
     
-    properties (Constant)
-        eps_0 = 8.854187817e-12; % permittivity of free space               
-        mu_0  = 4*pi*1e-7; % permeability of free space   
-        c = 1/sqrt(PSTD.mu_0*PSTD.eps_0); % speed of light in free space
-        c2 = 1/(PSTD.mu_0*PSTD.eps_0); % squre of speed of light in free space
-    end
- 
     methods
         function obj = PSTD(sample, options)
-            %% Constructs a wave simulation object
-			%	refractive_index = refractive index map (need not have an average value of 1)
-			%	options.pixel_size = size of a pixel in the refractive_index map, e.g. in um
-			%   options.wavelength = free space wavelength (same unit as pixel_size, e. g. um)
-            %   options.time_size = size of time step in each loop in second
+            %% Constructs a pseudo spectral time domain simulation object
+            % uses algorithm from 'Numerical Absorbing Boundary Conditions
+            % Based on a Damped Wave Equation for Pseudospectral
+            % Time-Domain Acoustic Simulations' Spa, Reche-Lopez, Hernandez
+            % The Scientific World Journal 2014, 285945 (2014)
+            %	sample = SampleMedium object
+            %   options.wavelength = free space wavelength (same unit as pixel_size, e. g. um)
+            %   options.dt         = time step (leave empty unless forcing a specific value)
             
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
-            
-            options = PSTD.readout_input(options);
+            options = PSTD.readout_input(options); %fill in default options
                         
-            %% Stability condition
-            obj.dtmin = (2/sqrt(2)*sample.grid.dx/pi/PSTD.c); %PSTD
-            %dt = 1/(c*sqrt((1/dx^2)+(1/dy^2))); %FDTD
-            if (options.dt < obj.dtmin)
-                obj.dt = options.dt;
+            %% Stability condition (c=1)
+            obj.dtmin = 2/sqrt(2)*sample.grid.dx/pi; %is this correct?
+            if isfield(options,'dt')
+                obj.dt = options.dt; %force a specific value, may not converge
             else
-                obj.dt = 0.9*obj.dtmin; %add 0.9 factor to decrease dt
-            end  
+                obj.dt = 0.5*obj.dtmin; %guaranteed convergence
+            end
             
-            % Time array
-            obj.number_of_time_steps = round(options.time_duration/obj.dt)+2; %+2 for initial time and time at final step
-            obj.time = (0:obj.number_of_time_steps+1)*obj.dt;
-   
-            %% Initialize updating coefficients;
-            %obj.coeff = fftshift(obj.c2*options.dt^2./sample.refractive_index);
-            obj.coeff = obj.c2*options.dt^2./(sample.refractive_index.^2);
-            obj.coeff = obj.coeff(1:size(sample.damping_y,2),1:size(sample.damping_x,2)) .* (sample.damping_y' * sample.damping_x); 
+            %% Initialize coefficients (could be optimized);
+            sdt = imag(sample.e_r) * 2*pi/options.lambda * obj.dt;
+            obj.c1 = (sdt-2)./(sdt+2);
+            obj.c2 = 4./(sdt+2);
+            obj.c3 = 2*obj.dt^2./real(sample.e_r)./(sdt+2); 
             
-            %%  Calculate PSTD operator
-            %kOper1 = @(px, py) 1.0i*(px+py); %ik
-            %obj.k = (bsxfun(kOper1, sample.grid.px_range, sample.grid.py_range));
-
-            
+            %%  Calculate PSTD laplace operator
             kOper2 = @(px, py) -(px.^2+py.^2); %-k^2
             obj.koperator = (bsxfun(kOper2, sample.grid.px_range, sample.grid.py_range));
-            %obj.koperator = - (sample.grid.py_range * sample.grid.px_range).^2;
-            
-          
-    
+        
+            obj.grid = sample.grid;
+            obj.roi  = sample.roi;
+            obj.lambda  = options.lambda;
+            obj.x_range = sample.grid.x_range(obj.roi{2});
+            obj.x_range = obj.x_range - obj.x_range(1);
+            obj.y_range = sample.grid.y_range(obj.roi{1});
+            obj.y_range = obj.y_range - obj.y_range(1);
         end
         
-        function [En, SumE, avg_time, AmpE, success] = exec(sample,obj, source)
+        function E = exec(obj, sources)
+            tic;
             %% preallocate the loop variables
-            Enm = zeros(sample.grid.N(1),sample.grid.N(2)); % field at timestep = n-1
-            En = zeros(sample.grid.N(1),sample.grid.N(2));  % field at timestep = n
-            Enp = zeros(sample.grid.N(1),sample.grid.N(2)); % field at timestep = n+1
-            SumE = zeros(sample.grid.N(1),sample.grid.N(2)); %sum of filed En
-            AmpE = zeros(sample.grid.N(1),sample.grid.N(2));
-            
+            E_prev = zeros(obj.grid.N); % field at timestep = n-1
+            E      = zeros(obj.grid.N);  % field at timestep = n
             
             %% initialize_sources_2d (scaling source size to grid size)
-            source.value = padarray(source.value,sample.grid.N - size(source.value), 'post');
-            %source = (1/PSTD.eps_0)*ifft2(bsxfun(@times, obj.k, fft2(source)));
-            %source = circshift(source,round(-(2*boundaries.width+sample.grid.padding)/2));
-             
-            % copy waveform of the waveform type to waveform of the source 
-            source.timeseries = source.magnitude_factor * source.timeseries; 
-            %source.timeseries = source.magnitude_factor * source.WaveForm(source,obj.time); 
-            %source.waveform = source.magnitude_factor * waveforms.source.waveform_type.waveform;
+            %todo: respect sparsity
+            source = zeros(obj.grid.N);
+            source(obj.roi{1}, obj.roi{2}) = sources;
             
             %% Check whether gpu computation option is enabled
             if obj.gpuEnabled                
-                Enm = gpuArray(Enm);
-                En = gpuArray(En);
-                Enp = gpuArray(Enp);
-                SumE = gpuArray(SumE);
-                AmpE = gpuArray(SumE);
+                E_prev = gpuArray(E_prev);
+                E = gpuArray(E);
                 source = gpuArray(source);
                 obj.coeff = gpuArray(obj.coeff);
                 obj.koperator = gpuArray(obj.koperator);
-                %Enm = source.value;
-                %En = source.value;
-            else
-                %Enm = source.value;
-                %En = source.value;
             end
-                        
+                     
+            
+            %% Energy thresholds (convergence and divergence criterion)
+            en_all    = zeros(1, obj.max_iterations);
+            en_all(1) = wavesim.energy(source);
+            threshold = obj.energy_threshold * en_all(1); %
+            
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %% PSTD time marching loop
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            success = true;
-            start_time = cputime; 
-            current_time = 0;
-            avg_time = 0;
-            cover_time = max(sample.N)*sample.grid.dx/PSTD.c; % time of wave propagation thorug whole medium
-             %source.timeseries(round(cover_time/obj.dt/4):end) = 0; 
-            
-            for time_step = 2:obj.number_of_time_steps-1
+            obj.it = 1;
+            omega  = 2*pi/obj.lambda; %c==1
+            while abs(en_all(obj.it)) >= threshold && obj.it <= obj.max_iterations
+            %while obj.it <= obj.max_iterations
+                obj.it = obj.it+1;
                 
-                current_time  = current_time + obj.dt;
+                %calculate source amplitude
+                osc = obj.it * obj.dt * omega; 
+                source_amplitude = exp(-1.0i * osc);
+                if (osc < 10*pi)
+                    source_amplitude = source_amplitude * (1-0.5*cos(osc/10));
+                end
                 
-                %%update_source;
-                %source_term =0;
-                %source_term = source.timeseries(time_step)*source.value;  
-                source_term = (source.timeseries(time_step+1) - source.timeseries(time_step-1))/2/obj.dt*source.value; 
-                %En = En + source.timeseries(time_step)*source.value; 
-           
-                %%update_fields_2d;
-                Enp = 2*En - Enm ...
-                        + bsxfun(@times, obj.coeff , ...
-                            (-source_term + (ifft2( ...
-                                              bsxfun(@times, obj.koperator, fft2( En ))))));
-                                          
-                %Enp = 2*En - Enm + obj.coeff .*(-source_term + (ifft2( obj.koperator.*fft2(En) )));
-                
+                %update fields
+                %based on equation:
+                % nabla^2 E - e_r d^2 E/dt^2 = -source
+                %
+                %approximate time derivative by centered finite difference
+                %
+                % nabla^2 E - e_r (E_next - 2*E + E_prev) / dt^2 = -source
+                %
+                % isolate E_next:
+                % E_next = (nabla^2 E + source) * dt^2/e_r + 2*E - E_prev
+                E_next = obj.c2.*E + obj.c1.*E_prev + obj.c3 .* (ifft2(obj.koperator.*fft2(E)) + source_amplitude*source);
    
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 %%capture sampled wave fields_2d;
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
-               	if (mod(time_step, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
-                    obj.callback(En,sample,current_time);
-                    disp(['time_step ', num2str(time_step)]);
+                if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
+                    obj.callback(obj, E, en_all(1:obj.it), threshold);
                 end
-                if (current_time > cover_time)
-                    AmpE = AmpE + abs(En)*obj.dt;
-                    SumE = SumE + En*obj.dt;
-                    avg_time  = avg_time + obj.dt;
-                end
-                
-                %% updating field
-                %En(1:sample.N(1),1) = 1;
-                %Enp(1:sample.N(1),1) = 1;
-                Enm = En;
-                En = Enp;
-    
+                phase_shift = exp(-1.0i*obj.dt*omega); %expected phase shift for single step
+                en_all(obj.it) = wavesim.energy(E_next-E*phase_shift);
+                E_prev = E;
+                E      = E_next;
+                sum(isnan(E(:)))
             end %end timestep
-            SumE = SumE / avg_time;
-            end_time = cputime;
-            total_time_in_minutes = (end_time - start_time)/60;
-            disp(['Total simulation time is ' num2str(total_time_in_minutes) ' minutes.']);
             
+            E = gather(E(obj.roi{1}, obj.roi{2})); % converts gpu array back to normal array
+            obj.time = toc;
+            disp(['Reached steady state in ' num2str(obj.it) ' iterations']);
+            disp(['Time consumption: ' num2str(obj.time) ' s']);
         end
         
     end
@@ -175,14 +155,27 @@ classdef PSTD
            end
         end
         
-        %default callback function. Shows real value of field
-		function default_callback(E,sample,current_time)
+%         %default callback function. Shows real value of field
+% 		function default_callback(obj, E, energy, threshold)
+%             figure(1);
+%             imagesc(obj.grid.x_range, obj.grid.y_range, abs(E));
+%             title(['iteration = ' num2str(obj.it)])
+%             xlabel('x (m)','FontSize',14); ylabel('y (m)','FontSize',14);
+%             h = colorbar; set(get(h,'Title'),'String','Re(E) (a.u.)','FontSize',14);
+%             set(gca,'FontSize',14);
+%             drawnow;
+%         end
+        
+        %default callback function. Shows real value of field, and total energy evolution
+        function default_callback(obj, E, energy, threshold)
             figure(1);
-            imagesc(sample.grid.x_range,sample.grid.y_range,real(E(1:sample.N(1),2:sample.N(2))));
-            title(['time =' num2str(current_time) ' s'])
-            xlabel('x (m)','FontSize',14); ylabel('y (m)','FontSize',14);
-            h = colorbar; set(get(h,'Title'),'String','Re(E) (a.u.)','FontSize',14);
-            set(gca,'FontSize',14);
+            subplot(2,1,1); plot(1:length(energy),log10(energy),'b',[1,length(energy)],log10(threshold)*ones(1,2),'--r');
+            title(length(energy));  xlabel('# iterations'); ylabel('log(energy added)');
+            
+            subplot(2,1,2); plot(real(E(end/2,:))); title('midline cross-section')
+            xlabel('y (\lambda / 4)'); ylabel('real(E_x)');
+            
+            disp(['Added energy ', num2str(energy(end))]);
             drawnow;
         end
     end
