@@ -123,6 +123,8 @@ classdef PSTD
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 %%capture sampled wave fields_2d;
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
+                phase_shift = exp(-1.0i*obj.dt*omega); %expected phase shift for single step
+                en_all(obj.it) = wavesim.energy(E_next-E*phase_shift);
                 if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                     obj.callback(obj, E, en_all(1:obj.it), threshold);
                 end
@@ -130,10 +132,9 @@ classdef PSTD
                 en_all(obj.it) = wavesim.energy(E_next-E*phase_shift);
                 E_prev = E;
                 E      = E_next;
-                sum(isnan(E(:)))
             end %end timestep
             
-            E = gather(E(obj.roi{1}, obj.roi{2})); % converts gpu array back to normal array
+            E = gather(E(obj.roi{1}, obj.roi{2}))/source_amplitude; % converts gpu array back to normal array and normalize phase shift from source
             obj.time = toc;
             disp(['Reached steady state in ' num2str(obj.it) ' iterations']);
             disp(['Time consumption: ' num2str(obj.time) ' s']);
