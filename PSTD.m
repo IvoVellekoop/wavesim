@@ -22,7 +22,7 @@ classdef PSTD
         energy_threshold = 1E-9; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
         max_iterations = 4E3; %or when 'max_iterations' is reached. Default 10000
         koperator; % k domain laplacian
-        dtmin; %samll time step at sutible pixel_size
+        dtmax; %maximum time step at sutible pixel_size
     end
     
     methods
@@ -40,11 +40,11 @@ classdef PSTD
             options = PSTD.readout_input(options); %fill in default options
                         
             %% Stability condition (c=1)
-            obj.dtmin = 2/sqrt(2)*sample.grid.dx/pi; %is this correct?
+            obj.dtmax = 2/sqrt(2)/pi*sample.grid.dx*sqrt(sample.e_r_min); %is this correct?
             if isfield(options,'dt')
                 obj.dt = options.dt; %force a specific value, may not converge
             else
-                obj.dt = 0.5*obj.dtmin; %guaranteed convergence
+                obj.dt = 0.5*obj.dtmax; %guaranteed convergence
             end
             
             %% Initialize coefficients (could be optimized);
@@ -98,15 +98,14 @@ classdef PSTD
             obj.it = 1;
             omega  = 2*pi/obj.lambda; %c==1
             while abs(en_all(obj.it)) >= threshold && obj.it <= obj.max_iterations
-            %while obj.it <= obj.max_iterations
                 obj.it = obj.it+1;
                 
                 %calculate source amplitude
                 osc = obj.it * obj.dt * omega; 
                 source_amplitude = exp(-1.0i * osc);
-                if (osc < 10*pi)
-                    source_amplitude = source_amplitude * (1-0.5*cos(osc/10));
-                end
+                %if (osc < 10*pi)
+                %    source_amplitude = source_amplitude * (1-0.5*cos(osc/10));
+                %end
                 
                 %update fields
                 %based on equation:
@@ -128,8 +127,6 @@ classdef PSTD
                 if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                     obj.callback(obj, E, en_all(1:obj.it), threshold);
                 end
-                phase_shift = exp(-1.0i*obj.dt*omega); %expected phase shift for single step
-                en_all(obj.it) = wavesim.energy(E_next-E*phase_shift);
                 E_prev = E;
                 E      = E_next;
             end %end timestep
