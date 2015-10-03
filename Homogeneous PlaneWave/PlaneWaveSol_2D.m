@@ -18,7 +18,7 @@ ky = k * sin(theta);
 
 %todo: find out why factor 1/4pi is correct (solution with Mathematica
 %gave 1/8pi prefactor for expint term?)
-sol = 1.0i*h/(2*k)*exp(1.0i * (kx * x + ky * y))... %<--propagating plane wave.
+sol = 1.0i*h/(2*k)*exp(1.0i * (kx * x + ky * y));... %<--propagating plane wave.
     -h/(4*pi*k) * (...
     exp(1.0i * (kx * x + ky * y)) .* (  expint(-1.0i * (-h*kx+pi) * x / h) - expint(1.0i * (h*kx+pi) * x/h)) -...
     exp(-1.0i * (kx * x + ky * y)) .* ( -expint(-1.0i * (h*kx-pi)* x / h)  + expint(-1.0i* (h*kx+pi) * x/h)));

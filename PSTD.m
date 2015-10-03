@@ -72,7 +72,7 @@ classdef PSTD
             
         end
         
-        function [ E, en_all, n_time ]= exec(obj, sources)
+        function [ E, en_all, time_step ]= exec(obj, sources)
             tic;
             %% preallocate the loop variables
             E_prev = zeros(obj.grid.N); % field at timestep = n-1
@@ -103,14 +103,15 @@ classdef PSTD
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %% PSTD time marching loop
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %obj.it = 1;
+            obj.it = 1;
             omega  = 2*pi/obj.lambda; %c==1
             current_time =0;
-            n_time = 0;
+            %n_time = 0;
+            time_step =1;
             for time_step = 1:obj.number_of_time_steps
-            %while abs(en_all(obj.it)) >= threshold && obj.it <= obj.max_iterations
+            %while (abs(en_all(time_step)) >= threshold) && (time_step <= obj.max_iterations)% && current_time < 10*obj.cover_time
                 obj.it = time_step;
-                current_time = current_time +obj.dt;
+                current_time = current_time + obj.dt;
                 %calculate source amplitude
                 osc = obj.it * obj.dt * omega; 
                 source_amplitude = exp(-1.0i * osc);
@@ -135,31 +136,32 @@ classdef PSTD
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
                 phase_shift = exp(-1.0i*obj.dt*omega); %expected phase shift for single step
                 % Calculating difference of field
-                en_all(obj.it) = wavesim.energy(E_next-E*phase_shift);
+                en_all(obj.it) = wavesim.energy(E_next(obj.roi{1}, obj.roi{2})-E(obj.roi{1}, obj.roi{2})*phase_shift);
                 % Calculating difference of amplitube of field
                 %en_all(obj.it) = wavesim.energy(abs(E_next)-abs(E*phase_shift));
                 if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                     obj.callback(obj, E, en_all(1:obj.it), threshold);
                 end
                 
-                if (current_time > obj.cover_time)
-                    if abs(en_all(obj.it)-en_all(obj.it-1)) <= threshold
-                        E_avg = E_avg + (E/source_amplitude);
-                        n_time= n_time+1;
-                    end
-                end
-                
-                %if abs(en_all(obj.it)) <= threshold && current_time > obj.cover_time
-                %    break;
+                %if (current_time >= obj.cover_time)
+                    %if abs(en_all(obj.it)-en_all(obj.it-1)) <= threshold
+                %        E_avg = E_avg + (E/source_amplitude);
+                %        n_time= n_time+1;
+                    %end
                 %end
+                
+                if abs(en_all(obj.it)) <= threshold && current_time > obj.cover_time
+                    break;
+                end
                     
                 %% updating fields
                 E_prev = E;
                 E      = E_next;
                 %obj.it = obj.it+1;
+                %time_step = time_step+1;
             end %end timestep
-            E = gather(E_avg(obj.roi{1}, obj.roi{2}))/n_time; 
-            %E = gather(E_prev(obj.roi{1}, obj.roi{2}))/source_amplitude; % converts gpu array back to normal array and normalize phase shift from source
+            %E = gather(E_avg(obj.roi{1}, obj.roi{2}))/n_time; 
+            E = gather(E_prev(obj.roi{1}, obj.roi{2}))/source_amplitude; % converts gpu array back to normal array and normalize phase shift from source
             %% Simulation finished
             obj.time=toc;
             %if abs(en_all(obj.it)) < threshold && current_time > obj.cover_time

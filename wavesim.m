@@ -12,7 +12,7 @@ classdef wavesim
         
         gpuEnabled = false; % logical to check if simulation are ran on the GPU (default: false)
         callback = @wavesim.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
-        callback_interval = 1000; %the callback is called every 'callback_interval' steps. Default = 5
+        callback_interval = 100; %the callback is called every 'callback_interval' steps. Default = 5
         energy_threshold = 1E-9; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
         max_iterations = 1E4; %1E4; %or when 'max_iterations' is reached. Default 10000
         it; %iteration
@@ -78,13 +78,15 @@ classdef wavesim
             source(obj.roi{1}, obj.roi{2}) = sources;
             
             %% Check whether gpu computation option is enabled
+            E_x = zeros(obj.grid.N);
             if obj.gpuEnabled
                 obj.g0_k = gpuArray(obj.g0_k);
                 obj.V    = gpuArray(obj.V);
                 source   = gpuArray(source);
+                E_x      = gpuArray(E_x);
             end
             %E_x = ifft2(obj.g0_k .* fft2(source)); (IMV:why?)
-            E_x = 0;
+            
             
             %% Energy thresholds (convergence and divergence criterion)
             en_all    = zeros(1, obj.max_iterations);
@@ -97,6 +99,7 @@ classdef wavesim
                 obj.it = obj.it+1;
                 Eold = E_x;
                 E_x = single_step(obj, E_x, source);
+                %en_all(obj.it) = wavesim.energy(E_x(obj.roi{1}, obj.roi{2}) - Eold(obj.roi{1}, obj.roi{2}));
                 en_all(obj.it) = wavesim.energy(E_x - Eold);
                 if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                     obj.callback(obj, E_x, en_all(1:obj.it), threshold);
