@@ -13,7 +13,7 @@ classdef wavesim
         gpuEnabled = false; % logical to check if simulation are ran on the GPU (default: false)
         callback = @wavesim.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
         callback_interval = 100; %the callback is called every 'callback_interval' steps. Default = 5
-        energy_threshold = 1E-9; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
+        energy_threshold = 1E-20; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
         max_iterations = 1E4; %1E4; %or when 'max_iterations' is reached. Default 10000
         it; %iteration
         time; % time comsumption
@@ -69,7 +69,7 @@ classdef wavesim
             obj.y_range = obj.y_range - obj.y_range(1);
         end
         
-        function E_x = exec(obj, sources)
+        function [E_x, en_all, nIter, time] = exec(obj, sources)
             tic;
             %%% Execute simulation
             %% Increase source array to grid size
@@ -91,7 +91,8 @@ classdef wavesim
             %% Energy thresholds (convergence and divergence criterion)
             en_all    = zeros(1, obj.max_iterations);
             en_all(1) = wavesim.energy(source);
-            threshold = obj.energy_threshold * en_all(1); %
+            threshold = obj.energy_threshold * en_all(1); %depeding on system size
+            %threshold = obj.energy_threshold * en_all(1)/(length(obj.roi{1})*length(obj.roi{2}));
             
             %% simulation iterations
             obj.it = 1;
@@ -99,16 +100,21 @@ classdef wavesim
                 obj.it = obj.it+1;
                 Eold = E_x;
                 E_x = single_step(obj, E_x, source);
-                %en_all(obj.it) = wavesim.energy(E_x(obj.roi{1}, obj.roi{2}) - Eold(obj.roi{1}, obj.roi{2}));
-                en_all(obj.it) = wavesim.energy(E_x - Eold);
+                en_all(obj.it) = wavesim.energy(E_x(obj.roi{1}, obj.roi{2}) - Eold(obj.roi{1}, obj.roi{2}));
+                %en_all(obj.it) = wavesim.energy(E_x - Eold);
                 if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                     obj.callback(obj, E_x, en_all(1:obj.it), threshold);
                 end
+                if abs(en_all(obj.it))-abs(en_all(obj.it-1)) >= 1e-18
+                    break;
+                end
             end
+            nIter = obj.it;
             E_x = gather(E_x(obj.roi{1}, obj.roi{2})); % converts gpu array back to normal array
             
             %% Simulation finished
             obj.time=toc;
+            time = obj.time;
             if abs(en_all(obj.it)) < threshold
                 disp(['Reached steady state in ' num2str(obj.it) ' iterations']);
                 disp(['Time consumption: ' num2str(obj.time) ' s']);
