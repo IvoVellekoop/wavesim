@@ -15,13 +15,13 @@ classdef PSTD
         info; % diagnostics information on cover of field on medium
 		gpuEnabled = false; % logical to check if simulation are ran on the GPU (default: false)
         callback = @PSTD.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the real value of the field.
-        callback_interval = 100; %the callback is called every 'callback_interval' steps. Default = 5
+        callback_interval = 10000; %the callback is called every 'callback_interval' steps. Default = 5
         dt; % time step
         it; %iteration
         number_of_time_steps; % a number of time step
         cover_time; % time of wave propagation covering roi
         time; % time consumption
-        energy_threshold = 1E-9; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
+        energy_threshold = 1E-31; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
         max_iterations = 1E5; %or when 'max_iterations' is reached. Default 10000
         koperator; % k domain laplacian
         dtmax; %maximum time step at sutible pixel_size
@@ -72,12 +72,12 @@ classdef PSTD
             
         end
         
-        function [ E, en_all, time_step ]= exec(obj, sources)
+        function [ E, en_all, nIter ,current_time ]= exec(obj, sources)
             tic;
             %% preallocate the loop variables
             E_prev = zeros(obj.grid.N); % field at timestep = n-1
             E      = zeros(obj.grid.N);  % field at timestep = n
-            E_avg = zeros(obj.grid.N); % avg field at steady state
+            %E_avg = zeros(obj.grid.N); % avg field at steady state
             
             %% initialize_sources_2d (scaling source size to grid size)
             %todo: respect sparsity
@@ -88,7 +88,7 @@ classdef PSTD
             if obj.gpuEnabled                
                 E_prev = gpuArray(E_prev);
                 E = gpuArray(E);
-                E_avg = gpu(E_avg);
+                %E_avg = gpu(E_avg);
                 source = gpuArray(source);
                 obj.coeff = gpuArray(obj.coeff);
                 obj.koperator = gpuArray(obj.koperator);
@@ -99,27 +99,26 @@ classdef PSTD
             en_all    = zeros(1, obj.max_iterations);
             en_all(1) = wavesim.energy(source);
             threshold = obj.energy_threshold * en_all(1); %
+            %threshold = obj.energy_threshold * en_all(1)/(length(obj.roi{1})*length(obj.roi{2}));
             
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %% PSTD time marching loop
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             obj.it = 1;
             omega  = 2*pi/obj.lambda; %c==1
-            current_time =0;
-            %n_time = 0;
-            time_step =1;
-            for time_step = 1:obj.number_of_time_steps
-            %while (abs(en_all(time_step)) >= threshold) && (time_step <= obj.max_iterations)% && current_time < 10*obj.cover_time
-                obj.it = time_step;
+            current_time = 0;
+            %for time_step = 1:obj.number_of_time_steps
+                %obj.it = time_step;
+            while (current_time < 10*obj.cover_time) && abs(en_all(obj.it)) >= threshold %% && obj.it <= obj.max_iterations
                 current_time = current_time + obj.dt;
-                %calculate source amplitude
+                %% calculate source amplitude
                 osc = obj.it * obj.dt * omega; 
                 source_amplitude = exp(-1.0i * osc);
                 %if (osc < 10*pi)
                 %    source_amplitude = source_amplitude * (1-0.5*cos(osc/10));
                 %end
                 
-                %update fields
+                %% update fields
                 %based on equation:
                 % nabla^2 E - e_r d^2 E/dt^2 = -source
                 %
@@ -130,42 +129,46 @@ classdef PSTD
                 % isolate E_next:
                 % E_next = (nabla^2 E + source) * dt^2/e_r + 2*E - E_prev
                 E_next = obj.c2.*E + obj.c1.*E_prev + obj.c3 .* (ifft2(obj.koperator.*fft2(E)) + source_amplitude*source);
+                
+                %% updating time step
+                obj.it = obj.it+1;
    
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 %%capture sampled wave fields_2d;
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
                 phase_shift = exp(-1.0i*obj.dt*omega); %expected phase shift for single step
                 % Calculating difference of field
-                en_all(obj.it) = wavesim.energy(E_next(obj.roi{1}, obj.roi{2})-E(obj.roi{1}, obj.roi{2})*phase_shift);
+                %en_all(obj.it) = wavesim.energy(E_next-E*phase_shift);
+                en_all(obj.it) = wavesim.energy(E_next(obj.roi{1}, obj.roi{2}) - E(obj.roi{1}, obj.roi{2})*phase_shift);
                 % Calculating difference of amplitube of field
                 %en_all(obj.it) = wavesim.energy(abs(E_next)-abs(E*phase_shift));
                 if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                     obj.callback(obj, E, en_all(1:obj.it), threshold);
                 end
                 
-                %if (current_time >= obj.cover_time)
-                    %if abs(en_all(obj.it)-en_all(obj.it-1)) <= threshold
+                %if (current_time > obj.cover_time)
+                %    if abs(en_all(obj.it)-en_all(obj.it-1)) <= threshold
                 %        E_avg = E_avg + (E/source_amplitude);
                 %        n_time= n_time+1;
-                    %end
+                %    end
                 %end
-                
-                if abs(en_all(obj.it)) <= threshold && current_time > obj.cover_time
-                    break;
-                end
-                    
+                               
+                                    
                 %% updating fields
                 E_prev = E;
                 E      = E_next;
-                %obj.it = obj.it+1;
-                %time_step = time_step+1;
+                
+                if abs(en_all(obj.it)-en_all(obj.it-1)) <= threshold/2 && current_time > obj.cover_time
+                    break;
+                end
             end %end timestep
+            nIter = obj.it;
             %E = gather(E_avg(obj.roi{1}, obj.roi{2}))/n_time; 
             E = gather(E_prev(obj.roi{1}, obj.roi{2}))/source_amplitude; % converts gpu array back to normal array and normalize phase shift from source
             %% Simulation finished
             obj.time=toc;
-            %if abs(en_all(obj.it)) < threshold && current_time > obj.cover_time
-            if (current_time > obj.cover_time) && abs(en_all(obj.it)-en_all(obj.it-1)) <= threshold
+            if abs(en_all(obj.it)) < threshold && current_time > obj.cover_time
+            %if (current_time > obj.cover_time) 
                 disp(['Reached steady state in ' num2str(obj.it) ' iterations']);
                 disp(['Time consumption: ' num2str(obj.time) ' s']);
             else

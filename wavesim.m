@@ -12,8 +12,8 @@ classdef wavesim
         
         gpuEnabled = false; % logical to check if simulation are ran on the GPU (default: false)
         callback = @wavesim.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
-        callback_interval = 100; %the callback is called every 'callback_interval' steps. Default = 5
-        energy_threshold = 1E-20; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
+        callback_interval = 5000; %the callback is called every 'callback_interval' steps. Default = 5
+        energy_threshold = 1E-30; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
         max_iterations = 1E4; %1E4; %or when 'max_iterations' is reached. Default 10000
         it; %iteration
         time; % time comsumption
@@ -105,7 +105,7 @@ classdef wavesim
                 if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                     obj.callback(obj, E_x, en_all(1:obj.it), threshold);
                 end
-                if abs(en_all(obj.it))-abs(en_all(obj.it-1)) >= 1e-18
+                if abs(en_all(obj.it))-abs(en_all(obj.it-1)) >= threshold
                     break;
                 end
             end
