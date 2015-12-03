@@ -1,4 +1,4 @@
-function [ sol ] = PlaneWaveSol_2D( k, theta, h, x, y )
+function [ sol ] = homogeneous_medium_analytic_solution( k, theta, h, x, y )
 % ANALYTIC_SOL_2D
 % Compute the analytic solution to the Helmholtz equation in 2D in
 % homogeneous medim
@@ -18,10 +18,9 @@ ky = k * sin(theta);
 
 %todo: find out why factor 1/4pi is correct (solution with Mathematica
 %gave 1/8pi prefactor for expint term?)
-sol = 1.0i*h/(2*k)*exp(1.0i * (kx * x + ky * y));... %<--propagating plane wave.
+sol = 1.0i*h/(2*k)*exp(1.0i * (kx * x + ky * y))... %<--propagating plane wave.
     -h/(4*pi*k) * (...
     exp(1.0i * (kx * x + ky * y)) .* (  expint(-1.0i * (-h*kx+pi) * x / h) - expint(1.0i * (h*kx+pi) * x/h)) -...
     exp(-1.0i * (kx * x + ky * y)) .* ( -expint(-1.0i * (h*kx-pi)* x / h)  + expint(-1.0i* (h*kx+pi) * x/h)));
-
 end
 
