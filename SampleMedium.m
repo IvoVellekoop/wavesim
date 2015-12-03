@@ -63,8 +63,9 @@ switch (options.boundary_type)
               +mean(obj.e_r(1, :))+mean(obj.e_r(end, :))) / 4.0;
         obj.e_r = padarray(obj.e_r, B, e_0, 'both'); 
         k0 = sqrt(e_0)*2*pi/ (options.lambda / options.pixel_size); %k0 in 1/pixels
-        c = options.boundary_strength * k0 / 2 * (1.0+0.5i); %todo: check if this makes sense. It should be such that epsilon=boundary_strength
-        f_boundary_curve = @(r) (c^3*r.*((c+2.0i*k0)*r-2.0))./(2.0+2.0*c*r+c^2*r.^2) / k0^2; %(divide by k0^2 to get relative e_r)
+        c = options.boundary_strength * k0 / 2;% * (1.0+0.5i); %todo: check if this makes sense. It should be such that epsilon=boundary_strength
+        f_boundary_curve = @(r) (c^4*r.^2.*(-3+(c+2.0i*k0)*r)) ./ (6+6*c*r+3*c^2*r.^2+c^3*r.^3);
+%        f_boundary_curve = @(r) (c^3*r.*((c+2.0i*k0)*r-2.0))./(2.0+2.0*c*r+c^2*r.^2) / k0^2; %(divide by k0^2 to get relative e_r)
     case 'parabola'
         %original boundary conditions.
         %the real part of e_r is replicated from the edge pixels of the
