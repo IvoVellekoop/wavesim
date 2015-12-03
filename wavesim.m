@@ -32,7 +32,7 @@ classdef wavesim
         function obj=wavesim(sample, options)
             %% Constructs a wave simulation object
             %	sample = SampleMedium object
-            %   options.wavelength = free space wavelength (same unit as pixel_size, e. g. um)
+            %   options.lambda = free space wavelength (same unit as pixel_size, e. g. um)
             %   options.epsilon = convergence parameter (leave empty unless forcing a specific value)
             
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
@@ -49,8 +49,9 @@ classdef wavesim
             % First construct V without epsilon
             obj.V = sample.e_r*k00^2-obj.k^2;
             obj.epsilonmin = max(abs(obj.V(:)));
+            obj.epsilonmin = max(obj.epsilonmin, 1E-3); %%minimum value to avoid divergence when simulating empty medium
             if isfield(options,'epsilon')
-                obj.epsilon = options.epsilon; %force a specific value, may not converge
+                obj.epsilon = options.epsilon*k00^2; %force a specific value, may not converge
             else
                 obj.epsilon = obj.epsilonmin; %guaranteed convergence
             end
@@ -64,6 +65,7 @@ classdef wavesim
             obj.grid = sample.grid;
             obj.roi  = sample.roi;
             obj.lambda  = options.lambda;
+            obj.energy_threshold = options.energy_threshold;
             obj.x_range = sample.grid.x_range(obj.roi{2});
             obj.x_range = obj.x_range - obj.x_range(1);
             obj.y_range = sample.grid.y_range(obj.roi{1});
@@ -86,14 +88,11 @@ classdef wavesim
                 source   = gpuArray(source);
                 E_x      = gpuArray(E_x);
             end
-            %E_x = ifft2(obj.g0_k .* fft2(source)); (IMV:why?)
-            
             
             %% Energy thresholds (convergence and divergence criterion)
             en_all    = zeros(1, obj.max_iterations);
             en_all(1) = wavesim.energy(source);
-            threshold = obj.energy_threshold * en_all(1); %depeding on system size
-            %threshold = obj.energy_threshold * en_all(1)/(length(obj.roi{1})*length(obj.roi{2}));
+            threshold = obj.energy_threshold * en_all(1); %energy_threshold = fraction of total input energy
             
             %% simulation iterations
             obj.it = 1;
@@ -147,6 +146,10 @@ classdef wavesim
             if ~isfield(options,'pixel_size')
                 options.pixel_size = 1/4*options.lambda; % in um
             end
+            % stopping criterion
+            if ~isfield(options,'energy_threshold')
+                options.energy_threshold = 1E-20;
+            end
         end
         
         function en = energy(E_x)
@@ -159,10 +162,12 @@ classdef wavesim
             subplot(2,1,1); plot(1:length(energy),log10(energy),'b',[1,length(energy)],log10(threshold)*ones(1,2),'--r');
             title(length(energy));  xlabel('# iterations'); ylabel('log_10(energy added)');
             
-            subplot(2,1,2); plot(log(abs(E(end/2,:)))); title('midline cross-section')
+            sig = log(abs(E(end/2,:)));
+            subplot(2,1,2); plot(1:length(sig), sig, obj.roi{2}(1)*ones(1,2), [min(sig),max(sig)], obj.roi{2}(end)*ones(1,2), [min(sig),max(sig)]);
+            title('midline cross-section')
             xlabel('y (\lambda / 4)'); ylabel('real(E_x)');
             
-            disp(['Added energy ', num2str(energy(end))]);
+            %disp(['Added energy ', num2str(energy(end))]);
             drawnow;
         end
     end

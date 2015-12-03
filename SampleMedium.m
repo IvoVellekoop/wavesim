@@ -31,8 +31,8 @@ function obj = SampleMedium(refractive_index, options)
 % Saroch Leedumrongwatthanakun 2015
 
 %% Set default values
-if (~isfield(options, 'boundary type'))
-    options.boundary_type = 'PML';
+if (~isfield(options, 'boundary_type'))
+    options.boundary_type = 'PML2';
 end;
 
 %%calculate size of dielectric constant map
@@ -54,18 +54,31 @@ obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;
 %that takes a position (in pixels, 0=start of boundary) and returns
 %Delta e_r for the boundary. 
 %
+Bmax = max(B); %used to calculate expected amount of leakage through boundary
+k0=0; c=0;
+if (strcmp(options.boundary_type(1:3), 'PML')) %common stuff for all PMLs
+    %perfectly matched layer boundary conditions.
+    % the base refractive index of the boundaries is chosen as
+    %the average value of e_r at all 4 boundaries
+    e_0 = (mean(obj.e_r(2:end-1, 1)) + mean(obj.e_r(2:end-1, end))...
+          +mean(obj.e_r(1, :))+mean(obj.e_r(end, :))) / 4.0;
+    obj.e_r = padarray(obj.e_r, B, e_0, 'both'); 
+    k0 = sqrt(e_0)*2*pi/ (options.lambda / options.pixel_size); %k0 in 1/pixels
+    % maximum value of the boundary (see Mathematica file = c(c-2ik0) = boundary_strength)
+    % ||^2 = |c|^2 (|c|^2 + 4k0^2)   [assuming c=real, better possible when c complex?]
+    % when |c| << |2k0| we can approximage: boundary_strength = 2 k0 c
+    c = options.boundary_strength*k0^2 / (2*k0);
+end
 switch (options.boundary_type)
-    case 'PML'
-        %perfectly matched layer boundary conditions.
-        % the base refractive index of the boundaries is chosen as
-        %the average value of e_r at all 4 boundaries
-        e_0 = (mean(obj.e_r(2:end-1, 1)) + mean(obj.e_r(2:end-1, end))...
-              +mean(obj.e_r(1, :))+mean(obj.e_r(end, :))) / 4.0;
-        obj.e_r = padarray(obj.e_r, B, e_0, 'both'); 
-        k0 = sqrt(e_0)*2*pi/ (options.lambda / options.pixel_size); %k0 in 1/pixels
-        c = options.boundary_strength * k0 / 2;% * (1.0+0.5i); %todo: check if this makes sense. It should be such that epsilon=boundary_strength
-        f_boundary_curve = @(r) (c^4*r.^2.*(-3+(c+2.0i*k0)*r)) ./ (6+6*c*r+3*c^2*r.^2+c^3*r.^3);
-%        f_boundary_curve = @(r) (c^3*r.*((c+2.0i*k0)*r-2.0))./(2.0+2.0*c*r+c^2*r.^2) / k0^2; %(divide by k0^2 to get relative e_r)
+    case 'PML3' %3rd order smooth
+        f_boundary_curve = @(r) 1/k0^2*(c^5*r.^3.*(4.0+(2.0i*k0-c)*r)) ./ (24+24*c*r+12*c^2*r.^2+4*c^3*r.^3+c^4*r.^4);
+        obj.leakage = exp(-c*Bmax)*(24+24*c*Bmax+12*c^2*Bmax.^2+4*c^3*Bmax.^3+c^4*Bmax.^4)/24;
+    case 'PML2' %2nd order smooth
+        f_boundary_curve = @(r) 1/k0^2*(c^4*r.^2.*(3.0+(2.0i*k0-c)*r)) ./ (6+6*c*r+3*c^2*r.^2+c^3*r.^3);
+        obj.leakage = exp(-c*Bmax)*(6+6*c*Bmax+3*c^2*Bmax.^2+c^3*Bmax.^3)/6;
+    case 'PML1' %1st order smooth
+        f_boundary_curve = @(r) 1/k0^2*(c^3*r.*(2.0+(2.0i*k0-c)*r)) ./ (2.0+2.0*c*r+c^2*r.^2) / k0^2; %(divide by k0^2 to get relative e_r)
+        obj.leakage = exp(-c*Bmax)*(2+2*c*Bmax+c^2*Bmax.^2)/2;
     case 'parabola'
         %original boundary conditions.
         %the real part of e_r is replicated from the edge pixels of the
@@ -86,9 +99,12 @@ x = [(B(2):-1:1), zeros(1,S(2)), (1:B(2))];
 y = [(B(1):-1:1), zeros(1,S(1)), (1:B(1))].';
 f_boundary = @(x, y) f_boundary_curve(sqrt(x.^2+y.^2));
 obj.e_r = obj.e_r + bsxfun(f_boundary, x, y);
-plot(real(obj.e_r(end/2,:)));
-%plot(imag(obj.e_r(end/2,:)));
-
+%bc = f_boundary_curve(1:max(B));
+bc = f_boundary_curve(x);
+plot(real(bc), 'b');
+hold on;
+plot(imag(bc), 'r');
+hold off;
 %add padding. Note that we are padding with e_r_center. This is _not_
 %optimal (optimal is to choose the boundaries to fill the full simulation
 %grid). Padding with 0 may be better, but in that case the amount of
