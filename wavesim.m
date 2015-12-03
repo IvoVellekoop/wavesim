@@ -13,7 +13,8 @@ classdef wavesim
         gpuEnabled = false; % logical to check if simulation are ran on the GPU (default: false)
         callback = @wavesim.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
         callback_interval = 5000; %the callback is called every 'callback_interval' steps. Default = 5
-        energy_threshold = 1E-30; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
+        differential_mode = false; %when set to 'true', only the differential field for each iteration is calculated: the fields are not added to get a solution to the wave equation (used for debugging)
+        energy_threshold = 1E-20; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
         max_iterations = 1E4; %1E4; %or when 'max_iterations' is reached. Default 10000
         it; %iteration
         time; % time comsumption
@@ -100,12 +101,16 @@ classdef wavesim
                 obj.it = obj.it+1;
                 Eold = E_x;
                 E_x = single_step(obj, E_x, source);
+                if (obj.differential_mode)
+                    source = 0;
+                end
                 en_all(obj.it) = wavesim.energy(E_x(obj.roi{1}, obj.roi{2}) - Eold(obj.roi{1}, obj.roi{2}));
                 %en_all(obj.it) = wavesim.energy(E_x - Eold);
                 if (mod(obj.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                     obj.callback(obj, E_x, en_all(1:obj.it), threshold);
                 end
-                if abs(en_all(obj.it))-abs(en_all(obj.it-1)) >= threshold
+                if abs(en_all(obj.it)) < threshold
+%                if abs(en_all(obj.it))-abs(en_all(obj.it-1)) >= threshold
                     break;
                 end
             end
@@ -126,9 +131,6 @@ classdef wavesim
         function E_x = single_step(obj, E_x, source)
             % performs a single iteration of the algorithm
             E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .* fft2(obj.V.*E_x+source))); %wavesim version
-            %E_x = E_x - (1.0i*obj.V/obj.epsilon) .* (E_x-ifft2(obj.g0_k .*
-            %fft2(obj.V.*E_x)))+ifft2(obj.g0_k.*fft2(source)); %cutout preconditioner on source
-            %E_x = E_x - (1.0i*obj.V/obj.epsilon).*E_x+ifft2(obj.g0_k.*(fft2(obj.V.*(1.0i*obj.V/obj.epsilon).* E_x))) + ifft2(obj.g0_k .* fft2(source)); %version 6
         end
     end
     methods(Static)
@@ -155,9 +157,9 @@ classdef wavesim
         function default_callback(obj, E, energy, threshold)
             figure(1);
             subplot(2,1,1); plot(1:length(energy),log10(energy),'b',[1,length(energy)],log10(threshold)*ones(1,2),'--r');
-            title(length(energy));  xlabel('# iterations'); ylabel('log(energy added)');
+            title(length(energy));  xlabel('# iterations'); ylabel('log_10(energy added)');
             
-            subplot(2,1,2); plot(real(E(end/2,:))); title('midline cross-section')
+            subplot(2,1,2); plot(log(abs(E(end/2,:)))); title('midline cross-section')
             xlabel('y (\lambda / 4)'); ylabel('real(E_x)');
             
             disp(['Added energy ', num2str(energy(end))]);
