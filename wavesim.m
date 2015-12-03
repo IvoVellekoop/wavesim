@@ -66,6 +66,7 @@ classdef wavesim
             obj.roi  = sample.roi;
             obj.lambda  = options.lambda;
             obj.energy_threshold = options.energy_threshold;
+            obj.callback_interval = options.callback_interval;
             obj.x_range = sample.grid.x_range(obj.roi{2});
             obj.x_range = obj.x_range - obj.x_range(1);
             obj.y_range = sample.grid.y_range(obj.roi{1});
@@ -149,6 +150,10 @@ classdef wavesim
             % stopping criterion
             if ~isfield(options,'energy_threshold')
                 options.energy_threshold = 1E-20;
+            end
+            % callback function is called every N frames
+            if ~isfield(options,'callback_interval')
+                options.callback_interval = 500;
             end
         end
         
