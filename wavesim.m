@@ -4,11 +4,8 @@ classdef wavesim < simulation
     
     properties
         V;   % potential array used in simulation
-        differential_mode = false; %when set to 'true', only the differential field for each iteration is calculated: the fields are not added to get a solution to the wave equation (used for debugging)
-        energy_threshold = 1E-20; %the simulation is terminated when the added energy between two iterations is lower than 'energy_threshold'. Default 1E-9
-        %%internal
-        k; % wave number
-        epsilon;
+        k;   % wave number for g0
+        epsilon; %convergence parameter
         g0_k; % bare Green's function used in simulation
         %% diagnostics and feedback
         epsilonmin; %minimum value of epsilon for which convergence is guaranteed (equal to epsilon, unless a different value for epsilon was forced)
@@ -69,22 +66,4 @@ classdef wavesim < simulation
             end
         end
     end
-%         function options = readout_input(options)
-%             % function reading out all given constructor options and filling
-%             % in default values for missing properties
-%             if nargin == 0
-%                 options = struct;
-%             end
-%             if ~isfield(options,'lambda')
-%                 options.lambda = 1; % in um
-%             end
-%             % stopping criterion
-%             if ~isfield(options,'energy_threshold')
-%                 options.energy_threshold = 1E-20;
-%             end
-%             % callback function is called every N frames
-%             if ~isfield(options,'callback_interval')
-%                 options.callback_interval = 500;
-%             end
-%         end
 end
