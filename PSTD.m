@@ -48,7 +48,6 @@ classdef PSTD < simulation
             state.E = data_array(obj);
             E_prev = data_array(obj);
             A = 1; %source amplitude
-            A_prev = 1; %previous source amplitude (used to calculate energy difference)
             %todo: gpuarray for c1,c2,c3 and koperator
             
             %% iterate algorithm
@@ -61,6 +60,7 @@ classdef PSTD < simulation
                 %  * c=1[distance_unit/time_unit]
                 %
                 Ncycle = state.it * obj.dt / obj.lambda;
+                A_prev = A;
                 A = obj.source_amplitude(Ncycle);
 
                 %% update fields
@@ -84,13 +84,12 @@ classdef PSTD < simulation
                 end
                 %% update fields
                 E_prev = state.E;
-                A_prev = A;
                 state.E = E_next;
                 state = next(obj, state);
             end
             
             %finally, compensate for phase of source
-            state.E = state.E / A;
+            state.E = state.E / A_prev;
         end
     end
     methods(Static)

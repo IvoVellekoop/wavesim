@@ -60,8 +60,17 @@ if (strcmp(options.boundary_type(1:3), 'PML')) %common stuff for all PMLs
     %perfectly matched layer boundary conditions.
     % the base refractive index of the boundaries is chosen as
     %the average value of e_r at all 4 boundaries
-    e_0 = (mean(obj.e_r(2:end-1, 1)) + mean(obj.e_r(2:end-1, end))...
-          +mean(obj.e_r(1, :))+mean(obj.e_r(end, :))) / 4.0;
+    %ignore boundaries with periodic boundary conditions
+    e_sum = 0;
+    e_count = 0;
+    if (B(1)) 
+        e_sum = e_sum + sum(obj.e_r(1,:)) + sum(obj.e_r(end,:));
+        e_count = e_count + 2*size(obj.e_r, 2);
+    else
+        e_sum = e_sum + sum(obj.e_r(:,1)) + sum(obj.e_r(:,end));
+        e_count = e_count + 2*size(obj.e_r, 1);
+    end;
+    e_0 = e_sum/e_count;
     obj.e_r = padarray(obj.e_r, B, e_0, 'both'); 
     k0 = sqrt(e_0)*2*pi/ (options.lambda / options.pixel_size); %k0 in 1/pixels
     % maximum value of the boundary (see Mathematica file = c(c-2ik0) = boundary_strength)
