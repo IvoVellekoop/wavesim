@@ -89,7 +89,8 @@ classdef PSTD < simulation
             end
             
             %finally, compensate for phase of source
-            state.E = state.E / A_prev;
+            A_next = obj.source_amplitude(state.it*obj.dt/obj.lambda);
+            state.E = state.E * exp(-1.0i*angle(A_next));
         end
     end
     methods(Static)
