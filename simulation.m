@@ -132,7 +132,7 @@ classdef simulation
             subplot(2,1,1); plot(1:length(energy),log10(energy),'b',[1,length(energy)],log10(threshold)*ones(1,2),'--r');
             title(length(energy));  xlabel('# iterations'); ylabel('log_{10}(energy added)');
             
-            sig = log(abs(E(end/2,:)));
+            sig = log(abs(E(round(end/2),:)));
             subplot(2,1,2); plot(1:length(sig), sig, obj.roi{2}(1)*ones(1,2), [min(sig),max(sig)], obj.roi{2}(end)*ones(1,2), [min(sig),max(sig)]);
             title('midline cross-section')
             xlabel('y (\lambda / 4)'); ylabel('real(E_x)');
