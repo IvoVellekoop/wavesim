@@ -12,6 +12,7 @@ classdef simulation
         gpuEnabled = false; % flag to determine if simulation are run on the GPU (default: false)
         callback = @simulation.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
         callback_interval = 50; %the callback is called every 'callback_interval' steps. Default = 5
+        energy_threshold = 1E-20; %the simulation stops when the difference for a step is less than 'energy_threshold'
         max_iterations = 1E4; %1E4; %or when 'max_iterations' is reached. Default 10000
     end
     
