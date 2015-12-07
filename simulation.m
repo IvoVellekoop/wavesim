@@ -13,7 +13,9 @@ classdef simulation
         callback = @simulation.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
         callback_interval = 50; %the callback is called every 'callback_interval' steps. Default = 5
         energy_threshold = 1E-20; %the simulation stops when the difference for a step is less than 'energy_threshold'
-        max_iterations = 1E4; %1E4; %or when 'max_iterations' is reached. Default 10000
+        max_cycles = 0; %number of wave periods to run the simulation. The number of actual iterations per cycle depends on the algorithm and its parameters
+        %internal:
+        iterations_per_cycle;%must be set by derived class
     end
     
     methods
@@ -21,6 +23,10 @@ classdef simulation
             %% Constructs a simulation object
             %	sample = SampleMedium object
             %   options = simulation options. 
+            %   options.max_cycles = maximum number of optical cycles for
+            %   which to run the simulation. Note that the number of
+            %   required iterations per cycle depends on the algorithm and
+            %   its parameters
 
             %copy values from 'options'to 'obj' (only if the field is present in obj)
             obj_fields = fields(obj);
@@ -37,6 +43,9 @@ classdef simulation
             obj.x_range = obj.x_range - obj.x_range(1);
             obj.y_range = sample.grid.y_range(obj.roi{1});
             obj.y_range = obj.y_range - obj.y_range(1);
+            if (obj.max_cycles == 0) %default: 1.5 pass
+                obj.max_cycles = max(obj.grid.N) * obj.grid.dx / obj.lambda * 1.5;
+            end
         end
         
         function [E, state] = exec(obj, source)
@@ -46,7 +55,9 @@ classdef simulation
             % run of the simulation)
             %
             state.it = 1; %iteration
-            state.diff_energy = zeros(obj.max_iterations,1);
+            state.max_iterations = ceil(obj.max_cycles * obj.iterations_per_cycle);
+            disp(state.max_iterations);
+            state.diff_energy = zeros(state.max_iterations,1);
             state.threshold = obj.energy_threshold * simulation.energy(source); %energy_threshold = fraction of total input energy
             state.last_step_energy = inf;
             state.calculate_energy = true;
@@ -99,7 +110,7 @@ classdef simulation
             if (state.last_step_energy < state.threshold)
                 state.has_next = false;
                 state.converged = true;
-            elseif (state.it > obj.max_iterations)
+            elseif (state.it > state.max_iterations)
                 state.has_next = false;
                 state.converged = false;
             else
@@ -107,7 +118,7 @@ classdef simulation
             end;
             
             %% call callback function if neened
-            if (mod(state.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
+            if (state.it <= state.max_iterations && mod(state.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
                 obj.callback(obj, state);
             end
             

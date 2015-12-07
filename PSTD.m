@@ -31,6 +31,7 @@ classdef PSTD < simulation
             %
             obj.dtmax = 2/sqrt(2)/pi*sample.grid.dx*sqrt(sample.e_r_min); %Stability condition (ref needed)
             obj.dt = obj.dt_relative * obj.dtmax;
+            obj.iterations_per_cycle = obj.lambda / obj.dt; %lambda[distance] / dt[time] / c[distance/time]
             
             %% Initialize coefficients (could be optimized);
             sdt = imag(sample.e_r) * 2*pi/options.lambda * obj.dt;
@@ -59,7 +60,7 @@ classdef PSTD < simulation
                 %  Ncycle = Nit * dt[time_unit] / lambda[distance_unit] 
                 %  * c=1[distance_unit/time_unit]
                 %
-                Ncycle = state.it * obj.dt / obj.lambda;
+                Ncycle = state.it / obj.iterations_per_cycle;
                 A_prev = A;
                 A = obj.source_amplitude(Ncycle);
 
@@ -89,7 +90,7 @@ classdef PSTD < simulation
             end
             
             %finally, compensate for phase of source
-            A_next = obj.source_amplitude(state.it*obj.dt/obj.lambda);
+            A_next = obj.source_amplitude(state.it / obj.iterations_per_cycle);
             state.E = state.E * exp(-1.0i*angle(A_next));
         end
     end

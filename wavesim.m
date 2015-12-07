@@ -37,6 +37,7 @@ classdef wavesim < simulation
             else
                 obj.epsilon = obj.epsilonmin; %guaranteed convergence
             end
+            obj.iterations_per_cycle = obj.lambda /(2*obj.k/obj.epsilon); %divide wavelength by pseudo-propagation length
             
             %% Potential map (V==k^2-k_0^2-1i*epsilon)
             obj.V = obj.V - 1.0i*obj.epsilon;
