@@ -27,8 +27,12 @@ classdef simgrid
     end
 	methods(Static)
 		function range = symrange(N)
-			range = fftshift(-N/2:N/2-1);
-		end;
+            if N==1
+                range = 0;
+            else
+                range = fftshift(-N/2:N/2-1);
+            end
+        end
     end
 end
 

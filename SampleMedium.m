@@ -35,6 +35,8 @@ if (~isfield(options, 'boundary_type'))
     options.boundary_type = 'PML2';
 end;
 
+
+
 %%calculate size of dielectric constant map
 B = options.boundary_widths;
 S = size(refractive_index);
@@ -42,6 +44,13 @@ obj.grid = simgrid(S+2*B, options.pixel_size); %padds to next power of 2 in each
 obj.roi = cell(2);
 obj.roi{1} = B(1)+(1:S(1)); %the region of interest is between the boundaries
 obj.roi{2} = B(2)+(1:S(2)); %the region of interest is between the boundaries
+
+%% Currently, the simulation will always be padded to a power of 2
+% This is ok if we have boundaries, but if we have periodic boundary
+% conditions, the field must have a size that is a power of 2 already
+if (B(1)==0 && S(1) ~= pow2(nextpow2(S(1)))) || (B(2)==0 && S(2) ~= pow2(nextpow2(S(2))))
+    error('If periodic boundary conditions are used, the sample size should be a power of 2 in that direction');
+end
 
 %calculate e_r and min/max values
 obj.e_r = refractive_index.^2;
