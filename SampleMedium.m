@@ -118,12 +118,7 @@ x = [(B(2):-1:1), zeros(1,S(2)), (1:B(2))];
 y = [(B(1):-1:1), zeros(1,S(1)), (1:B(1))].';
 f_boundary = @(x, y) f_boundary_curve(sqrt(x.^2+y.^2));
 obj.e_r = obj.e_r + bsxfun(f_boundary, x, y);
-%bc = f_boundary_curve(1:max(B));
-bc = f_boundary_curve(x);
-plot(real(bc), 'b');
-hold on;
-plot(imag(bc), 'r');
-hold off;
+
 %add padding. Note that we are padding with e_r_center. This is _not_
 %optimal (optimal is to choose the boundaries to fill the full simulation
 %grid). Padding with 0 may be better, but in that case the amount of
