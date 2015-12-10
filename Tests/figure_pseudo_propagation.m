@@ -34,32 +34,43 @@ fdiff = fields - fields_prev;
 xrange = 100:250;
 xpos = (xrange-xrange(1))/PPW;
 fp = '../../wavesimpaper/figures/';
+fdiff = fdiff * 50;
+fields = fields * 50;
 
-close all;
+labels = {'a)', 'b)', 'c)'};
 for iteration = 1:3
     it = iteration*20;
-    figure(iteration*2-1);
-%    subplot(3, 2, iteration*2-1);
+    close all;
+    figure('Position', [0, 0, 800, 300]);
     plot(xpos, (real(fields(iteration, xrange))));
     %title(it);
     xlim([0, xpos(end)]);
-    ylim([-0.025, 0.025]);
-    xlabel('x/\lambda')
-    ylabel('\psi', 'FontSize', 30);
-    fixplot();
-    saveas(gcf, [fp 'pseudo_panel_' num2str(iteration*2-1) '.eps'], 'eps2');
-%    subplot(3, 2, iteration*2);
-    figure(iteration*2);
-    plot(xpos, (real(fdiff(iteration, xrange))), 'r');
+    ylim([-1.1, 1.1]);
+    fixplot('x/\lambda', '\psi', labels(iteration));
+    fig = gcf;
+    fig.PaperUnits = 'inches';
+    fig.PaperPosition = [0 0 8 3];
+    fig.PaperPositionMode = 'manual';
+    print([fp 'pseudo_panel_' num2str(iteration) '.eps'], '-deps2');
+end
+close all; 
+style = {'r', 'b-.', 'k:'};
+figure('Position', [0, 0, 800, 400]);
+for iteration = 1:3
+    it = iteration*20;
+    plot(xpos, (real(fdiff(iteration, xrange))), style{iteration});
     %title(it);
     xlim([0, xpos(end)]);
-    ylim([-2E-3, 2E-3]);
-    xlabel('x/\lambda');
-    ylabel('\psi', 'FontSize', 30);
+    ylim([-0.1, 0.1]);
+    set(gca, 'YTick', [-0.1, 0, 0.1]);
     hold on
     plot(it*[1,1]/sim.iterations_per_cycle, [-2E-3, 2E-3]);
-    hold off
-    fixplot();
-    saveas(gcf, [fp 'pseudo_panel_' num2str(iteration*2) '.eps'], 'eps2');
-    drawnow;
 end;
+hold off
+fixplot('x/\lambda', '\psi', 'd)');
+fig = gcf;
+fig.PaperUnits = 'inches';
+fig.PaperPosition = [0 0 8 3];
+fig.PaperPositionMode = 'manual';
+print([fp 'pseudo_panel_4.eps'], '-deps2');
+    
