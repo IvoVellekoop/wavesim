@@ -47,7 +47,7 @@ for iteration = 1:3
     xlabel('x/\lambda')
     ylabel('\psi', 'FontSize', 30);
     fixplot();
-    save([fp 'pseudo_panel_' num2str(iteration*2-1) '.eps']);
+    saveas(gcf, [fp 'pseudo_panel_' num2str(iteration*2-1) '.eps'], 'eps2');
 %    subplot(3, 2, iteration*2);
     figure(iteration*2);
     plot(xpos, (real(fdiff(iteration, xrange))), 'r');
@@ -60,6 +60,6 @@ for iteration = 1:3
     plot(it*[1,1]/sim.iterations_per_cycle, [-2E-3, 2E-3]);
     hold off
     fixplot();
-    save([fp 'pseudo_panel_' num2str(iteration*2) '.eps']);
+    saveas(gcf, [fp 'pseudo_panel_' num2str(iteration*2) '.eps'], 'eps2');
     drawnow;
 end;
