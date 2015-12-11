@@ -44,7 +44,7 @@ classdef simulation
             obj.y_range = sample.grid.y_range(obj.roi{1});
             obj.y_range = obj.y_range - obj.y_range(1);
             if (obj.max_cycles == 0) %default: 1.5 pass
-                obj.max_cycles = max(obj.grid.N) * obj.grid.dx / obj.lambda * 1.5;
+                obj.max_cycles = max(length(obj.x_range), length(obj.y_range)) * obj.grid.dx / obj.lambda * 2;
             end
         end
         
@@ -106,11 +106,10 @@ classdef simulation
             state.diff_energy(state.it) = state.last_step_energy;
             
             %% check if simulation should terminate
-            state.it = state.it+1;
             if (state.last_step_energy < state.threshold)
                 state.has_next = false;
                 state.converged = true;
-            elseif (state.it > state.max_iterations)
+            elseif (state.it >= state.max_iterations)
                 state.has_next = false;
                 state.converged = false;
             else
@@ -118,9 +117,10 @@ classdef simulation
             end;
             
             %% call callback function if neened
-            if (state.it <= state.max_iterations && mod(state.it, obj.callback_interval)==0) %now and then, call the callback function to give user feedback
+            if (mod(state.it, obj.callback_interval)==0 || ~state.has_next) %now and then, call the callback function to give user feedback
                 obj.callback(obj, state);
             end
+            state.it = state.it+1;
             
             %% For the differential mode, shut down the source after iteration 1
             if (obj.differential_mode)
