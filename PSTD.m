@@ -42,6 +42,7 @@ classdef PSTD < simulation
             %% Calculate PSTD laplace operator
             f_laplace = @(px, py) -(px.^2+py.^2); %-k^2
             obj.koperator = (bsxfun(f_laplace, sample.grid.px_range, sample.grid.py_range));
+            obj.max_cycles = obj.max_cycles+100; %slow starting source
         end
         
         function state = run_algorithm(obj, state)
