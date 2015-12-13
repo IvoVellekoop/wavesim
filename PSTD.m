@@ -12,6 +12,7 @@ classdef PSTD < simulation
         c2;
         c3;
         dt; % time step
+        omega; %2pi/lambda (c===1)
         koperator; % k domain laplacian
         dtmax; %maximum time step at sutible pixel_size
     end
@@ -34,10 +35,13 @@ classdef PSTD < simulation
             obj.iterations_per_cycle = obj.lambda / obj.dt; %lambda[distance] / dt[time] / c[distance/time]
             
             %% Initialize coefficients (could be optimized);
-            sdt = imag(sample.e_r) * 2*pi/options.lambda * obj.dt;
+            obj.omega = 2*pi/obj.lambda; %wave speed c_0 = 1 distance unit / time unit by definition, so omega=k00
+            c2dt = obj.dt^2./real(sample.e_r); %(relative wave speed * dt) ^2
+            sdt  = obj.dt*obj.omega*imag(sample.e_r)./real(sample.e_r); %sigma dt
+            
             obj.c1 = (sdt-2)./(sdt+2);
             obj.c2 = 4./(sdt+2);
-            obj.c3 = 2*obj.dt^2./real(sample.e_r)./(sdt+2);
+            obj.c3 = 2*c2dt./(sdt+2);
             
             %% Calculate PSTD laplace operator
             f_laplace = @(px, py) -(px.^2+py.^2); %-k^2
