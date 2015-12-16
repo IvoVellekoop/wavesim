@@ -46,7 +46,7 @@ classdef wavesim < simulation
             f_g0_k = @(px, py) 1./(px.^2+py.^2-(obj.k^2 + 1.0i*obj.epsilon));
             obj.g0_k = bsxfun(f_g0_k, sample.grid.px_range, sample.grid.py_range);
             
-            if obj.gpuEnabled
+            if obj.gpu_enabled
                 obj.V = gpuArray(obj.V);
                 obj.g0_k = gpuArray(obj.V);
             end

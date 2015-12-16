@@ -54,14 +54,15 @@ style = {'r', 'b-.', 'k:'};
 width = [1.0, 1.0, 1.5];
 figure('Position', [0, 0, 800, 400]);
 for iteration = 1:3
-    it = iteration*20;
+    it = iteration*20-1;
     plot(xpos, (real(fdiff(iteration, xrange))), style{iteration}, 'LineWidth', width(iteration));
     %title(it);
     xlim([0, xpos(end)]);
-    ylim([-0.1, 0.1]);
+    ylimits = [-0.1, 0.1];
+    ylim(ylimits);
     set(gca, 'YTick', [-0.1, 0, 0.1]);
     hold on
-    plot(it*[1,1]/sim.iterations_per_cycle, [-2E-3, 2E-3]);
+    plot(it*[1,1]/sim.iterations_per_cycle, ylimits, 'k');
 end;
 hold off
 fixplot('x/\lambda', '\psi', [8 3], 'd)');

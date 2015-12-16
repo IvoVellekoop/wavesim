@@ -47,6 +47,13 @@ classdef PSTD < simulation
             f_laplace = @(px, py) -(px.^2+py.^2); %-k^2
             obj.koperator = (bsxfun(f_laplace, sample.grid.px_range, sample.grid.py_range));
             obj.max_cycles = obj.max_cycles+100; %slow starting source
+            
+            if obj.gpu_enabled
+                obj.c1 = gpuArray(obj.c1);
+                obj.c2 = gpuArray(obj.c2);
+                obj.c3 = gpuArray(obj.c3);
+                obj.koperator = gpuArray(obj.koperator);
+            end
         end
         
         function state = run_algorithm(obj, state)
@@ -55,7 +62,6 @@ classdef PSTD < simulation
             E_prev = data_array(obj);
             A = 1; %source amplitude
             %todo: gpuarray for c1,c2,c3 and koperator
-            
             %% iterate algorithm
             while state.has_next
                 %% Calculate source amplitude

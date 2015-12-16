@@ -9,10 +9,11 @@ classdef simulation
         y_range; %y-coordinates of roi
         lambda = 1; %wavelength (default = 1 unit)      
         differential_mode = false; %when set to 'true', only the differential field for each iteration is calculated: the fields are not added to get a solution to the wave equation (used for debugging)
-        gpuEnabled = false; % flag to determine if simulation are run on the GPU (default: false)
+        gpu_enabled = false; % flag to determine if simulation are run on the GPU (default: false)
         callback = @simulation.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
         callback_interval = 50; %the callback is called every 'callback_interval' steps. Default = 5
         energy_threshold = 1E-20; %the simulation stops when the difference for a step is less than 'energy_threshold'
+        energy_calculation_interval = 10; %only calculate energy difference every N steps (to reduce overhead)
         max_cycles = 0; %number of wave periods to run the simulation. The number of actual iterations per cycle depends on the algorithm and its parameters
         %internal:
         iterations_per_cycle;%must be set by derived class
@@ -65,7 +66,7 @@ classdef simulation
             
             %% increase source array (which currently has the size of the roi)
             % to the full grid size (including boundary conditions)
-            if (issparse(source) && ~obj.gpuEnabled)
+            if (issparse(source) && ~obj.gpu_enabled)
                 state.source = sparse(obj.grid.N(1), obj.grid.N(2));
             else
                 state.source = data_array();
@@ -115,6 +116,9 @@ classdef simulation
             else
                 state.has_next = true;
             end;
+            
+            %% do we need to calculate the last added energy? (only do this once in a while, because of the overhead)
+            state.calculate_energy = mod(state.it, obj.energy_calculation_interval)==0;
             
             %% call callback function if neened
             if (mod(state.it, obj.callback_interval)==0 || ~state.has_next) %now and then, call the callback function to give user feedback
