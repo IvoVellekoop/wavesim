@@ -12,9 +12,7 @@ function [ sol ] = homogeneous_medium_analytic_solution( k, h, x )
 %The best correspondence with the discrete representation
 %is found by assuming that the source is a sinc function with a width
 %matching the grid spacing (i. e. the source is band-limited)
-
-%todo: find out why factor 1/4pi is correct (solution with Mathematica
-%gave 1/8pi prefactor for expint term?)
+%see Mathematica file for derivation
 phi = k * x;
 x(abs(x)<1E-100) = 1E-100; %dirty way to avoid nan
 sol = 1.0i*h/(2*k)*exp(1.0i * phi)... %<--propagating plane wave.
