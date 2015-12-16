@@ -94,7 +94,7 @@ classdef simulation
         %% Creates an array of dimension obj.grid.N. If gpuEnabled is true, the array is created on the cpu
         function d = data_array(obj)
             %% Check whether gpu computation option is enabled
-            if obj.gpuEnabled
+            if obj.gpu_enabled
                 d = gpuArray(obj.grid.N);
             else
                 d = zeros(obj.grid.N);
