@@ -55,12 +55,11 @@ sim = wavesim(sample, sopt);
 iterations_per_wavelength(1) = sim.iterations_per_cycle;
 [E_wavesim, state] = exec(sim, source);
 
-%% iterate over different time steps
+%% PST simulations with varying time step size
 for t_i=2:length(dt_relative_range)
-    %% create wavesim object and run the simulation
     sopt.dt_relative = dt_relative_range(t_i);
-    sim = PSTD(sample, sopt);
-    iterations_per_wavelength(t_i) = sim.iterations_per_cycle;
-    [E_PSTD{t_i-1}, state] = exec(sim, source);
+    sim_PSTD = PSTD(sample, sopt);
+    iterations_per_wavelength(t_i) = sim_PSTD.iterations_per_cycle;
+    [E_PSTD{t_i-1}, state] = exec(sim_PSTD, source);
     errors_PSTD(n) = mean2(abs(E_PSTD{t_i-1} - E_wavesim)) / mean2(abs(E_wavesim).^2);
 end

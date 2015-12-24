@@ -13,9 +13,11 @@ function fixplot(xlab, ylab, size, label)
     children = get(gca(), 'children');
     for c=1:length(children)
         curve=children(c);
-        width = get(curve, 'LineWidth');
-        if (width < 1.0)
-            set(curve, 'LineWidth', 1);
+        if isfield(curve,'LineWidth')
+            width = get(curve, 'LineWidth');
+            if (width < 1.0)
+                set(curve, 'LineWidth', 1);
+            end
         end
     end
     annotation('textbox', [0.6, 0.8, 0.3, 0.1], 'String', label, 'LineStyle', 'none',...
