@@ -4,7 +4,7 @@
 % Analyzes the accuracy of wavesim and PSTD (with varying time steps)
 
 %close all;
-clear all; close all;
+% clear all; close all;
 addpath('..');
 
 %% options for grid (gopt) and for simulation (sopt) 
@@ -14,22 +14,22 @@ sopt.energy_threshold = 1E-25;%16;
 sopt.callback_interval = 25;
 sopt.max_iterations = 6000;
 
-dt_relative_range = [0, 1./2.^(0:0.5:11.5)];
+dt_relative_range = [0,1./2.^(0:0.5:10.5)];
 
 mopt.lambda = sopt.lambda;
 mopt.pixel_size = sopt.lambda/PPW;
-mopt.boundary_widths = [0, 0]; %per
+mopt.boundary_widths = [0, 0]; %periodic boundaries
 mopt.boundary_strength = 0.2;
 mopt.boundary_type = 'PML3';
 N = [64*PPW 64*PPW]; % size of medium (in pixels)
 
-%% define a plane wave source
+%% define a point source at the medium center
 source = sparse(N(1), N(2));
-source(end/2,end/2) = 1; % plane wave source
+source(end/2,end/2) = 1; % point source
 
 %% simulate wave propagation for a variety of refractive indices
 %reserve space for output data
-relative_error = zeros(1, length(dt_relative_range));
+errors_PSTD = zeros(1,length(E_PSTD));
 iterations_per_wavelength = zeros(1, length(dt_relative_range));
 E_PSTD = cell(1,length(dt_relative_range)-1);
 
@@ -60,7 +60,7 @@ for t_i=2:length(dt_relative_range)
     %% create wavesim object and run the simulation
     sopt.dt_relative = dt_relative_range(t_i);
     sim = PSTD(sample, sopt);
-    
+    iterations_per_wavelength(t_i) = sim.iterations_per_cycle;
     [E_PSTD{t_i-1}, state] = exec(sim, source);
+    errors_PSTD(n) = mean2(abs(E_PSTD{t_i-1} - E_wavesim)) / mean2(abs(E_wavesim).^2);
 end
-
