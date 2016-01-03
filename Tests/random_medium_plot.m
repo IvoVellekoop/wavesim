@@ -1,5 +1,8 @@
-load('random_medium_results2.mat')
-close all;
+addpath('..');
+clear all; close all;
+%% Load random medium simulation data
+load('random_medium_results.mat');
+
 %% plot results
 fig_size = [8 7];
 loglog(iterations_per_wavelength(2:end),errors_PSTD,'r+', 'MarkerSize', 10);
