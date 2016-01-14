@@ -24,6 +24,10 @@ mopt.boundary_type = 'PML3';
 raw_image = double(imread('adipose_100um_is_52pix_Young2012.png'))/255;
 size_per_px = 100/52; %um in image per px
 
+% crop image to square
+[a,b] = size(raw_image); s = min(a,b);
+raw_image = raw_image(1:s,1:s);
+
 n_min = 1.36; % refractive index corresponding with black pixels
 n_max = 1.44; % refractive index corresponding with white pixels
 n = raw_image.*(n_max-n_min) + n_min; % linear interpolation based on grayscale image
@@ -37,16 +41,19 @@ sim = wavesim(sample, sopt); % wavesim object
 
 %% Experiment 1: point source at desired focus.
 % define point source inside scattering medium
+tic;
 loc_source = [round(N(1) * 3/4), round(N(2)/2 + 1)];
 source1 = sparse(N(1),N(2));
 source1(loc_source(1), loc_source(2)) = 1;
 
 E1 = exec(sim, source1); % perform simulation
-
+toc;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Experiment 2: phase conjugate (top boundary E-field)
 % define phase conjugated field at top boundary as source
+tic;
 source2 = sparse(N(1),N(2));
 source2(1,:) = conj(E1(1,:));
 
 E2 = exec(sim, source2); % perform simulation
+toc;
