@@ -43,9 +43,7 @@ classdef wavesim < simulation
             obj.V = obj.V - 1.0i*obj.epsilon;
             
             %% Calculate Green function for k_red (reduced k vector: k_red^2 = k_0^2 + 1.0i*epsilon)
-            f_g0_k = @(px, py) 1./(px.^2+py.^2-(obj.k^2 + 1.0i*obj.epsilon));
-            obj.g0_k = bsxfun(f_g0_k, sample.grid.px_range, sample.grid.py_range);
-            
+            obj.g0_k = 1./(p2(sample.grid)-(obj.k^2 + 1.0i*obj.epsilon));
             if obj.gpu_enabled
                 obj.V = gpuArray(obj.V);
                 obj.g0_k = gpuArray(obj.V);
@@ -58,7 +56,7 @@ classdef wavesim < simulation
             
             %% simulation iterations
             while state.has_next
-                Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifft2(obj.g0_k .* fft2(obj.V.*state.E+state.source)));
+                Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* fftn(obj.V.*state.E+state.source)));
                 if state.calculate_energy
                    state.last_step_energy = simulation.energy(Ediff(obj.roi{1}, obj.roi{2}));
                 end

@@ -44,8 +44,7 @@ classdef PSTD < simulation
             obj.c3 = 2*c2dt./(sdt+2);
             
             %% Calculate PSTD laplace operator
-            f_laplace = @(px, py) -(px.^2+py.^2); %-k^2
-            obj.koperator = (bsxfun(f_laplace, sample.grid.px_range, sample.grid.py_range));
+            obj.koperator = -p2(sample.grid);
             obj.max_cycles = obj.max_cycles+100; %slow starting source
             
             if obj.gpu_enabled
@@ -85,7 +84,7 @@ classdef PSTD < simulation
                 %
                 % isolate E_next:
                 % E_next = (nabla^2 E + source) * dt^2/e_r + 2*E - E_prev
-                E_next = obj.c2.*state.E + obj.c1.*E_prev + obj.c3 .* (ifft2(obj.koperator.*fft2(state.E)) + A*state.source);
+                E_next = obj.c2.*state.E + obj.c1.*E_prev + obj.c3 .* (ifftn(obj.koperator.*fftn(state.E)) + A*state.source);
                 
                 if state.calculate_energy
                     phase_shift = exp(1.0i*(angle(A)-angle(A_prev))); %expected phase shift for single step (only works for CW source!!)

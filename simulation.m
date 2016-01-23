@@ -95,9 +95,9 @@ classdef simulation
         function d = data_array(obj)
             %% Check whether gpu computation option is enabled
             if obj.gpu_enabled
-                d = gpuArray(obj.grid.N);
+                d = gpuArray(obj.grid.Nred);
             else
-                d = zeros(obj.grid.N);
+                d = zeros(obj.grid.Nred);
             end
         end;
         

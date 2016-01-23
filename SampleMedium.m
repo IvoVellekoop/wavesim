@@ -134,5 +134,5 @@ obj.e_r = obj.e_r + bsxfun(f_boundary, x, y);
 %boundary leakage strongly depends on the amount of padding (and hence, on
 %the size of the simulation). This behavior is not desired at the moment.
 %
-obj.e_r = padarray(obj.e_r, obj.grid.N - size(obj.e_r), obj.e_r_center, 'post');
+obj.e_r = padarray(obj.e_r, obj.grid.Nred - size(obj.e_r), obj.e_r_center, 'post');
 end
