@@ -41,9 +41,14 @@ end;
 B = options.boundary_widths;
 S = size(refractive_index);
 obj.grid = simgrid(S+2*B, options.pixel_size); %padds to next power of 2 in each dimension
-obj.roi = cell(2);
+obj.roi = cell(3, 1);
 obj.roi{1} = B(1)+(1:S(1)); %the region of interest is between the boundaries
 obj.roi{2} = B(2)+(1:S(2)); %the region of interest is between the boundaries
+if (length(S) == 3)
+    obj.roi{3} = B(3)+(1:S(3)); %the region of interest is between the boundaries
+else
+    obj.roi{3} = 1;
+end
 
 %% Currently, the simulation will always be padded to a power of 2
 % This is ok if we have boundaries, but if we have periodic boundary
@@ -122,11 +127,18 @@ switch (options.boundary_type)
         error(['unknown boundary type' obj.boundary_type]);
 end;
     
-%calculate boundaries
-x = [(B(2):-1:1), zeros(1,S(2)), (1:B(2))];
-y = [(B(1):-1:1), zeros(1,S(1)), (1:B(1))].';
-f_boundary = @(x, y) f_boundary_curve(sqrt(x.^2+y.^2));
-obj.e_r = obj.e_r + bsxfun(f_boundary, x, y);
+%calculate boundaries (todo: implement for 3d)
+if (sum(B) > 0)
+    x = [(B(2):-1:1), zeros(1,S(2)), (1:B(2))];
+    y = [(B(1):-1:1), zeros(1,S(1)), (1:B(1))].';
+    if (length(B) == 3)
+        z = [(B(3):-1:1), zeros(1,S(3)), (1:B(3))];
+        z = reshape(z, [1,1,length(z)]);
+        obj.e_r = obj.e_r + f_boundary_curve(sqrt(simgrid.dist2_3d(x,y,z)));
+    else
+        obj.e_r = obj.e_r + f_boundary_curve(sqrt(simgrid.dist2_2d(x,y)));
+    end
+end
 
 %add padding. Note that we are padding with e_r_center. This is _not_
 %optimal (optimal is to choose the boundaries to fill the full simulation

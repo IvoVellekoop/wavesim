@@ -7,6 +7,7 @@ classdef simulation
         roi; %position of simulation area with respect to padded array
         x_range; %x-coordinates of roi
         y_range; %y-coordinates of roi
+        z_range; %z-coordinates of roi
         lambda = 1; %wavelength (default = 1 unit)      
         differential_mode = false; %when set to 'true', only the differential field for each iteration is calculated: the fields are not added to get a solution to the wave equation (used for debugging)
         gpu_enabled = false; % flag to determine if simulation are run on the GPU (default: false)
@@ -44,8 +45,11 @@ classdef simulation
             obj.x_range = obj.x_range - obj.x_range(1);
             obj.y_range = sample.grid.y_range(obj.roi{1});
             obj.y_range = obj.y_range - obj.y_range(1);
+            obj.z_range = sample.grid.z_range(obj.roi{3});
+            obj.z_range = obj.z_range - obj.z_range(1);
             if (obj.max_cycles == 0) %default: 1.5 pass
-                obj.max_cycles = max(length(obj.x_range), length(obj.y_range)) * obj.grid.dx / obj.lambda * 2;
+                LN = sqrt(length(obj.x_range).^2 + length(obj.y_range)^2 + length(obj.z_range)^2);
+                obj.max_cycles = LN * obj.grid.dx / obj.lambda * 2;
             end
         end
         
@@ -69,10 +73,10 @@ classdef simulation
             if (issparse(source) && ~obj.gpu_enabled)
                 state.source = sparse(obj.grid.N(1), obj.grid.N(2));
             else
-                state.source = data_array();
+                state.source = data_array(obj);
             end;
-            state.source(obj.roi{1}, obj.roi{2}) = source;
-
+            state.source(obj.roi{1}, obj.roi{2}, obj.roi{3}) = source;
+            
             %%% Execute simulation
             % the run_algorithm function should:
             % - update state.last_step_energy when required
@@ -88,7 +92,7 @@ classdef simulation
             else
                 disp('Did not reach steady state');
             end
-            E = state.E(obj.roi{1}, obj.roi{2}); %% return only part inside roi. Array remains on the gpu if gpuEnabled = true
+            E = state.E(obj.roi{1}, obj.roi{2}, obj.roi{3}); %% return only part inside roi. Array remains on the gpu if gpuEnabled = true
         end;
         
         %% Creates an array of dimension obj.grid.N. If gpuEnabled is true, the array is created on the cpu
@@ -147,8 +151,21 @@ classdef simulation
             subplot(2,1,1); plot(1:length(energy),log10(energy),'b',[1,length(energy)],log10(threshold)*ones(1,2),'--r');
             title(length(energy));  xlabel('# iterations'); ylabel('log_{10}(energy added)');
             
-            sig = log(abs(E(round(end/2),:)));
-            subplot(2,1,2); plot(1:length(sig), sig, obj.roi{2}(1)*ones(1,2), [min(sig),max(sig)], obj.roi{2}(end)*ones(1,2), [min(sig),max(sig)]);
+            % plot midline along longest dimension
+            xpos = ceil(size(E, 2)/2);
+            ypos = ceil(size(E, 1)/2);
+            zpos = ceil(size(E, 3)/2);
+            if xpos > max(ypos, zpos)
+                sig = log(abs(E(ypos, :, zpos)));
+                sroi = obj.roi{2};
+            elseif ypos > max(xpos, zpos)
+                sig = log(abs(E(:, xpos, zpos)));
+                sroi = obj.roi{1};
+            else
+                sig = log(abs(E(ypos, xpos, :)));
+                sroi = obj.roi{3};
+            end
+            subplot(2,1,2); plot(1:length(sig), squeeze(sig), sroi(1)*ones(1,2), [min(sig),max(sig)], sroi(end)*ones(1,2), [min(sig),max(sig)]);
             title('midline cross-section')
             xlabel('y (\lambda / 4)'); ylabel('real(E_x)');
             

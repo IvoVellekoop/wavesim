@@ -30,7 +30,7 @@ classdef PSTD < simulation
             %% Calculate time step dt
             % The light speed is defined as 1 distance_unit / time_unit.
             %
-            obj.dtmax = 2/sqrt(2)/pi*sample.grid.dx*sqrt(sample.e_r_min); %Stability condition (ref needed)
+            obj.dtmax = 2/sqrt(sample.grid.dimension)/pi*sample.grid.dx*sqrt(sample.e_r_min); %Stability condition (ref needed)
             obj.dt = obj.dt_relative * obj.dtmax;
             obj.iterations_per_cycle = obj.lambda / obj.dt; %lambda[distance] / dt[time] / c[distance/time]
             
@@ -88,7 +88,7 @@ classdef PSTD < simulation
                 
                 if state.calculate_energy
                     phase_shift = exp(1.0i*(angle(A)-angle(A_prev))); %expected phase shift for single step (only works for CW source!!)
-                    state.last_step_energy = wavesim.energy(E_next(obj.roi{1}, obj.roi{2}) - state.E(obj.roi{1}, obj.roi{2})*phase_shift);
+                    state.last_step_energy = wavesim.energy(E_next(obj.roi{1}, obj.roi{2}, obj.roi{3}) - state.E(obj.roi{1}, obj.roi{2}, obj.roi{3})*phase_shift);
                     if (A<0.5) %workaround: don't terminate when source is still spinning ups
                         state.last_step_energy = max(state.last_step_energy, state.threshold*2);
                     end;

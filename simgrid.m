@@ -41,16 +41,25 @@ classdef simgrid
        end
        function retval = p2(obj)
           %returns a 2 or 3 dimensional array with the magnitude of p squared.
-          f_p2 = @(px, py) px.^2 + py.^2;
-          retval = bsxfun(f_p2, obj.px_range, obj.py_range);
           if (obj.dimension == 3)
-             f_pz = @(pxy2, pz) pxy2 + pz.^2;
-             retval = bsxfun(f_pz, retval, obj.pz_range);
+              retval = simgrid.dist2_3d(obj.px_range, obj.py_range, obj.pz_range);
+          else
+              retval = simgrid.dist2_2d(obj.px_range, obj.py_range);
           end
        end
     end
 	methods(Static)
-		function range = symrange(N)
+        function retval = dist2_2d(x, y)
+            %returns a 2 dimensional array with x^2+y^2
+            f_p2 = @(xi, yi) xi.^2 + yi.^2;
+            retval = bsxfun(f_p2, x, y);
+        end
+        function retval = dist2_3d(x, y, z)
+            %returns a 3 dimensional array with x^2+y^2+z^2
+             f_pz = @(xy2, zi) xy2 + zi.^2;
+             retval = bsxfun(f_pz, simgrid.dist2_2d(x, y), z);
+        end
+        function range = symrange(N)
             if N==1
                 range = 0;
             else
