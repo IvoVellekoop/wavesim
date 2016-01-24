@@ -7,6 +7,7 @@ loglog([0.1, 10E4], relative_error(1)*[1,1], ':');
 loglog(iterations_per_wavelength(1), relative_error(1), 's', 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'k', 'MarkerSize', 8);
 loglog(iterations_per_wavelength(2:end), relative_error(2:end), 'r+', 'MarkerSize', 10);
 xlim([0.1, 5E4]);
+set(gca,'YMinorGrid','on');
 hold off;
 fixplot('Iterations per wavelength', 'Relative error', [8 7], '');
 fp = '../../wavesimpaper/figures/';

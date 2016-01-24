@@ -37,7 +37,8 @@ fp = '../../wavesimpaper/figures/';
 fdiff = fdiff * 50;
 fields = fields * 50;
 
-labels = {'a)', 'b)', 'c)'};
+%labels = {'a)', 'b)', 'c)'};
+labels = {'','',''};
 for iteration = 1:3
     it = iteration*20;
     close all;
@@ -46,7 +47,7 @@ for iteration = 1:3
     %title(it);
     xlim([0, xpos(end)]);
     ylim([-1.1, 1.1]);
-    fixplot('x/\lambda', '\psi', [8 3], labels(iteration));
+    fixplot('x/\lambda', '\psi', [8 3], '');
     print([fp 'pseudo_panel_' num2str(iteration) '.eps'], '-depsc2');
 end
 close all; 
@@ -65,6 +66,6 @@ for iteration = 1:3
     plot(it*[1,1]/sim.iterations_per_cycle, ylimits, 'k');
 end;
 hold off
-fixplot('x/\lambda', '\psi', [8 3], 'd)');
+fixplot('x/\lambda', '\psi', [8 3], '');
 print([fp 'pseudo_panel_4.eps'], '-depsc2');
     
