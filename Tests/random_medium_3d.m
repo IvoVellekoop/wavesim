@@ -11,7 +11,7 @@ sopt.energy_threshold = 1E-25;%16;
 sopt.callback_interval = 25;
 sopt.max_cycles = 500;
 
-dt_relative_range = [0,1./2.^(0:0.5:9)];
+dt_relative_range = [0,1./2.^(6.5:0.5:7)];
 
 mopt.lambda = sopt.lambda;
 mopt.pixel_size = sopt.lambda/PPW;
@@ -38,10 +38,10 @@ a_var = 0.02;    % variance
 n_sample = 1.0*(n0 + n_var * randn(N)) + 1.0i*(a0 + a_var * randn(N));
 
 % low pass filter to remove sharp edges
-n_fft = fft2(n_sample);
+n_fft = fftn(n_sample);
 window = hamming(N(1)) * hamming(N(2))';
 window = bsxfun(@times, window, reshape(hamming(N(3)), [1,1,N(3)]));
-n_sample = ifft2(n_fft.*fftshift(window));
+n_sample = ifftn(n_fft.*fftshift(window));
 n_sample = max(real(n_sample), 1.0) + 1.0i * max(imag(n_sample), 0.0);
 % construct sample object
 sample = SampleMedium(n_sample, mopt); 
