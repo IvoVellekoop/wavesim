@@ -3,15 +3,16 @@
 
 clear all; close all;
 addpath('..');
+rng('default'); %reset random number generator
 
 %% options for grid (gopt) and for simulation (sopt) 
 PPW=4; %points per wavelength = lambda/h
 sopt.lambda = 1; %in mu %lambda_0 = 1; %wavelength in vacuum (in um)
-sopt.energy_threshold = 1E-25;%16;
+sopt.energy_threshold = 1E-30;%16;
 sopt.callback_interval = 25;
-sopt.max_cycles = 500;
+sopt.max_cycles = 130;
 
-dt_relative_range = [0,1./2.^(6.5:0.5:7)];
+dt_relative_range = [0,1./2.^(0:0.5:6)];
 
 mopt.lambda = sopt.lambda;
 mopt.pixel_size = sopt.lambda/PPW;
