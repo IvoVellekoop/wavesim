@@ -12,7 +12,8 @@ sopt.energy_threshold = 1E-30;%16;
 sopt.callback_interval = 25;
 sopt.max_cycles = 130;
 
-dt_relative_range = [0,1./2.^(0:0.5:6)];
+dt_relative_range = [0,1./2.^(0:0.5:3)];
+simulation_run_time = zeros(size(dt_relative_range));
 
 mopt.lambda = sopt.lambda;
 mopt.pixel_size = sopt.lambda/PPW;
@@ -54,7 +55,8 @@ source(end/2,end/2, end/2) = 1; % point source
 %% wavesim simulation
 sim = wavesim(sample, sopt);
 iterations_per_wavelength(1) = sim.iterations_per_cycle;
-E_wavesim = exec(sim, source);
+[E_wavesim, state] = exec(sim, source);
+simulation_run_time(1) = state.time;
 
 %% PSTD simulations with varying time step size
 for t_i=2:length(dt_relative_range)
@@ -62,7 +64,8 @@ for t_i=2:length(dt_relative_range)
     s2.dt_relative = dt_relative_range(t_i);
     sim_PSTD = PSTD(sample, s2);
     iterations_per_wavelength(t_i) = sim_PSTD.iterations_per_cycle;
-    E_PSTD{t_i-1} = exec(sim_PSTD, source);
+    [E_PSTD{t_i-1}, state] = exec(sim_PSTD, source);
+    simulation_run_time(t_i) = state.time;
     errors_PSTD(t_i-1) = mean(abs(E_PSTD{t_i-1}(:) - E_wavesim(:)).^2) / mean(abs(E_wavesim(:)).^2);
     
     figure(20);
