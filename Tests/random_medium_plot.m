@@ -14,8 +14,13 @@ end
 
 %% plot results
 fig_size = [8 7];
-loglog(iterations_per_wavelength(2:end),errors_PSTD,'r+', 'MarkerSize', 10);
+theory = 1./iterations_per_wavelength.^4 * errors_PSTD(5) * iterations_per_wavelength(6).^4;
+loglog(iterations_per_wavelength(2:end), theory(2:end), 'k', 'LineWidth', 2.0);
+hold on
+loglog(iterations_per_wavelength(2:end),errors_PSTD,'r+', 'MarkerSize', 10, 'LineWidth', 2.0);
+hold off
 fixplot('Iterations per wavelength', 'Relative error', fig_size, '');
+set(gca,'YMinorGrid','on');
 
 print([fp 'random_results.eps'], '-depsc2'); % print figure to eps file
 %% refractive index map image (real & imaginary)

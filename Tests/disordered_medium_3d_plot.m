@@ -9,10 +9,13 @@ load('disordered_medium_3d_results_subset.mat');
 
 %% plot results
 fig_size = [8 7];
-loglog(iterations_per_wavelength(2:end),errors_PSTD,'+', 'MarkerSize', 10);
+theory = 1./iterations_per_wavelength.^4 * errors_PSTD(5) * iterations_per_wavelength(6).^4;
+loglog(iterations_per_wavelength(2:end), theory(2:end), 'k', 'LineWidth', 2.0);
+hold on
+loglog(iterations_per_wavelength(2:end),errors_PSTD,'r+', 'MarkerSize', 10, 'LineWidth', 2.0);
 fixplot('Iterations per wavelength', 'Relative error', fig_size, '');
-
-print([fp 'random_results.eps'], '-depsc2'); % print figure to eps file
+set(gca,'YMinorGrid','on');
+print([fp 'disordered_3d_results.eps'], '-depsc2'); % print figure to eps file
 
 %% Field solutions (wavesim & PSTD)
 % wavesim solution
