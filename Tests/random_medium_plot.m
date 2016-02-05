@@ -19,7 +19,7 @@ loglog(iterations_per_wavelength(2:end), theory(2:end), 'k', 'LineWidth', 2.0);
 hold on
 loglog(iterations_per_wavelength(2:end),errors_PSTD,'r+', 'MarkerSize', 10, 'LineWidth', 2.0);
 hold off
-fixplot('Iterations per wavelength', 'Relative error', fig_size, '');
+fixplot('Iterations per wavelength', 'E_{diff}', fig_size, '');
 set(gca,'YMinorGrid','on');
 
 print([fp 'random_results.eps'], '-depsc2'); % print figure to eps file
