@@ -75,8 +75,11 @@ classdef simulation
             else
                 state.source = data_array(obj);
             end;
-            state.source(obj.roi{1}, obj.roi{2}, obj.roi{3}) = source;
-            
+            if (obj.grid.dimension == 2)
+                state.source(obj.roi{1}, obj.roi{2}) = source;
+            else
+                state.source(obj.roi{1}, obj.roi{2}, obj.roi{3}) = source;
+            end    
             %%% Execute simulation
             % the run_algorithm function should:
             % - update state.last_step_energy when required
