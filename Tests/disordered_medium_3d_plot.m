@@ -13,7 +13,7 @@ theory = 1./iterations_per_wavelength.^4 * errors_PSTD(5) * iterations_per_wavel
 loglog(iterations_per_wavelength(2:end), theory(2:end), 'k', 'LineWidth', 2.0);
 hold on
 loglog(iterations_per_wavelength(2:end),errors_PSTD,'r+', 'MarkerSize', 10, 'LineWidth', 2.0);
-fixplot('Iterations per wavelength', 'Relative error', fig_size, '');
+fixplot('Iterations per wavelength', 'E_{diff}', fig_size, '');
 set(gca,'YMinorGrid','on');
 print([fp 'disordered_3d_results.eps'], '-depsc2'); % print figure to eps file
 
@@ -29,10 +29,10 @@ y = x;
 z = [64 48 32 1];
 for p=1:4
     figure;
-    imagesc(x,y,log(abs(E{p})))
+    imagesc(x,y,log(abs(E{p})), [-22, -5]);
     h = colorbar;
     set(get(h,'Title'),'String','log|\psi|^2','FontSize',16);
-    fixplot('x (\lambda)','y (\lambda)',fig_size*0.75,'');
+    fixplot('x (\lambda)','y (\lambda)',fig_size,'');
     axis square;
     colormap(jet);
     print([fp 'disordered_3d_solution_' num2str(z(p)) '.eps'], '-depsc2'); % print figure to eps file
