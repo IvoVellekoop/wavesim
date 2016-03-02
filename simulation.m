@@ -145,6 +145,15 @@ classdef simulation
             en= sum(abs(E_x(:)).^2);
         end
         
+        function abs_image_callback(obj, state)
+            figure(1);
+            E = state.E;
+            zpos = ceil(size(E, 3)/2);
+            imagesc(abs(E(:,:,zpos)));
+            title(['Differential energy ' num2str(state.diff_energy(state.it))]);
+            drawnow;
+        end
+        
         %default callback function. Shows real value of field, and total energy evolution
         function default_callback(obj, state)
             figure(1);
