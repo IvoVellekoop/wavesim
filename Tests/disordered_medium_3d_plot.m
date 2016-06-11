@@ -5,43 +5,26 @@ close all;
 addpath('..');
 fp = '../../wavesimpaper/figures/'; % filepath for figures
 %% Load random medium simulation data
-load('disordered_medium_3d_results_subset.mat');
-
-%% plot results
-fig_size = [8 7];
-theory = 1./iterations_per_wavelength.^4 * errors_PSTD(5) * iterations_per_wavelength(6).^4;
-loglog(iterations_per_wavelength(2:end), theory(2:end), 'k', 'LineWidth', 2.0);
-hold on
-loglog(iterations_per_wavelength(2:end),errors_PSTD,'r+', 'MarkerSize', 10, 'LineWidth', 2.0);
-fixplot('Iterations per wavelength', 'E_{diff}', fig_size, '');
-set(gca,'YMinorGrid','on');
-print([fp 'disordered_3d_results.eps'], '-depsc2'); % print figure to eps file
+load('disordered_medium_3d.mat');
 
 %% Field solutions (wavesim & PSTD)
 % wavesim solution
 fig_size = [8 7];
-figure(4);
-E = {E64, E48, E32, E1};
-PPW = 4;
-x = 1:128/PPW;
-y = x;
-%fixplot('', '', fig_size, '');
-z = [64 48 32 1];
-for p=1:4
-    figure;
-    imagesc(x,y,log(abs(E{p})), [-22, -5]);
-    h = colorbar;
-    set(get(h,'Title'),'String','log|\psi|^2','FontSize',16);
-    fixplot('x (\lambda)','y (\lambda)',fig_size,'');
-    axis square;
-    colormap(jet);
-    print([fp 'disordered_3d_solution_' num2str(z(p)) '.eps'], '-depsc2'); % print figure to eps file
-end
 
-% PSTD solution
-% figure(5);
-% imagesc(x,y,log(abs(E_PSTD{end})))
-% h = colorbar;
-% set(get(h,'Title'),'String','log|\psi|^2','FontSize',16);
-% fixplot('x (\lambda)','y (\lambda)',fig_size,'');
-% axis square;
+x = (-63:64)/PPW;
+y = (-63:64)/PPW;
+z = (-63:64)/PPW;
+
+figure(1);
+slice(x,y,z, log(abs(E_wavesim)), [0 8 16], 17, 17);
+
+set(findobj(gca,'Type','Surface'),'EdgeColor','none')
+h = colorbar;
+fixplot('x (\lambda)','y (\lambda)',fig_size,'');
+zlabel('z (\lambda)', 'FontSize', 30,'FontName','Times New Roman');
+set(get(h,'Title'),'String','log|\psi|','FontSize',18, 'FontName', 'Times New Roman');
+colormap(jet);
+axis square;
+xlim([0 16])
+
+print([fp 'disordered_3d_solution.eps'], '-depsc2'); % print figure to eps file

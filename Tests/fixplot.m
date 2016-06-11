@@ -28,10 +28,10 @@ function fixplot(xlab, ylab, size, label)
 %    pos(2) = pos(2)+0.1;
 %    pos(4) = pos(4)-0.1;
 %    set(gca(), 'Position', pos);
-    h = xlabel(xlab, 'FontSize', 30);
+    xlabel(xlab, 'FontSize', 30,'FontName','Times New Roman');
 %    pos = get(h, 'Position');
 %    pos(2) = pos(2)+0.05;
 %    set(h, 'Position', pos);
-    ylabel(ylab, 'FontSize', 30);
+    ylabel(ylab, 'FontSize', 30,'FontName','Times New Roman');
     
 end
