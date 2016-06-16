@@ -15,5 +15,7 @@ legend('Modified Born','PSTD');
 fixplot('Iterations per wavelength', 'Relative error', [8 7], '');
 xlim([0.1, 1E5]);
 ylim([1E-12, 10]);
+h_legend = legend('Modified Born','PSTD');
+set(h_legend,'FontSize',22);
 fp = '../../wavesimpaper/figures/';
 print([fp 'accuracy_homogeneous_3d.eps'], '-depsc2');
