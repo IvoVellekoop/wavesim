@@ -25,7 +25,7 @@ dim_box = [0.475,0.4,0,0];
 annotation('textbox',dim_box, 'String', 'Point Source' ,'FontSize',16,'FontName','Times New Roman' , ...
     'FontWeight','Bold', 'BackgroundColor', [1 1 1], 'FaceAlpha', 0.65, 'FitBoxToText', 'on',...
     'HorizontalAlignment','center');
-plot(y(end)/2,x(end*3/4),'*r','MarkerSize', 22);
+plot(y(end)/2,x(end*3/4),'*r','MarkerSize', 22,'LineWidth',2);
 plot([x(1),x(end)],[y(10),y(10)],'r','LineWidth',3);
 text(x(end)/2 - 370,-45,'Phase Conjugating Mirror', 'FontSize',18,'FontName','Times New Roman' , 'FontWeight', 'Bold');
 
