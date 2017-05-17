@@ -48,6 +48,11 @@ classdef wavesim < simulation
                 obj.V = gpuArray(obj.V);
                 obj.g0_k = gpuArray(obj.V);
             end
+            
+            if obj.singlePrecision
+                obj.V = single(obj.V);
+                obj.g0_k = single(obj.g0_k);
+            end
         end
         
         function state = run_algorithm(obj, state)

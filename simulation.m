@@ -11,6 +11,7 @@ classdef simulation
         lambda = 1; %wavelength (default = 1 unit)      
         differential_mode = false; %when set to 'true', only the differential field for each iteration is calculated: the fields are not added to get a solution to the wave equation (used for debugging)
         gpu_enabled = false; % flag to determine if simulation are run on the GPU (default: false)
+        singlePrecision = false; % flag to determine if single precision is used (default: double)
         callback = @simulation.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
         callback_interval = 50; %the callback is called every 'callback_interval' steps. Default = 5
         energy_threshold = 1E-20; %the simulation stops when the difference for a step is less than 'energy_threshold'
@@ -98,13 +99,17 @@ classdef simulation
             E = state.E(obj.roi{1}, obj.roi{2}, obj.roi{3}); %% return only part inside roi. Array remains on the gpu if gpuEnabled = true
         end;
         
-        %% Creates an array of dimension obj.grid.N. If gpuEnabled is true, the array is created on the cpu
+        %% Creates an array of dimension obj.grid.N. If gpuEnabled is true, the array is created on the gpu
         function d = data_array(obj)
-            %% Check whether gpu computation option is enabled
-            if obj.gpu_enabled
-                d = gpuArray(obj.grid.Nred);
+            %% Check whether single precision and gpu computation options are enabled
+            if obj.singlePrecision
+                d = zeros(obj.grid.Nred,'single');
             else
-                d = zeros(obj.grid.Nred);
+                d = zeros(obj.grid.Nred,'double');
+            end
+                           
+            if obj.gpu_enabled
+                d = gpuArray(d);
             end
         end;
         
