@@ -46,7 +46,8 @@ classdef wavesim < simulation
             obj.g0_k = 1./(p2(sample.grid)-(obj.k^2 + 1.0i*obj.epsilon));
             if obj.gpu_enabled
                 obj.V = gpuArray(obj.V);
-                obj.g0_k = gpuArray(obj.V);
+                obj.g0_k = gpuArray(obj.g0_k);
+                obj.epsilon = gpuArray(obj.epsilon);
             end
             
             if obj.singlePrecision
@@ -57,7 +58,7 @@ classdef wavesim < simulation
         
         function state = run_algorithm(obj, state)
             %% Allocate memory for calculations
-            state.E = data_array(obj);
+            state.E = data_array(obj);           
             
             %% simulation iterations
             while state.has_next
@@ -65,6 +66,7 @@ classdef wavesim < simulation
                 if state.calculate_energy
                    state.last_step_energy = simulation.energy(Ediff(obj.roi{1}, obj.roi{2}, obj.roi{3}));
                 end
+                
                 state.E = state.E - Ediff;
                 state = next(obj, state);
             end

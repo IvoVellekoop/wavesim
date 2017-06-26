@@ -75,7 +75,7 @@ classdef simulation
                 state.source = sparse(obj.grid.N(1), obj.grid.N(2));
             else
                 state.source = data_array(obj);
-            end;
+            end
             if (obj.grid.dimension == 2)
                 state.source(obj.roi{1}, obj.roi{2}) = source;
             else
@@ -116,7 +116,7 @@ classdef simulation
         %% Continue to the next iteration. Returns false to indicate that the simulation has terminated
         function state = next(obj, state)
             %% store energy
-            state.diff_energy(state.it) = state.last_step_energy;
+            state.diff_energy(state.it) = gather(state.last_step_energy);           
             
             %% check if simulation should terminate
             if (state.last_step_energy < state.threshold)
