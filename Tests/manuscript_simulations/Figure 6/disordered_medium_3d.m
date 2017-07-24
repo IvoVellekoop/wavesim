@@ -2,13 +2,14 @@
 %%% Demonstrate that PSTD converges to wavesim solution as dt decreases
 
 clear all; close all;
+addpath('../../../');
 addpath('..');
 rng('default'); %reset random number generator
 
 %% options for grid (gopt) and for simulation (sopt) 
 PPW=4; %points per wavelength = lambda/h
-sopt.lambda = 1; %in mu %lambda_0 = 1; %wavelength in vacuum (in um)
-sopt.energy_threshold = 1E-30;%16;
+sopt.lambda = 1; % wavelength in vacuum (in um)
+sopt.energy_threshold = 1E-16;
 sopt.callback_interval = 25;
 sopt.max_cycles = 1100;
 
@@ -53,17 +54,10 @@ source = zeros(N(1), N(2), N(3));
 source(end/2, end/2, end/2) = 1; % point source
 
 %% wavesim simulation
-tic;
 sim = wavesim(sample, sopt);
 iterations_per_wavelength(1) = sim.iterations_per_cycle;
 [E_wavesim, state] = exec(sim, source);
 simulation_run_time(1) = state.time;
 
-%% PSTD simulations with varying time step size
-s2 = sopt;
-s2.dt_relative = dt_relative_range(2);
-sim_PSTD = PSTD(sample, s2);
-iterations_per_wavelength(2) = sim_PSTD.iterations_per_cycle;
-[E_PSTD, state] = exec(sim_PSTD, source);
-simulation_run_time(2) = state.time;
-errors_PSTD = mean(abs(E_PSTD{t_i-1}(:) - E_wavesim(:)).^2) / mean(abs(E_wavesim(:)).^2);
+%% save data
+save('disordered_medium_3d.mat','E_wavesim','N','PPW');

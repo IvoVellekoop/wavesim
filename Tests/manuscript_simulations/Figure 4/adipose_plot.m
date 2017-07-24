@@ -1,15 +1,14 @@
 %%% Script to create figures of adipose dopc results
-
+%Note: uncomment print commands to save figures in eps format
 clear all, close all;
-%% load dopc results (requires acces to BMPI server)
-path = '\\ad.utwente.nl\TNW\BMPI\Users\Gerwin Osnabrugge\Data\';
-load([path, 'dopc_results.mat']);
+%% load dopc results
+load('dopc_results.mat');
 
 %% plot properties
 x = mopt.pixel_size * (1:N(2));     % horizontal axis
 y = mopt.pixel_size * (1:N(1));     % vertical axis
 fig_size = [8 7];
-fp = '../../wavesimpaper/figures/'; % filepath for figures
+fp = ''; % filepath for figures
 
 %% create figure of refractive index map
 figure(1); clf;
@@ -32,7 +31,7 @@ text(x(end)/2 - 370,-45,'Phase Conjugating Mirror', 'FontSize',18,'FontName','Ti
 % Draw arrow
 ha = annotation('arrow',[0.465,0.505], [0.96,0.927],'LineWidth',2);
 
-print([fp 'adipose_nmap.eps'], '-depsc2'); % print figure to eps file
+%print([fp 'adipose_nmap.eps'], '-depsc2'); % print figure to eps file
 %% create figure of field solutions (point source and dopc)
 figure(2)
 imagesc(x,y,log(abs(E1)))
@@ -41,7 +40,7 @@ fixplot('x (\mum)','y (\mum)',fig_size,'');
 set(get(h,'Title'),'String','log|\psi|','FontSize',18,'FontName','Times New Roman');
 axis square;
 colormap(jet)
-print([fp 'adipose_PS.eps'], '-depsc2'); % print figure to eps file
+%print([fp 'adipose_PS.eps'], '-depsc2'); % print figure to eps file
 
 figure(3)
 imagesc(x,y,log(abs(E2)))
@@ -50,4 +49,4 @@ fixplot('x (\mum)','y (\mum)',fig_size,'');
 set(get(h,'Title'),'String','log|\psi|','FontSize',18,'FontName','Times New Roman');
 axis square;
 colormap(jet)
-print([fp 'adipose_dopc.eps'], '-depsc2'); % print figure to eps file
+%print([fp 'adipose_dopc.eps'], '-depsc2'); % print figure to eps file

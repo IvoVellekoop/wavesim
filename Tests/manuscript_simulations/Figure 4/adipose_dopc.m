@@ -5,17 +5,18 @@
 % --> forms sharp focus again
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clear all; close all;
+addpath('../../../');
 addpath('..');
 
 %% options for for simulation (sopt) and medium (mopt)
-PPW=4; %points per wavelength = lambda/h
-sopt.lambda = 1; %in mu %lambda_0 = 1; %wavelength in vacuum (in um)
-sopt.energy_threshold = 1E-16;
+PPW=4; % points per wavelength
+sopt.lambda = 1; % wavelength in vacuum (in um)
+sopt.energy_threshold = 1E-12;
 sopt.callback_interval = 25;
 
 mopt.lambda = sopt.lambda;
 mopt.pixel_size = sopt.lambda/PPW;
-mopt.boundary_widths = [25*PPW, 25*PPW];
+mopt.boundary_widths = [50*PPW, 50*PPW];
 mopt.boundary_strength = 0.2;
 mopt.boundary_type = 'PML3';
 
@@ -57,3 +58,6 @@ source2(1,:) = conj(E1(1,:));
 
 E2 = exec(sim, source2); % perform simulation
 toc;
+
+%% Save data
+save('dopc_results.mat','E1','E2','mopt','n','N');
