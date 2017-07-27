@@ -1,0 +1,2 @@
+The result data of this figure is not included because it takes up too much space. 
+First execute the disordered_medium_3d.m to aqcuire the results and plot the results using disordered_medium_3d_plot.m

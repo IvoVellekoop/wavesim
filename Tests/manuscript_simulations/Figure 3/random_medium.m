@@ -2,16 +2,18 @@
 %%% Demonstrate that PSTD converges to wavesim solution as dt decreases
 
 clear all; close all;
+addpath('../../../');
 addpath('..');
 
 %% options for grid (gopt) and for simulation (sopt) 
 PPW=4; %points per wavelength = lambda/h
-sopt.lambda = 1; %in mu %lambda_0 = 1; %wavelength in vacuum (in um)
-sopt.energy_threshold = 1E-25;%16;
+sopt.lambda = 1; % wavelength in vacuum (in um)
+sopt.energy_threshold = 1E-32;
 sopt.callback_interval = 1000;
 sopt.max_iterations = 6000;
 
-dt_relative_range = [0, 1/(2^10.5)];
+%dt_relative_range = 1/(2^10.5); dt used in manuscript
+dt_relative_range = 1/(2^1);
 
 mopt.lambda = sopt.lambda;
 mopt.pixel_size = sopt.lambda/PPW;
@@ -52,13 +54,16 @@ sim = wavesim(sample, sopt);
 iterations_per_wavelength(1) = sim.iterations_per_cycle;
 E_wavesim = exec(sim, source);
 
-%% PSTD simulations with varying time step size
-
-sopt.dt_relative = dt_relative_range(2);
+%% PSTD simulation
+sopt.dt_relative = dt_relative_range;
 sim_PSTD = PSTD(sample, sopt);
 iterations_per_wavelength(2) = sim_PSTD.iterations_per_cycle;
 tic;
 E_PSTD = exec(sim_PSTD, source);
 toc;
 
-errors_PSTD = mean2(abs(E_PSTD - E_wavesim).^2) / mean2(abs(E_wavesim).^2);
+error_PSTD = mean2(abs(E_PSTD - E_wavesim).^2) / mean2(abs(E_wavesim).^2);
+disp(['Error between PSTD and wavesim: ',num2str(error_PSTD)]);
+
+%% Save results
+save('random_medium_results.mat','E_wavesim','N','dt_relative_range','error_PSTD')
