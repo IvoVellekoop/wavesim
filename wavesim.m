@@ -58,17 +58,48 @@ classdef wavesim < simulation
         
         function state = run_algorithm(obj, state)
             %% Allocate memory for calculations
-            state.E = data_array(obj);           
+            state.E = data_array(obj);    
             
             %% simulation iterations
             while state.has_next
                 Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* fftn(obj.V.*state.E+state.source)));
+                Ediff = process_edges(obj, Ediff);
                 if state.calculate_energy
                    state.last_step_energy = simulation.energy(Ediff(obj.roi{1}, obj.roi{2}, obj.roi{3}));
                 end
                 
                 state.E = state.E - Ediff;
                 state = next(obj, state);
+            end
+        end
+        
+        function E = process_edges(obj, E)
+            %% Performs filtering at the edges 
+            top = obj.roi{1}(1);
+            bottom = obj.roi{1}(end);
+            left = obj.roi{2}(1);
+            right = obj.roi{2}(end);
+            front = obj.roi{3}(1);
+            back = obj.roi{3}(end);
+
+            % filter front
+            L=20;
+            if (front>1)
+                len = front-1;
+                filter = reshape((1:len) < len/2, [1, 1, len]);
+                window = [zeros(len-L, 1); blackman(L*2)];
+                window = 1-reshape(window(1:len), [1, 1, len]);
+                Eunf = E(:, :, 1:len) .* (1-window);
+                E(:, :, 1:len) = ifft(fft(E(:, :, 1:len) .* window, [], 3) .* filter, [], 3) + Eunf;
+            end
+            % filter back
+            if (back<size(E,3))
+                len = size(E,3)-back;
+                filter = reshape((1:len) >= len/2, [1, 1, len]);
+                window = [blackman(L*2); zeros(len-L, 1)];
+                window = 1-reshape(window(L+1:end), [1, 1, len]);
+                Eunf = E(:, :, end-len+1:end) .* (1-window);
+                E(:, :, end-len+1:end) = ifft(fft(E(:, :, end-len+1:end) .* window, [], 3) .* filter, [], 3) + Eunf;
             end
         end
     end
