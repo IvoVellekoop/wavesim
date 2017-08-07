@@ -9,6 +9,7 @@ classdef wavesim < simulation
         g0_k; % bare Green's function used in simulation
         %% diagnostics and feedback
         epsilonmin; %minimum value of epsilon for which convergence is guaranteed (equal to epsilon, unless a different value for epsilon was forced)
+        filters; %information for fft edge processing
     end
     
     methods
@@ -30,8 +31,8 @@ classdef wavesim < simulation
             
             % First construct V without epsilon
             obj.V = sample.e_r*k00^2-obj.k^2;
-            obj.epsilonmin = max(abs(obj.V(:)));
-            obj.epsilonmin = max(obj.epsilonmin, 1E-3); %%minimum value to avoid divergence when simulating empty medium
+            obj.epsilonmin = max(obj.V(:));
+            obj.epsilonmin = max(obj.epsilonmin, 5); %%minimum value to avoid divergence when simulating empty medium
             if isfield(options,'epsilon')
                 obj.epsilon = options.epsilon*k00^2; %force a specific value, may not converge
             else
@@ -41,30 +42,52 @@ classdef wavesim < simulation
             
             %% Potential map (V==k^2-k_0^2-1i*epsilon)
             obj.V = obj.V - 1.0i*obj.epsilon;
+            for d=1:3
+                if ~isempty(sample.filters{d})
+                    obj.V = obj.V .* sample.filters{d};
+                end
+            end
             
             %% Calculate Green function for k_red (reduced k vector: k_red^2 = k_0^2 + 1.0i*epsilon)
             obj.g0_k = 1./(p2(sample.grid)-(obj.k^2 + 1.0i*obj.epsilon));
-            if obj.gpu_enabled
-                obj.V = gpuArray(obj.V);
-                obj.g0_k = gpuArray(obj.g0_k);
-                obj.epsilon = gpuArray(obj.epsilon);
-            end
             
-            if obj.singlePrecision
-                obj.V = single(obj.V);
-                obj.g0_k = single(obj.g0_k);
-            end
+            %convert to single our double precision, and put on gpu if
+            %needed
+            obj.V = obj.data_array(obj.V);
+            obj.g0_k = obj.data_array(obj.g0_k);
+            obj.epsilon = obj.data_array(obj.epsilon);
+            obj.filters = sample.filters;
         end
         
         function state = run_algorithm(obj, state)
             %% Allocate memory for calculations
             state.E = data_array(obj);    
             
+            %L = 200;
+            %LL = size(state.E,3);
+            %filt = 1-reshape([zeros(LL-L, 1); tukeywin(L,0.5)], [1,1,LL]);
+            %filt = 1-reshape([zeros(LL-L, 1); ones(L,1)], [1,1,LL]);
+            
             %% simulation iterations
             while state.has_next
-                Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* fftn(obj.V.*state.E+state.source)));
-                Ediff = process_edges(obj, Ediff);
-                if state.calculate_energy
+                Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* fftn(obj.V.*state.E +state.source)));
+                
+                %Ediff = Ediff .* filt;
+                %Ediff(:,:,1) = 0;
+                %                 edge = state.E;
+%                 edge(:,:,50:end) = 0;
+%                 Ediffe = (1.0i/obj.epsilon*obj.V) .* (edge-ifftn(obj.g0_k .* fftn(obj.V.*edge+state.source)));
+%                 Ediffe(:,:,1:end-50) = 0;
+%                 Ediff = Ediff - Ediffe;
+%                 
+%                 edge = state.E;
+%                 edge(:,:,1:end-50) = 0;
+%                 Ediffe = (1.0i/obj.epsilon*obj.V) .* (edge-ifftn(obj.g0_k .* fftn(obj.V.*edge+state.source)));
+%                 Ediffe(:,:,1:50) = 0;
+%                 Ediff = Ediff - Ediffe;
+%                 
+%                 Ediff = process_edges(obj, Ediff);
+                 if state.calculate_energy
                    state.last_step_energy = simulation.energy(Ediff(obj.roi{1}, obj.roi{2}, obj.roi{3}));
                 end
                 
@@ -74,32 +97,12 @@ classdef wavesim < simulation
         end
         
         function E = process_edges(obj, E)
-            %% Performs filtering at the edges 
-            top = obj.roi{1}(1);
-            bottom = obj.roi{1}(end);
-            left = obj.roi{2}(1);
-            right = obj.roi{2}(end);
-            front = obj.roi{3}(1);
-            back = obj.roi{3}(end);
-
-            % filter front
-            L=20;
-            if (front>1)
-                len = front-1;
-                filter = reshape((1:len) < len/2, [1, 1, len]);
-                window = [zeros(len-L, 1); blackman(L*2)];
-                window = 1-reshape(window(1:len), [1, 1, len]);
-                Eunf = E(:, :, 1:len) .* (1-window);
-                E(:, :, 1:len) = ifft(fft(E(:, :, 1:len) .* window, [], 3) .* filter, [], 3) + Eunf;
-            end
-            % filter back
-            if (back<size(E,3))
-                len = size(E,3)-back;
-                filter = reshape((1:len) >= len/2, [1, 1, len]);
-                window = [blackman(L*2); zeros(len-L, 1)];
-                window = 1-reshape(window(L+1:end), [1, 1, len]);
-                Eunf = E(:, :, end-len+1:end) .* (1-window);
-                E(:, :, end-len+1:end) = ifft(fft(E(:, :, end-len+1:end) .* window, [], 3) .* filter, [], 3) + Eunf;
+            %% Performs filtering at the edges
+            for edge_i = 1:numel(obj.edges)
+                e = obj.edges(edge_i); 
+                Epart = E(e.range{1}, e.range{2}, e.range{3});
+                Efilt = ifft(fft(Epart .* e.window, [], e.dim) .* e.filter, [], e.dim);
+                E(e.range{1}, e.range{2}, e.range{3}) = Efilt + (1-e.window) .* Epart;
             end
         end
     end

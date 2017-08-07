@@ -72,12 +72,12 @@ classdef simulation
             %% increase source array (which currently has the size of the roi)
             % to the full grid size (including boundary conditions)
             if (issparse(source) && ~obj.gpu_enabled)
-                state.source = sparse(obj.grid.N(1), obj.grid.N(2));
+                state.source = sparse(obj.grid.N(1), obj.grid.N(2), obj.grid.N(3));
             else
                 state.source = data_array(obj);
             end
-            if (obj.grid.dimension == 2)
-                state.source(obj.roi{1}, obj.roi{2}) = source;
+            if ndims(source) == 2
+                state.source(obj.roi{1}, obj.roi{2}, 1) = source;
             else
                 state.source(obj.roi{1}, obj.roi{2}, obj.roi{3}) = source;
             end    
@@ -100,14 +100,21 @@ classdef simulation
         end;
         
         %% Creates an array of dimension obj.grid.N. If gpuEnabled is true, the array is created on the gpu
-        function d = data_array(obj)
+        function d = data_array(obj, data)
             %% Check whether single precision and gpu computation options are enabled
-            if obj.singlePrecision
-                d = zeros(obj.grid.Nred,'single');
+            if nargin < 2
+                if obj.singlePrecision
+                    d = zeros(obj.grid.Nred,'single');
+                else
+                    d = zeros(obj.grid.Nred,'double');
+                end
             else
-                d = zeros(obj.grid.Nred,'double');
+                if obj.singlePrecision
+                    d = single(data);
+                else
+                    d = double(data);
+                end
             end
-                           
             if obj.gpu_enabled
                 d = gpuArray(d);
             end
