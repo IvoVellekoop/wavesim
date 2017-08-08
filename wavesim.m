@@ -56,7 +56,7 @@ classdef wavesim < simulation
             obj.V = obj.data_array(obj.V);
             obj.g0_k = obj.data_array(obj.g0_k);
             obj.epsilon = obj.data_array(obj.epsilon);
-            obj.filters = sample.filters;
+            obj.filters = sample.filters; %todo: remove this line
         end
         
         function state = run_algorithm(obj, state)
