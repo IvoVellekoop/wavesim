@@ -34,11 +34,18 @@ classdef SampleMedium
             %                             in the boundary (for 'PML' only)
             % options.boundary_type = boundary type. Currently supports 'window' (default) and
             % 'PML1-5'
+            % options.ar_width = width of anti-reflection layer (for
+            % 'window' only). Should be < boundary_widths. When omitted, a
+            % default fraction of the boundary width will be used
+            % (pre-factor may change in the future)
             %
             %% Set default values and check validity of inputs
             assert(numel(options.boundary_widths) == ndims(refractive_index));
             if ~isfield(options, 'boundary_type')
                 options.boundary_type = 'window'; %new default boundary type!
+            end;
+            if ~isfield(options, 'ar_width')
+                options.ar_width = round(options.boundary_widths/2); %this factor may change into a more optimal one!!!
             end;
 
             %% calculate e_r and min/max values
@@ -100,11 +107,13 @@ classdef SampleMedium
                 leakage = [];
                 return;
             end
-            
+            warning('PML boundary conditions are deprecated and may be removed in the future: use window');
             %the shape of the boundary is determined by f_boundary_curve, a function
             %that takes a position (in pixels, 0=start of boundary) and returns
             %Delta e_r for the boundary. 
             Bmax = max(Br); %used to calculate expected amount of leakage through boundary
+            %todo: e_0 per row/column? or per side?
+            e_0 = mean(e_r(:));
             k0 = sqrt(e_0)*2*pi/ (options.lambda / options.pixel_size); %k0 in 1/pixels
             % maximum value of the boundary (see Mathematica file = c(c-2ik0) = boundary_strength)
             % ||^2 = |c|^2 (|c|^2 + 4k0^2)   [assuming c=real, better possible when c complex?]
@@ -133,6 +142,7 @@ classdef SampleMedium
                 otherwise
                     error(['unknown boundary type' obj.boundary_type]);
             end;
+            roi_size = size(e_r) - Bl - Br;
             y = [(Bl(1):-1:1), zeros(1, roi_size(1)), (1:Br(1))]';
             x = [(Bl(2):-1:1), zeros(1, roi_size(2)), (1:Br(2))];
             z = [(Bl(3):-1:1), zeros(1, roi_size(3)), (1:Br(3))];
@@ -153,7 +163,7 @@ classdef SampleMedium
                 br = Br(dim);
                 roi_size = full_size(dim) - bl - br;
                 if bl > 0
-                    L = 30; % width of window
+                    L = options.ar_width(dim); % width of window
                     window = hamming(L);
                     smoothstep = cumsum(window)/sum(window); % integrate window to get step function
                     filt = [zeros(bl-L, 1); smoothstep; ones(roi_size, 1); flipud(smoothstep); zeros(br-L, 1)];

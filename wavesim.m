@@ -31,8 +31,8 @@ classdef wavesim < simulation
             
             % First construct V without epsilon
             obj.V = sample.e_r*k00^2-obj.k^2;
-            obj.epsilonmin = max(obj.V(:));
-            obj.epsilonmin = max(obj.epsilonmin, 5); %%minimum value to avoid divergence when simulating empty medium
+            obj.epsilonmin = max(abs(obj.V(:)));
+            obj.epsilonmin = max(obj.epsilonmin, 3); %%minimum value to avoid divergence when simulating empty medium
             if isfield(options,'epsilon')
                 obj.epsilon = options.epsilon*k00^2; %force a specific value, may not converge
             else
@@ -63,31 +63,11 @@ classdef wavesim < simulation
             %% Allocate memory for calculations
             state.E = data_array(obj);    
             
-            %L = 200;
-            %LL = size(state.E,3);
-            %filt = 1-reshape([zeros(LL-L, 1); tukeywin(L,0.5)], [1,1,LL]);
-            %filt = 1-reshape([zeros(LL-L, 1); ones(L,1)], [1,1,LL]);
-            
             %% simulation iterations
             while state.has_next
-                Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* fftn(obj.V.*state.E +state.source)));
-                
-                %Ediff = Ediff .* filt;
-                %Ediff(:,:,1) = 0;
-                %                 edge = state.E;
-%                 edge(:,:,50:end) = 0;
-%                 Ediffe = (1.0i/obj.epsilon*obj.V) .* (edge-ifftn(obj.g0_k .* fftn(obj.V.*edge+state.source)));
-%                 Ediffe(:,:,1:end-50) = 0;
-%                 Ediff = Ediff - Ediffe;
-%                 
-%                 edge = state.E;
-%                 edge(:,:,1:end-50) = 0;
-%                 Ediffe = (1.0i/obj.epsilon*obj.V) .* (edge-ifftn(obj.g0_k .* fftn(obj.V.*edge+state.source)));
-%                 Ediffe(:,:,1:50) = 0;
-%                 Ediff = Ediff - Ediffe;
-%                 
-%                 Ediff = process_edges(obj, Ediff);
-                 if state.calculate_energy
+                Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* fftn(obj.V.*state.E + state.source)));
+           
+                if state.calculate_energy
                    state.last_step_energy = simulation.energy(Ediff(obj.roi{1}, obj.roi{2}, obj.roi{3}));
                 end
                 
