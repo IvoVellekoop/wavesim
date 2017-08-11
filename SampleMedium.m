@@ -23,7 +23,7 @@ classdef SampleMedium
             % multiple of 2^N in each dimension (for fast fourier transform)
             %
             % refractive_index   = refractive index map, may be complex, need not
-            %                      be square
+            %                      be square. Can be 2-D or 3-D.
             % options.pixel_size = size of a grid pixel in any desired unit (e.g.
             % microns)
             % options.lambda     = wavelength (in same units as pixel_size)
@@ -47,6 +47,20 @@ classdef SampleMedium
             if ~isfield(options, 'ar_width')
                 options.ar_width = round(options.boundary_widths/2); %this factor may change into a more optimal one!!!
             end;
+            
+            % For simplicity, we use 3-D arrays internally for everything.
+            % if the refractive index array is 2-D, convert it to 3-D
+            % the extra dimension is added as the first dimension because
+            % Matlab does not support trailing singleton dimensions for 3-D
+            % arrays
+            if ismatrix(refractive_index)
+                options.boundary_widths = [0, options.boundary_widths];
+                refractive_index = reshape(refractive_index, [1, size(refractive_index)]);
+                if ismatrix(refractive_index) % still a matrix, this could happen because the original map was Nx1 ==> 1xNx1 ==> 1xN
+                    error('1-D simulations are not supported, use a refractive index map that is at least 2x2');
+                end
+            end
+
 
             %% calculate e_r and min/max values
             obj.e_r = refractive_index.^2;
@@ -54,23 +68,16 @@ classdef SampleMedium
             obj.e_r_max = max(real(obj.e_r(:)));
             obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;
 
-            %% calculate size of dielectric constant map with boundaries
-            % if the refractive index map was 2-D, make it 3-D
-            if ismatrix(obj.e_r)
-                refractive_index = reshape(obj.e_r, [size(obj.e_r), 1]);
-                options.boundary_widths(3) = 0;
-            end;
-
             % construct coordinate set. 
             % padds to next efficient size for fft in each dimension, and makes sure to
             % append at least 'boundary_widths' pixels on both sides.
-            obj.grid = simgrid(size(refractive_index) + options.boundary_widths, options.pixel_size);
-
+            obj.grid = simgrid(size(obj.e_r) + options.boundary_widths, options.pixel_size);
+            
             %% Currently, the simulation will always be padded to the next efficient size for a fft
             % This is ok if we have boundaries, but if we have periodic boundary
             % conditions, the field size must not change.
             % so, here we check if the size is unchainged if we specify boundary_width == 0.
-            if any(options.boundary_widths==0 & obj.grid.N > size(refractive_index))
+            if any(options.boundary_widths==0 & obj.grid.padding > 0)
                 error('If periodic boundary conditions are used, the sample size should be a power of 2 in that direction');
             end
 
@@ -88,11 +95,11 @@ classdef SampleMedium
             
             % Calculate effective boundary width (absorbing boundaries + padding)
             % on left and right hand side, respectively.
-            Bl = ceil((new_size - size(e_r)) / 2); 
-            Br = floor((new_size - size(e_r)) / 2); %effective boundary width (absorbing boundaries + padding)
+            roi_size = size(e_r);
+            Bl = ceil((new_size - roi_size) / 2); 
+            Br = floor((new_size - roi_size) / 2); %effective boundary width (absorbing boundaries + padding)
             
             % the boundaries are added to both sides. Remember where is the region of interest
-            roi_size = size(e_r);
             roi = {Bl(1)+(1:roi_size(1)), Bl(2)+(1:roi_size(2)), Bl(3)+(1:roi_size(3))};
             e_r_full = padarray(e_r, Bl, 'replicate', 'both');
             e_r_full = e_r_full(1:new_size(1), 1:new_size(2), 1:new_size(3)); %remove last single row/column when pad size is odd

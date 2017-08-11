@@ -34,7 +34,7 @@ classdef wavesim < simulation
             obj.epsilonmin = max(abs(obj.V(:)));
             obj.epsilonmin = max(obj.epsilonmin, 3); %%minimum value to avoid divergence when simulating empty medium
             if isfield(options,'epsilon')
-                obj.epsilon = options.epsilon*k00^2; %force a specific value, may not converge
+                obj.epsilon = options.epsilon*k00^2; %explicitly setting epsilon forces a specific value, may not converge
             else
                 obj.epsilon = obj.epsilonmin; %guaranteed convergence
             end
@@ -65,7 +65,7 @@ classdef wavesim < simulation
             
             %% simulation iterations
             while state.has_next
-                Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* fftn(obj.V.*state.E + state.source)));
+                Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* fftn(simulation.add_source(state, obj.V.* state.E))));
            
                 if state.calculate_energy
                    state.last_step_energy = simulation.energy(Ediff(obj.roi{1}, obj.roi{2}, obj.roi{3}));
@@ -73,16 +73,6 @@ classdef wavesim < simulation
                 
                 state.E = state.E - Ediff;
                 state = next(obj, state);
-            end
-        end
-        
-        function E = process_edges(obj, E)
-            %% Performs filtering at the edges
-            for edge_i = 1:numel(obj.edges)
-                e = obj.edges(edge_i); 
-                Epart = E(e.range{1}, e.range{2}, e.range{3});
-                Efilt = ifft(fft(Epart .* e.window, [], e.dim) .* e.filter, [], e.dim);
-                E(e.range{1}, e.range{2}, e.range{3}) = Efilt + (1-e.window) .* Epart;
             end
         end
     end

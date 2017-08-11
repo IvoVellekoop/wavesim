@@ -54,12 +54,38 @@ classdef simulation
             end
         end
         
-        function [E, state] = exec(obj, source)
+        function [E, state] = exec(obj, source, source_pos)
+            %% Executes the simulation with the given source
+            % The size of 'source' should not exceed the size of the
+            % refractive index map, but it can be smaller. In that case
+            % the coordinate vector source_pos can be used to indicate
+            % the indices of the source within the refractive index map
+            % by default, 'source_pos' = [1,1,1]
             tic;
+            
+            if nargin < 3
+                source_pos = [1,1,1];
+            end
+            source_size = size(source);
+            if numel(source_size) < 3
+                source_size = [1, source_size];
+            end
+            
+            source_pos = source_pos + [obj.roi{1}(1), obj.roi{2}(1), obj.roi{3}(1)] - [1,1,1];
+            source_range = cell(3,1);
+            source_range{1} = source_pos(1) + (0:source_size(1)-1);
+            source_range{2} = source_pos(2) + (0:source_size(2)-1);
+            source_range{3} = source_pos(3) + (0:source_size(3)-1);
+            
+            if any((source_pos + source_size - [1,1,1]) >  [obj.roi{1}(end), obj.roi{2}(end), obj.roi{3}(end)])
+                error('Source does not fit inside the simulation');
+            end
             
             %%% prepare state (contains all data that is unique to a single 
             % run of the simulation)
             %
+            state.source = data_array(obj, source); %note that source will be converted to 2d automatically if the last dimension is a singleton
+            state.source_range = source_range;
             state.it = 1; %iteration
             state.max_iterations = ceil(obj.max_cycles * obj.iterations_per_cycle);
             disp(state.max_iterations);
@@ -68,19 +94,7 @@ classdef simulation
             state.last_step_energy = inf;
             state.calculate_energy = true;
             state.has_next = true;
-            
-            %% increase source array (which currently has the size of the roi)
-            % to the full grid size (including boundary conditions)
-            if (issparse(source) && ~obj.gpu_enabled)
-                state.source = sparse(obj.grid.N(1), obj.grid.N(2), obj.grid.N(3));
-            else
-                state.source = data_array(obj);
-            end
-            if ndims(source) == 2
-                state.source(obj.roi{1}, obj.roi{2}, 1) = source;
-            else
-                state.source(obj.roi{1}, obj.roi{2}, obj.roi{3}) = source;
-            end    
+          
             %%% Execute simulation
             % the run_algorithm function should:
             % - update state.last_step_energy when required
@@ -104,19 +118,22 @@ classdef simulation
             %% Check whether single precision and gpu computation options are enabled
             if nargin < 2
                 if obj.singlePrecision
-                    d = zeros(obj.grid.Nred,'single');
+                    d = zeros(obj.grid.N,'single');
                 else
-                    d = zeros(obj.grid.Nred,'double');
+                    d = zeros(obj.grid.N,'double');
                 end
             else
                 if obj.singlePrecision
-                    d = single(data);
+                    d = full(single(data));
                 else
-                    d = double(data);
+                    d = full(double(data));
                 end
             end
             if obj.gpu_enabled
                 d = gpuArray(d);
+            end
+            if ismatrix(d)
+                d = reshape(d, [1, size(d)]); %make 3-D. Note: the result will still be 2-D when the last dimension is a singleton!
             end
         end;
         
@@ -195,6 +212,12 @@ classdef simulation
             
             %disp(['Added energy ', num2str(energy(end))]);
             drawnow;
+        end
+        
+        function E = add_source(state, E)
+            % helper function to add the source to 'E' at the proper
+            % offset.
+            E(state.source_range{1}, state.source_range{2}, state.source_range{3}) = E(state.source_range{1}, state.source_range{2}, state.source_range{3}) + state.source;
         end
     end
 end
