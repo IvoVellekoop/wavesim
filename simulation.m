@@ -17,6 +17,7 @@ classdef simulation
         energy_threshold = 1E-20; %the simulation stops when the difference for a step is less than 'energy_threshold'
         energy_calculation_interval = 10; %only calculate energy difference every N steps (to reduce overhead)
         max_cycles = 0; %number of wave periods to run the simulation. The number of actual iterations per cycle depends on the algorithm and its parameters
+        dimensions; % 2 or 3. Internally, all structures will be 3-D, but the result will be returned as 2- or 3-D array
         %internal:
         iterations_per_cycle;%must be set by derived class
     end
@@ -48,6 +49,7 @@ classdef simulation
             obj.y_range = obj.y_range - obj.y_range(1);
             obj.z_range = sample.grid.z_range(obj.roi{3});
             obj.z_range = obj.z_range - obj.z_range(1);
+            obj.dimensions = sample.dimensions;
             if (obj.max_cycles == 0) %default: 1.5 pass
                 LN = sqrt(length(obj.x_range).^2 + length(obj.y_range)^2 + length(obj.z_range)^2);
                 obj.max_cycles = LN * obj.grid.dx / obj.lambda * 2;
@@ -111,6 +113,9 @@ classdef simulation
                 disp('Did not reach steady state');
             end
             E = state.E(obj.roi{1}, obj.roi{2}, obj.roi{3}); %% return only part inside roi. Array remains on the gpu if gpuEnabled = true
+            if obj.dimensions == 2
+                E = reshape(E, size(E,2), size(E,3)); %remove leading singleton dimension
+            end
         end;
         
         %% Creates an array of dimension obj.grid.N. If gpuEnabled is true, the array is created on the gpu
@@ -212,12 +217,6 @@ classdef simulation
             
             %disp(['Added energy ', num2str(energy(end))]);
             drawnow;
-        end
-        
-        function E = add_source(state, E)
-            % helper function to add the source to 'E' at the proper
-            % offset.
-            E(state.source_range{1}, state.source_range{2}, state.source_range{3}) = E(state.source_range{1}, state.source_range{2}, state.source_range{3}) + state.source;
         end
     end
 end

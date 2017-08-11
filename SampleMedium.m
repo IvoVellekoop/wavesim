@@ -11,6 +11,7 @@ classdef SampleMedium
         grid %  simgrid object, with x and k ranges
         filters = []% profiles for windowed absorbing boundaries
         leakage = 0
+        dimensions % number of dimensions (2 or 3). Internally we use 3-D arrays for everything
     end
     methods
         function obj = SampleMedium(refractive_index, options)
@@ -54,11 +55,14 @@ classdef SampleMedium
             % Matlab does not support trailing singleton dimensions for 3-D
             % arrays
             if ismatrix(refractive_index)
+                obj.dimensions = 2;
                 options.boundary_widths = [0, options.boundary_widths];
                 refractive_index = reshape(refractive_index, [1, size(refractive_index)]);
                 if ismatrix(refractive_index) % still a matrix, this could happen because the original map was Nx1 ==> 1xNx1 ==> 1xN
                     error('1-D simulations are not supported, use a refractive index map that is at least 2x2');
                 end
+            else
+                obj.dimensions = 3;
             end
 
 

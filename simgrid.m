@@ -11,7 +11,6 @@ classdef simgrid
         px_range % grid point coordinates in Fourier transformed x-dimension
         py_range % grid point coordinates in Fourier transformed y-dimension
         pz_range % grid point coordinates in Fourier transformed z-dimension
-        dimension % dimension of the simulation (= length of min_size in constructor)
     end
     methods
        function obj = simgrid(min_size, dx)
@@ -19,11 +18,10 @@ classdef simgrid
             % min_size = [height,width], minimum required size (will be rounded up)
 			% dx = step size of grid (in arbitrary units)
 			%% setup coordinates
-            obj.dimension = length(min_size);
-            N = pow2(nextpow2(min_size));
-            if obj.dimension ~= 3
+            if numel(min_size) ~= 3
                 error ('Only 3-D structures are supported');
             end
+            N = pow2(nextpow2(min_size));
             obj.padding = N - min_size; %total amoung of zero padding. Usually placed at right and bottom sides only (non-centric)
             obj.dx = dx;
             obj.x_range = (0:(N(2)-1))*dx; %obj.x_range = linspace(min_x,max_x,obj.N(2));
@@ -36,11 +34,7 @@ classdef simgrid
        end
        function retval = p2(obj)
           %returns a 2 or 3 dimensional array with the magnitude of p squared.
-          if (obj.dimension == 3)
-              retval = simgrid.dist2_3d(obj.px_range, obj.py_range, obj.pz_range);
-          else
-              retval = simgrid.dist2_2d(obj.px_range, obj.py_range);
-          end
+          retval = simgrid.dist2_3d(obj.px_range, obj.py_range, obj.pz_range);
        end
     end
 	methods(Static)
