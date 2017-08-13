@@ -1,5 +1,5 @@
 classdef wavesim < simulation
-    %Simulation of the 2-D wave equation using a Born series approach
+    %Simulation of the 2-D or 3-D scalar wave equation using a Born series approach
     % Ivo M. Vellekoop 2014
     
     properties
