@@ -19,9 +19,7 @@ classdef wavesimv < wavesim
         
         function state = run_algorithm(obj, state)
             %% Allocate memory for calculations
-            state.E  = data_array(obj);    
-            state.Ey = data_array(obj);    
-            state.Ez = data_array(obj);    
+            state.E  = repmat(data_array(obj), [1, 1, 1, 3]);    
             
             %% simulation iterations
             while state.has_next
@@ -31,18 +29,19 @@ classdef wavesimv < wavesim
                 Etx = fftn(Etx);
 
                 Ety = obj.V.* state.Ey;
-                Ety(state.source_range{1}, state.source_range{2}, state.source_range{3}) = Etx(state.source_range{1}, state.source_range{2}, state.source_range{3}) + state.source(2,:,:,:);
+                Ety(state.source_range{1}, state.source_range{2}, state.source_range{3}) = Ety(state.source_range{1}, state.source_range{2}, state.source_range{3}) + state.source(2,:,:,:);
                 Ety = fftn(Ety);
                 
                 Etz = obj.V.* state.Ez;
-                Etz(state.source_range{1}, state.source_range{2}, state.source_range{3}) = Etx(state.source_range{1}, state.source_range{2}, state.source_range{3}) + state.source(3,:,:,:);
+                Etz(state.source_range{1}, state.source_range{2}, state.source_range{3}) = Etz(state.source_range{1}, state.source_range{2}, state.source_range{3}) + state.source(3,:,:,:);
                 Etz = fftn(Etz);
                 
                 %calculate divergence term in dyadic Green function:
                 Ediv = Etx .* obj.pxr + Ety .* obj.pyr + Etz .* obj.pzr;
                 
                 % calculate gradient of the divergence (the p p^T term) and
-                % subtract it from E
+                % subtract it from E. Note that without the divergence
+                % term we simply have three independent scalar equations.
                 Etx = Etx - obj.pxr .* Ediv;
                 Ety = Ety - obj.pxy .* Ediv;
                 Etz = Etz - obj.pxz .* Ediv;
@@ -52,7 +51,7 @@ classdef wavesimv < wavesim
                 Ediffz = (1.0i/obj.epsilon*obj.V) .* (state.Ez-ifftn(obj.g0_k .* Etz));
            
                 if state.calculate_energy
-                   state.last_step_energy = simulation.energy(Ediff(obj.roi{1}, obj.roi{2}, obj.roi{3}));
+                   state.last_step_energy = simulation.energy(Ediff(obj.roi{1}, obj.roi{2}, obj.roi{3})) + simulation.energy(Ediffy(obj.roi{1}, obj.roi{2}, obj.roi{3})) + simulation.energy(Ediffz(obj.roi{1}, obj.roi{2}, obj.roi{3}));
                 end
                 
                 state.E = state.E - Ediff;

@@ -71,15 +71,11 @@ classdef simulation
             source_size = size(source);
             if numel(source_size) < 3
                 source_size = [1, source_size];
+                %source_pos = [1, source_pos];
             end
             
-            source_pos = source_pos + [obj.roi{1}(1), obj.roi{2}(1), obj.roi{3}(1)] - [1,1,1];
-            source_range = cell(3,1);
-            source_range{1} = source_pos(1) + (0:source_size(1)-1);
-            source_range{2} = source_pos(2) + (0:source_size(2)-1);
-            source_range{3} = source_pos(3) + (0:source_size(3)-1);
-            
-            if any((source_pos + source_size - [1,1,1]) >  [obj.roi{1}(end), obj.roi{2}(end), obj.roi{3}(end)])
+            state.source_pos = source_pos + [obj.roi{1}(1), obj.roi{2}(1), obj.roi{3}(1)] - [1,1,1];
+            if any((source_pos + source_size - 1) >  [obj.roi{1}(end), obj.roi{2}(end), obj.roi{3}(end)])
                 error('Source does not fit inside the simulation');
             end
             
@@ -87,7 +83,6 @@ classdef simulation
             % run of the simulation)
             %
             state.source = data_array(obj, source); %note that source will be converted to 2d automatically if the last dimension is a singleton
-            state.source_range = source_range;
             state.it = 1; %iteration
             state.max_iterations = ceil(obj.max_cycles * obj.iterations_per_cycle);
             disp(state.max_iterations);
@@ -177,6 +172,11 @@ classdef simulation
     methods(Static)
         function en = energy(E_x)
             en= sum(abs(E_x(:)).^2);
+        end
+        
+        function A = add_at(A, B, pos)
+            sz = size(B);
+            A(pos(1) + (0:sz(1)- 1), pos(2) + (0:sz(2)- 1), pos(3) + (0:sz(3) -1), :) = A(pos(1) + (0:sz(1)- 1), pos(2) + (0:sz(2)- 1), pos(3) + (0:sz(3) -1), :) + B;
         end
         
         function abs_image_callback(obj, state)

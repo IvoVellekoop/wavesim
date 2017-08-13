@@ -65,8 +65,7 @@ classdef wavesim < simulation
             
             %% simulation iterations
             while state.has_next
-                Etmp = obj.V.* state.E;
-                Etmp(state.source_range{1}, state.source_range{2}, state.source_range{3}) = Etmp(state.source_range{1}, state.source_range{2}, state.source_range{3}) + state.source;
+                Etmp = simulation.add_at(obj.V.* state.E, state.source, state.source_pos);
                 Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* fftn(Etmp)));
            
                 if state.calculate_energy

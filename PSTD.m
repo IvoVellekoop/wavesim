@@ -84,8 +84,7 @@ classdef PSTD < simulation
                 %
                 % isolate E_next:
                 % E_next = (nabla^2 E + source) * dt^2/e_r + 2*E - E_prev
-                Etmp = ifftn(obj.koperator.*fftn(state.E));
-                Etmp(state.source_range{1}, state.source_range{2}, state.source_range{3}) = Etmp(state.source_range{1}, state.source_range{2}, state.source_range{3}) + A * state.source;
+                Etmp = simulation.add_at(ifftn(obj.koperator.*fftn(state.E)), A * state.source, state.source_pos);
                 E_next = obj.c2.*state.E + obj.c1.*E_prev + obj.c3 .* Etmp;
                 
                 if state.calculate_energy
