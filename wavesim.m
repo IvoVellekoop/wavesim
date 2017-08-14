@@ -44,7 +44,7 @@ classdef wavesim < simulation
             obj.V = obj.V - 1.0i*obj.epsilon;
             for d=1:3
                 if ~isempty(sample.filters{d})
-                    obj.V = obj.V .* sample.filters{d};
+                    obj.V = bsxfun(@times,obj.V, sample.filters{d});
                 end
             end
             

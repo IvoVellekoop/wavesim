@@ -179,7 +179,7 @@ classdef SampleMedium
                     window = nuttallwin(L);
                     smoothstep = cumsum(window)/sum(window); % integrate window to get step function
                     filt = [zeros(bl-L, 1); smoothstep; ones(roi_size, 1); flipud(smoothstep); zeros(br-L, 1)];
-                    filters{dim} = reshape(filt, circshift([1, 1, length(filt)], dim));
+                    filters{dim} = reshape(filt, circshift([1, 1, length(filt)], [0,dim]));
                 end
             end
         end
