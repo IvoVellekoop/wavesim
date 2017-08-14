@@ -37,7 +37,7 @@ iterations_per_wavelength(1) = sim.iterations_per_cycle;
 
 %% calculate exact solution analytically
 k0 = 2*pi/sopt.lambda;
-E_theory=homogeneous_medium_analytic_solution(k0, mopt.pixel_size, sim.x_range);
+E_theory=homogeneous_medium_analytic_solution(k0, mopt.pixel_size, sim.z_range);
 
 % compute relative error of wavesim
 difference=E(1,:)-E_theory;

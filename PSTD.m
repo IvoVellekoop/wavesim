@@ -30,7 +30,7 @@ classdef PSTD < simulation
             %% Calculate time step dt
             % The light speed is defined as 1 distance_unit / time_unit.
             %
-            obj.dtmax = 2/sqrt(sample.grid.dimension)/pi*sample.grid.dx*sqrt(sample.e_r_min); %Stability condition (ref needed)
+            obj.dtmax = 2/sqrt(obj.dimensions)/pi*sample.grid.dx*sqrt(sample.e_r_min); %Stability condition (ref needed)
             obj.dt = obj.dt_relative * obj.dtmax;
             obj.iterations_per_cycle = obj.lambda / obj.dt; %lambda[distance] / dt[time] / c[distance/time]
             
@@ -84,7 +84,8 @@ classdef PSTD < simulation
                 %
                 % isolate E_next:
                 % E_next = (nabla^2 E + source) * dt^2/e_r + 2*E - E_prev
-                E_next = obj.c2.*state.E + obj.c1.*E_prev + obj.c3 .* (ifftn(obj.koperator.*fftn(state.E)) + A*state.source);
+                Etmp = simulation.add_at(ifftn(obj.koperator.*fftn(state.E)), A * state.source, state.source_pos);
+                E_next = obj.c2.*state.E + obj.c1.*E_prev + obj.c3 .* Etmp;
                 
                 if state.calculate_energy
                     phase_shift = exp(1.0i*(angle(A)-angle(A_prev))); %expected phase shift for single step (only works for CW source!!)

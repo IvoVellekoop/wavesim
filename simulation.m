@@ -17,6 +17,7 @@ classdef simulation
         energy_threshold = 1E-20; %the simulation stops when the difference for a step is less than 'energy_threshold'
         energy_calculation_interval = 10; %only calculate energy difference every N steps (to reduce overhead)
         max_cycles = 0; %number of wave periods to run the simulation. The number of actual iterations per cycle depends on the algorithm and its parameters
+        dimensions; % 2 or 3. Internally, all structures will be 3-D, but the result will be returned as 2- or 3-D array
         %internal:
         iterations_per_cycle;%must be set by derived class
     end
@@ -48,18 +49,40 @@ classdef simulation
             obj.y_range = obj.y_range - obj.y_range(1);
             obj.z_range = sample.grid.z_range(obj.roi{3});
             obj.z_range = obj.z_range - obj.z_range(1);
+            obj.dimensions = sample.dimensions;
             if (obj.max_cycles == 0) %default: 1.5 pass
                 LN = sqrt(length(obj.x_range).^2 + length(obj.y_range)^2 + length(obj.z_range)^2);
                 obj.max_cycles = LN * obj.grid.dx / obj.lambda * 2;
             end
         end
         
-        function [E, state] = exec(obj, source)
+        function [E, state] = exec(obj, source, source_pos)
+            %% Executes the simulation with the given source
+            % The size of 'source' should not exceed the size of the
+            % refractive index map, but it can be smaller. In that case
+            % the coordinate vector source_pos can be used to indicate
+            % the indices of the source within the refractive index map
+            % by default, 'source_pos' = [1,1,1]
             tic;
+            
+            if nargin < 3
+                source_pos = [1,1,1];
+            end
+            source_size = size(source);
+            if numel(source_size) < 3
+                source_size = [1, source_size];
+                %source_pos = [1, source_pos];
+            end
+            
+            state.source_pos = source_pos + [obj.roi{1}(1), obj.roi{2}(1), obj.roi{3}(1)] - [1,1,1];
+            if any((source_pos + source_size - 1) >  [obj.roi{1}(end), obj.roi{2}(end), obj.roi{3}(end)])
+                error('Source does not fit inside the simulation');
+            end
             
             %%% prepare state (contains all data that is unique to a single 
             % run of the simulation)
             %
+            state.source = data_array(obj, source); %note that source will be converted to 2d automatically if the last dimension is a singleton
             state.it = 1; %iteration
             state.max_iterations = ceil(obj.max_cycles * obj.iterations_per_cycle);
             disp(state.max_iterations);
@@ -68,19 +91,7 @@ classdef simulation
             state.last_step_energy = inf;
             state.calculate_energy = true;
             state.has_next = true;
-            
-            %% increase source array (which currently has the size of the roi)
-            % to the full grid size (including boundary conditions)
-            if (issparse(source) && ~obj.gpu_enabled)
-                state.source = sparse(obj.grid.N(1), obj.grid.N(2));
-            else
-                state.source = data_array(obj);
-            end
-            if (obj.grid.dimension == 2)
-                state.source(obj.roi{1}, obj.roi{2}) = source;
-            else
-                state.source(obj.roi{1}, obj.roi{2}, obj.roi{3}) = source;
-            end    
+          
             %%% Execute simulation
             % the run_algorithm function should:
             % - update state.last_step_energy when required
@@ -97,19 +108,32 @@ classdef simulation
                 disp('Did not reach steady state');
             end
             E = state.E(obj.roi{1}, obj.roi{2}, obj.roi{3}); %% return only part inside roi. Array remains on the gpu if gpuEnabled = true
+            if obj.dimensions == 2
+                E = reshape(E, size(E,2), size(E,3)); %remove leading singleton dimension
+            end
         end;
         
         %% Creates an array of dimension obj.grid.N. If gpuEnabled is true, the array is created on the gpu
-        function d = data_array(obj)
+        function d = data_array(obj, data)
             %% Check whether single precision and gpu computation options are enabled
-            if obj.singlePrecision
-                d = zeros(obj.grid.Nred,'single');
+            if nargin < 2
+                if obj.singlePrecision
+                    d = zeros(obj.grid.N,'single');
+                else
+                    d = zeros(obj.grid.N,'double');
+                end
             else
-                d = zeros(obj.grid.Nred,'double');
+                if obj.singlePrecision
+                    d = full(single(data));
+                else
+                    d = full(double(data));
+                end
             end
-                           
             if obj.gpu_enabled
                 d = gpuArray(d);
+            end
+            if ismatrix(d)
+                d = reshape(d, [1, size(d)]); %make 3-D. Note: the result will still be 2-D when the last dimension is a singleton!
             end
         end;
         
@@ -148,6 +172,11 @@ classdef simulation
     methods(Static)
         function en = energy(E_x)
             en= sum(abs(E_x(:)).^2);
+        end
+        
+        function A = add_at(A, B, pos)
+            sz = size(B);
+            A(pos(1) + (0:sz(1)- 1), pos(2) + (0:sz(2)- 1), pos(3) + (0:sz(3) -1), :) = A(pos(1) + (0:sz(1)- 1), pos(2) + (0:sz(2)- 1), pos(3) + (0:sz(3) -1), :) + B;
         end
         
         function abs_image_callback(obj, state)

@@ -1,5 +1,5 @@
 classdef wavesim < simulation
-    %Simulation of the 2-D wave equation using a Born series approach
+    %Simulation of the 2-D or 3-D scalar wave equation using a Born series approach
     % Ivo M. Vellekoop 2014
     
     properties
@@ -9,6 +9,7 @@ classdef wavesim < simulation
         g0_k; % bare Green's function used in simulation
         %% diagnostics and feedback
         epsilonmin; %minimum value of epsilon for which convergence is guaranteed (equal to epsilon, unless a different value for epsilon was forced)
+        filters; %information for fft edge processing
     end
     
     methods
@@ -31,9 +32,9 @@ classdef wavesim < simulation
             % First construct V without epsilon
             obj.V = sample.e_r*k00^2-obj.k^2;
             obj.epsilonmin = max(abs(obj.V(:)));
-            obj.epsilonmin = max(obj.epsilonmin, 1E-3); %%minimum value to avoid divergence when simulating empty medium
+            obj.epsilonmin = max(obj.epsilonmin, 3); %%minimum value to avoid divergence when simulating empty medium
             if isfield(options,'epsilon')
-                obj.epsilon = options.epsilon*k00^2; %force a specific value, may not converge
+                obj.epsilon = options.epsilon*k00^2; %explicitly setting epsilon forces a specific value, may not converge
             else
                 obj.epsilon = obj.epsilonmin; %guaranteed convergence
             end
@@ -41,28 +42,32 @@ classdef wavesim < simulation
             
             %% Potential map (V==k^2-k_0^2-1i*epsilon)
             obj.V = obj.V - 1.0i*obj.epsilon;
+            for d=1:3
+                if ~isempty(sample.filters{d})
+                    obj.V = obj.V .* sample.filters{d};
+                end
+            end
             
             %% Calculate Green function for k_red (reduced k vector: k_red^2 = k_0^2 + 1.0i*epsilon)
             obj.g0_k = 1./(p2(sample.grid)-(obj.k^2 + 1.0i*obj.epsilon));
-            if obj.gpu_enabled
-                obj.V = gpuArray(obj.V);
-                obj.g0_k = gpuArray(obj.g0_k);
-                obj.epsilon = gpuArray(obj.epsilon);
-            end
             
-            if obj.singlePrecision
-                obj.V = single(obj.V);
-                obj.g0_k = single(obj.g0_k);
-            end
+            %convert to single our double precision, and put on gpu if
+            %needed
+            obj.V = obj.data_array(obj.V);
+            obj.g0_k = obj.data_array(obj.g0_k);
+            obj.epsilon = obj.data_array(obj.epsilon);
+            obj.filters = sample.filters; %todo: remove this line
         end
         
         function state = run_algorithm(obj, state)
             %% Allocate memory for calculations
-            state.E = data_array(obj);           
+            state.E = data_array(obj);    
             
             %% simulation iterations
             while state.has_next
-                Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* fftn(obj.V.*state.E+state.source)));
+                Etmp = simulation.add_at(obj.V.* state.E, state.source, state.source_pos);
+                Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* fftn(Etmp)));
+           
                 if state.calculate_energy
                    state.last_step_energy = simulation.energy(Ediff(obj.roi{1}, obj.roi{2}, obj.roi{3}));
                 end
