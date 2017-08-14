@@ -11,7 +11,7 @@ classdef simulation
         lambda = 1; %wavelength (default = 1 unit)      
         differential_mode = false; %when set to 'true', only the differential field for each iteration is calculated: the fields are not added to get a solution to the wave equation (used for debugging)
         gpu_enabled = false; % flag to determine if simulation are run on the GPU (default: false)
-        singlePrecision = false; % flag to determine if single precision is used (default: double)
+        single_precision = false; % flag to determine if single precision is used (default: double)
         callback = @simulation.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
         callback_interval = 50; %the callback is called every 'callback_interval' steps. Default = 5
         energy_threshold = 1E-20; %the simulation stops when the difference for a step is less than 'energy_threshold'
@@ -111,19 +111,20 @@ classdef simulation
             if obj.dimensions == 2
                 E = reshape(E, size(E,2), size(E,3)); %remove leading singleton dimension
             end
-        end;
+            E = gather(E); % converting gpuArray back to normal array
+        end
         
         %% Creates an array of dimension obj.grid.N. If gpuEnabled is true, the array is created on the gpu
         function d = data_array(obj, data)
             %% Check whether single precision and gpu computation options are enabled
             if nargin < 2
-                if obj.singlePrecision
+                if obj.single_precision
                     d = zeros(obj.grid.N,'single');
                 else
                     d = zeros(obj.grid.N,'double');
                 end
             else
-                if obj.singlePrecision
+                if obj.single_precision
                     d = full(single(data));
                 else
                     d = full(double(data));
@@ -135,7 +136,7 @@ classdef simulation
             if ismatrix(d)
                 d = reshape(d, [1, size(d)]); %make 3-D. Note: the result will still be 2-D when the last dimension is a singleton!
             end
-        end;
+        end
         
         %% Continue to the next iteration. Returns false to indicate that the simulation has terminated
         function state = next(obj, state)
@@ -151,7 +152,7 @@ classdef simulation
                 state.converged = false;
             else
                 state.has_next = true;
-            end;
+            end
             
             %% do we need to calculate the last added energy? (only do this once in a while, because of the overhead)
             state.calculate_energy = mod(state.it, obj.energy_calculation_interval)==0;
