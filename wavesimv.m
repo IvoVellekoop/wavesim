@@ -13,8 +13,8 @@ classdef wavesimv < wavesim
             
             red = 1/sqrt(obj.k^2 + 1.0i * obj.epsilon); 
             obj.pxr = sample.grid.px_range * red;
-            obj.pyr = sample.grid.px_range * red;
-            obj.pzr = sample.grid.px_range * red;
+            obj.pyr = sample.grid.py_range * red;
+            obj.pzr = sample.grid.pz_range * red;
         end
         
         function state = run_algorithm(obj, state)
@@ -36,7 +36,7 @@ classdef wavesimv < wavesim
                 Etz(state.source_range{1}, state.source_range{2}, state.source_range{3}) = Etz(state.source_range{1}, state.source_range{2}, state.source_range{3}) + state.source(3,:,:,:);
                 Etz = fftn(Etz);
                 
-                %calculate divergence term in dyadic Green function:
+                %calculate divergence term in the dyadic Green function:
                 Ediv = Etx .* obj.pxr + Ety .* obj.pyr + Etz .* obj.pzr;
                 
                 % calculate gradient of the divergence (the p p^T term) and
