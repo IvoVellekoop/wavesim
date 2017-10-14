@@ -9,8 +9,8 @@ addpath('..');
 %% options for grid (gopt) and for simulation (sopt) 
 PPW=4; %points per wavelength = lambda/h
 sopt.lambda = 1; %wavelength in vacuum (in um)
-sopt.callback_interval = 25;
-sopt.max_iterations = 6000;
+sopt.callback_interval = 5;
+sopt.max_iterations = 60000;
 
 dt_relative_range = 1./2.^(0:0.5:12.5);
 
@@ -42,7 +42,7 @@ E_theory=homogeneous_medium_analytic_solution(k0, mopt.pixel_size, sim.z_range);
 % compute relative error of wavesim
 difference=E(1,:)-E_theory;
 relative_error(1)=mean2(abs(difference).^2) / mean2(abs(E_theory).^2);
-
+disp(relative_error(1))
 figure(20);
 
 
