@@ -57,6 +57,7 @@ classdef SampleMedium
             if ismatrix(refractive_index)
                 obj.dimensions = 2;
                 options.boundary_widths = [0, options.boundary_widths];
+                options.ar_width = [0, options.ar_width];
                 refractive_index = reshape(refractive_index, [1, size(refractive_index)]);
                 if ismatrix(refractive_index) % still a matrix, this could happen because the original map was Nx1 ==> 1xNx1 ==> 1xN
                     error('1-D simulations are not supported, use a refractive index map that is at least 2x2');
