@@ -47,7 +47,7 @@ classdef simgrid
             % When N is even, the range is almost symmetric and includes 0
             % (from -N/2 to N/2-1)
             % 
-            range = (0:N-1)-floor(N/2);
+            range = fftshift((0:N-1)-floor(N/2));
         end
         function sz = efficient_size(min_size)
             % returns nearest size greater than or equal to min_size
