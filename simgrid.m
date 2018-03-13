@@ -13,46 +13,56 @@ classdef simgrid
         pz_range % grid point coordinates in Fourier transformed z-dimension
     end
     methods
-       function obj = simgrid(min_size, dx)
-            % Construct a wave simulation grid object with specified width,
+       function obj = simgrid(min_size, dx, pad)
+            % Construct a wave simulation grid object with specified size (2-D or 3-D)
+            % as a convention, the first, second, and third indices address the
+            % x, y, and z dimensions, respectively.
+            %
             % min_size = [height,width], minimum required size (will be rounded up)
 			% dx = step size of grid (in arbitrary units)
+            % pad = logic vector indicating whether or not to pad the
+            % simulation size up to a size that is convenient for fft
 			%% setup coordinates
-            if numel(min_size) ~= 3
-                error ('Only 3-D structures are supported');
-            end
-            N = pow2(nextpow2(min_size));
-            obj.padding = N - min_size; %total amoung of zero padding. Usually placed at right and bottom sides only (non-centric)
+            assert(isrow(min_size) && numel(min_size) == 3 && isrow(pad) && numel(pad) == 3);
+            
+            N = min_size;
+            N(pad) = simgrid.efficient_size(min_size(pad));
+            
+            obj.padding = N - min_size; %total amount of zero padding. Placed at right and bottom sides only (non-centric)
             obj.dx = dx;
-            obj.x_range = (0:(N(2)-1))*dx; %obj.x_range = linspace(min_x,max_x,obj.N(2));
-            obj.y_range = (0:(N(1)-1)).'*dx; %obj.y_range = linspace(min_y,max_y,obj.N(1));
-            obj.z_range = (0:(N(3)-1))*dx; %obj.z_range = linspace(min_x,max_x,obj.N(2));
-            obj.px_range = 2*pi*simgrid.symrange(N(2))/(dx*N(2));
-            obj.py_range = 2*pi*simgrid.symrange(N(1)).'/(dx*N(1));
+            obj.x_range = reshape((0:(N(1)-1))*dx, [N(1), 1, 1]);
+            obj.y_range = reshape((0:(N(2)-1))*dx, [1, N(2), 1]);
+            obj.z_range = reshape((0:(N(3)-1))*dx, [1, 1, N(3)]);
+            obj.px_range = reshape(2*pi*simgrid.symrange(N(1))/(dx*N(1)), [N(1), 1, 1]);
+            obj.py_range = reshape(2*pi*simgrid.symrange(N(2))/(dx*N(2)), [1, N(2), 1]);
             obj.pz_range = reshape(2*pi*simgrid.symrange(N(3))/(dx*N(3)), [1, 1, N(3)]);
             obj.N = N;
        end
-       function retval = p2(obj)
-          %returns a 2 or 3 dimensional array with the magnitude of p squared.
-          retval = simgrid.dist2_3d(obj.px_range, obj.py_range, obj.pz_range);
-       end
     end
 	methods(Static)
-        function retval = dist2_2d(x, y)
-            %returns a 2 dimensional array with x^2+y^2
-            f_p2 = @(xi, yi) xi.^2 + yi.^2;
-            retval = bsxfun(f_p2, x, y);
-        end
-        function retval = dist2_3d(x, y, z)
-            %returns a 3 dimensional array with x^2+y^2+z^2
-             f_pz = @(xy2, zi) xy2 + zi.^2;
-             retval = bsxfun(f_pz, simgrid.dist2_2d(x, y), z);
-        end
         function range = symrange(N)
-            if N==1
-                range = 0;
-            else
-                range = fftshift(-N/2:N/2-1);
+            % constructs a range of numbers around 0 that is compatible
+            % with the coordinates after a fft.
+            % When N is odd, the range is symmetric around 0 (from -floor(N/2) to floor(N/2)).
+            % When N is even, the range is almost symmetric and includes 0
+            % (from -N/2 to N/2-1)
+            % 
+            range = (0:N-1)-floor(N/2);
+        end
+        function sz = efficient_size(min_size)
+            % returns nearest size greater than or equal to min_size
+            % for which the fft is efficient.
+            % cuFFT is efficient for sizes that can be factored as 2^a * 3^b * 5^c * 7^d
+            %
+            sz = min_size;
+            for s_i=1:length(sz)
+                s = sz(s_i);
+                f = factor(s);
+                while f(end) > 7
+                    s = s + 1;
+                    f = factor(s);
+                end
+                sz(s_i) = s;
             end
         end
     end

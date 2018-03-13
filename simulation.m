@@ -1,10 +1,27 @@
 classdef simulation
     %Base class for a 2-D wave simulation
-    % Ivo M. Vellekoop 2015
-    
+    % Ivo M. Vellekoop 2015-2018
+    %
+    % Data storage:
+    % Internally, all data is stored as 2-D or 3-D arrays. For vector simulations,
+    % the data for each polarization components is stored as a separate
+    % array in a 1x3 cell array.
+    %
+    % The size of the simulation grid is determined by the sample object
+    % that is passed in the constructor (see SampleMedium.m). The grid size
+    % includes the region of interest (ROI), boundaries, and
+    % padding for efficient application of the fft algorithm. In the end,
+    % only the field within the ROI is returned by exec(), although it is
+    % possible to recover the full field including boundaries and padding
+    % through the 'state' variable that is an optional return argument.
+    %
     properties
         grid; %simgrid object
-        roi; %position of simulation area with respect to padded array
+        roi; %position of simulation area with respect to padded array.
+        % this matrix contains 2 rows, one for the start index and one for
+        % the last index. It contains 4 columns (one for each dimension and
+        % one to indicate the polarization component, which is always 1 for
+        % scalar simulations)
         x_range; %x-coordinates of roi
         y_range; %y-coordinates of roi
         z_range; %z-coordinates of roi
@@ -17,7 +34,7 @@ classdef simulation
         energy_threshold = 1E-20; %the simulation stops when the difference for a step is less than 'energy_threshold'
         energy_calculation_interval = 10; %only calculate energy difference every N steps (to reduce overhead)
         max_cycles = 0; %number of wave periods to run the simulation. The number of actual iterations per cycle depends on the algorithm and its parameters
-        dimensions; % 2 or 3. Internally, all structures will be 3-D, but the result will be returned as 2- or 3-D array
+        dimensions; % 2 or 3. Internally, all structures will be 3-D, but for some simulation methods (e.g. PSTD) the dimensionality needs to be known in order to calculate the stability criterion
         %internal:
         iterations_per_cycle;%must be set by derived class
     end
@@ -32,7 +49,7 @@ classdef simulation
             %   required iterations per cycle depends on the algorithm and
             %   its parameters
 
-            %copy values from 'options'to 'obj' (only if the field is present in obj)
+            %copy values from 'options' to 'obj' (only if the field is present in obj)
             obj_fields = fields(obj);
             opt_fields = fields(options);
             fs = intersect(obj_fields, opt_fields);
@@ -42,47 +59,53 @@ classdef simulation
             end
             
             obj.grid = sample.grid;
-            obj.roi  = sample.roi;
-            obj.x_range = sample.grid.x_range(obj.roi{2});
+            obj.roi  = [sample.roi, [1;1]]; %vector simulation objects change the last column to [1;3]
+            obj.x_range = sample.grid.x_range(obj.roi(1,1):obj.roi(2,1));
             obj.x_range = obj.x_range - obj.x_range(1);
-            obj.y_range = sample.grid.y_range(obj.roi{1});
+            obj.y_range = sample.grid.y_range(obj.roi(1,2):obj.roi(2,2));
             obj.y_range = obj.y_range - obj.y_range(1);
-            obj.z_range = sample.grid.z_range(obj.roi{3});
+            obj.z_range = sample.grid.z_range(obj.roi(1,3):obj.roi(2,3));
             obj.z_range = obj.z_range - obj.z_range(1);
             obj.dimensions = sample.dimensions;
-            if (obj.max_cycles == 0) %default: 1.5 pass
+            
+            % determine how many optical cycles to simulate.
+            % By default, simulate enough cycles to pass the medium 1.5
+            % times. Note that this will not be sufficient if there are
+            % significant reflections.
+            %
+            if (obj.max_cycles == 0)
                 LN = sqrt(length(obj.x_range).^2 + length(obj.y_range)^2 + length(obj.z_range)^2);
                 obj.max_cycles = LN * obj.grid.dx / obj.lambda * 2;
             end
         end
         
         function [E, state] = exec(obj, source, source_pos)
-            %% Executes the simulation with the given source
-            % The size of 'source' should not exceed the size of the
-            % refractive index map, but it can be smaller. In that case
-            % the coordinate vector source_pos can be used to indicate
-            % the indices of the source within the refractive index map
-            % by default, 'source_pos' = [1,1,1]
+ %% exec Executes the simulation with the given source
+% source    is a 2-D or 3-D array with source data.
+%           The size of 'source' should not exceed the size of
+%           the roi of the simulation grid, but it can be
+%           smaller. In that case the coordinate vector 
+%           source_pos can be used to indicate the starting
+%           index of the source within the refractive index map
+% source_pos  (optional for scalar simulations, defaults to [1,1,1]), can be specified to
+%           position the source with respect to the top left corner of the
+%           simulation grid. For vector simulations, this vector contains
+%           one extra coordinate (e. g. [1,1,1,1] for a 3-D simulation)
+%           to indicate the polarization of the source.
+%
+% It is possible to specify multiple sources by passing cell arrays for
+% 'sources' and 'positions'
+%
             tic;
-            
             if nargin < 3
                 source_pos = [1,1,1];
             end
-            source_size = size(source);
-            if numel(source_size) < 3
-                source_size = [1, source_size];
-                %source_pos = [1, source_pos];
-            end
+            [state.source, state.source_pos] = prepare_source(obj, source, source_pos);
             
-            state.source_pos = source_pos + [obj.roi{1}(1), obj.roi{2}(1), obj.roi{3}(1)] - [1,1,1];
-            if any((source_pos + source_size - 1) >  [obj.roi{1}(end), obj.roi{2}(end), obj.roi{3}(end)])
-                error('Source does not fit inside the simulation');
-            end
             
             %%% prepare state (contains all data that is unique to a single 
             % run of the simulation)
             %
-            state.source = data_array(obj, source); %note that source will be converted to 2d automatically if the last dimension is a singleton
             state.it = 1; %iteration
             state.max_iterations = ceil(obj.max_cycles * obj.iterations_per_cycle);
             disp(state.max_iterations);
@@ -107,35 +130,10 @@ classdef simulation
             else
                 disp('Did not reach steady state');
             end
-            E = state.E(obj.roi{1}, obj.roi{2}, obj.roi{3}); %% return only part inside roi. Array remains on the gpu if gpuEnabled = true
-            if obj.dimensions == 2
-                E = reshape(E, size(E,2), size(E,3)); %remove leading singleton dimension
-            end
+            
+            %% return only part inside roi. Array remains on the gpu if gpuEnabled = true
+            E = state.E(obj.roi(1,1):obj.roi(2,1), obj.roi(1,2):obj.roi(2,2), obj.roi(1,3):obj.roi(2,3));
             E = gather(E); % converting gpuArray back to normal array
-        end
-        
-        %% Creates an array of dimension obj.grid.N. If gpuEnabled is true, the array is created on the gpu
-        function d = data_array(obj, data)
-            %% Check whether single precision and gpu computation options are enabled
-            if nargin < 2
-                if obj.single_precision
-                    d = zeros(obj.grid.N,'single');
-                else
-                    d = zeros(obj.grid.N,'double');
-                end
-            else
-                if obj.single_precision
-                    d = full(single(data));
-                else
-                    d = full(double(data));
-                end
-            end
-            if obj.gpu_enabled
-                d = gpuArray(d);
-            end
-            if ismatrix(d)
-                d = reshape(d, [1, size(d)]); %make 3-D. Note: the result will still be 2-D when the last dimension is a singleton!
-            end
         end
         
         %% Continue to the next iteration. Returns false to indicate that the simulation has terminated
@@ -170,14 +168,110 @@ classdef simulation
         end
     end
     
-    methods(Static)
-        function en = energy(E_x)
-            en= sum(abs(E_x(:)).^2);
+    methods(Access = protected)
+        %
+        % Some helper functions that are not to be called directly
+        %
+        function [source, source_pos] = prepare_source(obj, source, source_pos)
+            % prepares the source, returns a cell array with source matrices
+            % and a cell array with source position vectors
+            % Also verifies that the input is well formed and that
+            % all sources fit inside the roi
+            %
+            
+            if ~iscell(source)
+                source = {source};
+                source_pos = {source_pos};
+            end
+
+            if ~iscell(source_pos) || ~isequal(size(source_pos), size(source))
+                error('The number of elements in source and source_pos must match');
+            end
+            
+            % process each source / source_pos combination
+            for c=1:numel(source)             
+                % shift source positions so that they are relative to the start of the roi
+                pos = simulation.make4(source_pos{c}); %make sure all pos vectors have 4 elements
+                source_pos{c} = pos + obj.roi(1,:) - 1;
+                if any((source_pos{c} + simulation.make4(size(source{c})) - 1) >  obj.roi(2,:))
+                    error('Source does not fit inside the simulation');
+                end
+                
+                source{c} = data_array(obj, source{c}); %convert to gpu array when needed
+            end
         end
         
-        function A = add_at(A, B, pos)
-            sz = size(B);
-            A(pos(1) + (0:sz(1)- 1), pos(2) + (0:sz(2)- 1), pos(3) + (0:sz(3) -1), :) = A(pos(1) + (0:sz(1)- 1), pos(2) + (0:sz(2)- 1), pos(3) + (0:sz(3) -1), :) + B;
+        function d = data_array(obj, data)
+            % Creates an array of dimension obj.grid.N. If gpuEnabled is true, the array is created on the gpu
+            % Check whether single precision and gpu computation options are enabled
+            if obj.single_precision
+                p = 'single';
+            else
+                p = 'double';
+            end
+            
+            if nargin < 2 %no data is specified, fill with zeros
+                if obj.gpu_enabled
+                    d = zeros(obj.grid.N, p, 'gpuArray');  
+                else
+                    d = zeros(obj.grid.N, p);
+                end
+                return;
+            end
+            d = full(cast(data, p));
+            if obj.gpu_enabled
+                d = gpuArray(d);
+            end
+        end
+    end
+    
+    methods(Static)
+        function sz = make4(sz)
+            sz = sz(:).';
+            if numel(sz) < 4
+                sz(4) = 1;
+            end
+        end
+        function E = add_sources(state, E, roi, A)
+            % roi and source_pos all contain 4-D coordinates (1 for optional polarization)
+            % A is optional amplitude prefactor to multiply source by
+            
+            % process all sources
+            for c=1:numel(state.source)
+                % determine size of overlap
+                pos = state.source_pos{c};
+                sz  = simulation.make4(size(state.source{c}));
+
+                %calculate intersection of source and roi
+                tlt = max(roi(1,:), pos); %top left corner target
+                brt = min(roi(2,:), pos + sz); %bottom right corner target
+                if any(tlt > brt)
+                    continue; %overlap is empty
+                end
+                tls = tlt - pos + 1; %top left corner source
+                brs = brt - pos + 1; %bottom right corner source
+                
+                %add source
+                if nargin == 4 %with prefactor A
+                    E(tlt(1):brt(1), tlt(2):brt(2), tlt(3):brt(3), tlt(4):brt(4)) =...
+                        E(tlt(1):brt(1), tlt(2):brt(2), tlt(3):brt(3), tlt(4):brt(4)) + ...
+                        A * state.source{c}(tls(1):brs(1), tls(2):brs(2), tls(3):brs(3), tls(4):brs(4));
+                else %same without prefactor A
+                    E(tlt(1):brt(1), tlt(2):brt(2), tlt(3):brt(3), tlt(4):brt(4)) =...
+                        E(tlt(1):brt(1), tlt(2):brt(2), tlt(3):brt(3), tlt(4):brt(4)) + ...
+                        state.source{c}(tls(1):brs(1), tls(2):brs(2), tls(3):brs(3), tls(4):brs(4));
+                end
+             end
+        end
+        
+        function en = energy(E_x, roi)
+            % calculculate energy (absolute value squared) of E_x
+            % optionally specify roi to indicate which values are to be
+            % included
+            if nargin == 2
+                E_x = E_x(roi(1,1):roi(2,1), roi(1,2):roi(2,2), roi(1,3):roi(2,3), roi(1,4):roi(2,4));
+            end
+            en = sum(abs(E_x(:)).^2);
         end
         
         function abs_image_callback(obj, state)
@@ -204,15 +298,16 @@ classdef simulation
             zpos = ceil(size(E, 3)/2);
             if xpos > max(ypos, zpos)
                 sig = log(abs(E(ypos, :, zpos)));
-                sroi = obj.roi{2};
+                sroi = obj.roi(:,1);
             elseif ypos > max(xpos, zpos)
                 sig = log(abs(E(:, xpos, zpos)));
-                sroi = obj.roi{1};
+                sroi = obj.roi(:,2);
             else
                 sig = log(abs(E(ypos, xpos, :)));
-                sroi = obj.roi{3};
+                sroi = obj.roi(:,3);
             end
-            subplot(2,1,2); plot(1:length(sig), squeeze(sig), sroi(1)*ones(1,2), [min(sig),max(sig)], sroi(end)*ones(1,2), [min(sig),max(sig)]);
+            subplot(2,1,2);
+            plot(1:length(sig), squeeze(sig), sroi(1)*ones(1,2), [min(sig),max(sig)], sroi(end)*ones(1,2), [min(sig),max(sig)]);
             title('midline cross-section')
             xlabel('y (\lambda / 4)'); ylabel('real(E_x)');
             

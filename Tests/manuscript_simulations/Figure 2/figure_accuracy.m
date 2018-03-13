@@ -16,7 +16,7 @@ dt_relative_range = 1./2.^(0:0.5:12.5);
 
 mopt.lambda = sopt.lambda;
 mopt.pixel_size = sopt.lambda/PPW;
-mopt.boundary_widths = [0, 25*PPW];
+mopt.boundary_widths = [0, 250*PPW];
 mopt.boundary_strength = 0.2;
 mopt.boundary_type = 'PML3';
 N = [1 round(50*PPW)]; % size of medium (in pixels)
@@ -37,7 +37,7 @@ iterations_per_wavelength(1) = sim.iterations_per_cycle;
 
 %% calculate exact solution analytically
 k0 = 2*pi/sopt.lambda;
-E_theory=homogeneous_medium_analytic_solution(k0, mopt.pixel_size, sim.z_range);
+E_theory=homogeneous_medium_analytic_solution(k0, mopt.pixel_size, sim.y_range);
 
 % compute relative error of wavesim
 difference=E(1,:)-E_theory;
@@ -45,6 +45,11 @@ relative_error(1)=mean2(abs(difference).^2) / mean2(abs(E_theory).^2);
 disp(relative_error(1))
 figure(20);
 
+%%
+figure(3);
+plot(real(E_theory));
+hold on;
+plot(real(E(1,:)));
 
 %% simulate wave propagation for PSTD with varying values for dt
 for t_i=1:length(dt_relative_range)   

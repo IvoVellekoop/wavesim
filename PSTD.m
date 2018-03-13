@@ -44,7 +44,10 @@ classdef PSTD < simulation
             obj.c3 = 2*c2dt./(sdt+2);
             
             %% Calculate PSTD laplace operator
-            obj.koperator = -p2(sample.grid);
+            px = sample.grid.px_range;
+            py = sample.grid.py_range;
+            pz = sample.grid.pz_range;            
+            obj.koperator = -px.^2-py.^2-pz.^2;
             obj.max_cycles = obj.max_cycles+100; %slow starting source
             
             if obj.gpu_enabled
@@ -84,15 +87,17 @@ classdef PSTD < simulation
                 %
                 % isolate E_next:
                 % E_next = (nabla^2 E + source) * dt^2/e_r + 2*E - E_prev
-                Etmp = simulation.add_at(ifftn(obj.koperator.*fftn(state.E)), A * state.source, state.source_pos);
+                Etmp = ifftn(obj.koperator.*fftn(state.E));
+                Etmp = simulation.add_sources(state, Etmp, obj.roi, A); 
+                %simulation.add_at(ifftn(obj.koperator.*fftn(state.E)), A * state.source, state.source_pos);
                 E_next = obj.c2.*state.E + obj.c1.*E_prev + obj.c3 .* Etmp;
                 
                 if state.calculate_energy
                     phase_shift = exp(1.0i*(angle(A)-angle(A_prev))); %expected phase shift for single step (only works for CW source!!)
-                    state.last_step_energy = wavesim.energy(E_next(obj.roi{1}, obj.roi{2}, obj.roi{3}) - state.E(obj.roi{1}, obj.roi{2}, obj.roi{3})*phase_shift);
-                    if (A<0.5) %workaround: don't terminate when source is still spinning ups
+                    state.last_step_energy = wavesim.energy(E_next - state.E * phase_shift, obj.roi);
+                    if (A<0.5) %workaround: don't terminate when source is still spinning up
                         state.last_step_energy = max(state.last_step_energy, state.threshold*2);
-                    end;
+                    end
                 end
                 %% update fields
                 E_prev = state.E;

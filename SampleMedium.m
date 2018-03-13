@@ -44,47 +44,29 @@ classdef SampleMedium
             assert(numel(options.boundary_widths) == ndims(refractive_index));
             if ~isfield(options, 'boundary_type')
                 options.boundary_type = 'window'; %new default boundary type!
-            end;
+            end
             if ~isfield(options, 'ar_width')
                 options.ar_width = round(options.boundary_widths/2); %this factor may change into a more optimal one!!!
-            end;
-            
-            % For simplicity, we use 3-D arrays internally for everything.
-            % if the refractive index array is 2-D, convert it to 3-D
-            % the extra dimension is added as the first dimension because
-            % Matlab does not support trailing singleton dimensions for 3-D
-            % arrays
-            if ismatrix(refractive_index)
-                obj.dimensions = 2;
-                options.boundary_widths = [0, options.boundary_widths];
-                options.ar_width = [0, options.ar_width];
-                refractive_index = reshape(refractive_index, [1, size(refractive_index)]);
-                if ismatrix(refractive_index) % still a matrix, this could happen because the original map was Nx1 ==> 1xNx1 ==> 1xN
-                    error('1-D simulations are not supported, use a refractive index map that is at least 2x2');
-                end
-            else
-                obj.dimensions = 3;
             end
-
-
+            
             %% calculate e_r and min/max values
             obj.e_r = refractive_index.^2;
             obj.e_r_min = min(real(obj.e_r(:)));
             obj.e_r_max = max(real(obj.e_r(:)));
             obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;
+            
+            if ismatrix(refractive_index) || min(size(refractive_index)) == 1
+                obj.dimensions = 2;
+            else
+                obj.dimensions = 3;
+            end
 
             % construct coordinate set. 
             % padds to next efficient size for fft in each dimension, and makes sure to
             % append at least 'boundary_widths' pixels on both sides.
-            obj.grid = simgrid(size(obj.e_r) + options.boundary_widths, options.pixel_size);
-            
-            %% Currently, the simulation will always be padded to the next efficient size for a fft
-            % This is ok if we have boundaries, but if we have periodic boundary
-            % conditions, the field size must not change.
-            % so, here we check if the size is unchainged if we specify boundary_width == 0.
-            if any(options.boundary_widths==0 & obj.grid.padding > 0)
-                error('If periodic boundary conditions are used, the sample size should be a power of 2 in that direction');
-            end
+            sz = SampleMedium.make3(size(obj.e_r), 1);
+            bw = SampleMedium.make3(options.boundary_widths, 0);
+            obj.grid = simgrid(sz + bw, options.pixel_size, bw==0);
 
             % applies the padding, extrapolating the refractive index map to
             % into the added regions
@@ -94,20 +76,31 @@ classdef SampleMedium
         end
     end
     methods (Static)
-        function [e_r_full, roi, Bl, Br] = extrapolate(e_r, new_size)
+        function sz = make3(sz, pad)
+            % makes sure sz is a row vector with exactly 3 elements
+            % (pads when needed)
+            % (this function is needed because 'size' by default removes
+            %  trailing singleton dimensions)
+            sz = sz(:).'; %make row vector
+            if numel(sz) < 3
+                sz(3) = pad;
+            end
+        end
+        
+        function [e_r, roi, Bl, Br] = extrapolate(e_r, new_size)
             %% Expands the permittivity map to 'new_size'
             % The new pixels will be filled with repeated edge pixels
             
             % Calculate effective boundary width (absorbing boundaries + padding)
             % on left and right hand side, respectively.
-            roi_size = size(e_r);
+            roi_size = SampleMedium.make3(size(e_r), 1);
             Bl = ceil((new_size - roi_size) / 2); 
             Br = floor((new_size - roi_size) / 2); %effective boundary width (absorbing boundaries + padding)
             
             % the boundaries are added to both sides. Remember where is the region of interest
-            roi = {Bl(1)+(1:roi_size(1)), Bl(2)+(1:roi_size(2)), Bl(3)+(1:roi_size(3))};
-            e_r_full = padarray(e_r, Bl, 'replicate', 'both');
-            e_r_full = e_r_full(1:new_size(1), 1:new_size(2), 1:new_size(3)); %remove last single row/column when pad size is odd
+            roi = [Bl + 1; Bl+roi_size];
+            e_r = padarray(e_r, Bl, 'replicate', 'pre');
+            e_r = padarray(e_r, Br, 'replicate', 'post');
         end
         
         function [e_r, leakage] = add_absorbing_boundaries(e_r, Bl, Br, options)
@@ -153,13 +146,15 @@ classdef SampleMedium
                     leakage = exp(-c*Bmax)*(2+2*c*Bmax+c^2*Bmax.^2)/2;
                 otherwise
                     error(['unknown boundary type' obj.boundary_type]);
-            end;
-            roi_size = size(e_r) - Bl - Br;
-            y = [(Bl(1):-1:1), zeros(1, roi_size(1)), (1:Br(1))]';
-            x = [(Bl(2):-1:1), zeros(1, roi_size(2)), (1:Br(2))];
+            end
+            roi_size = SampleMedium.make3(size(e_r), 1) - Bl - Br;
+            x = [(Bl(1):-1:1), zeros(1, roi_size(1)), (1:Br(1))];
+            y = [(Bl(2):-1:1), zeros(1, roi_size(2)), (1:Br(2))];
             z = [(Bl(3):-1:1), zeros(1, roi_size(3)), (1:Br(3))];
+            x = reshape(x, [length(x),1,1]);
+            y = reshape(y, [1,length(y),1]);
             z = reshape(z, [1,1,length(z)]);
-            e_r = e_r + f_boundary_curve(sqrt(simgrid.dist2_3d(x,y,z)));
+            e_r = e_r + f_boundary_curve(sqrt(x.^2 + y.^2 + z.^2));
         end
         
         function filters = edge_filters(full_size, Bl, Br, options)

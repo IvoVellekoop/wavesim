@@ -3,11 +3,10 @@ classdef wavesim < simulation
     % Ivo M. Vellekoop 2014
     
     properties
-        V;   % potential array used in simulation
-        Rp;   % prefactor for resummed approach
+        gamma;   % potential array used in simulation
         k;   % wave number for g0
         epsilon; %convergence parameter
-        g0_k; % bare Green's function used in simulation (center subtracted in resummed approach)
+        g0_k; % bare Green's function used in simulation, premultiplied by epsilon/i
         %% diagnostics and feedback
         epsilonmin; %minimum value of epsilon for which convergence is guaranteed (equal to epsilon, unless a different value for epsilon was forced)
         filters; %information for fft edge processing
@@ -31,8 +30,8 @@ classdef wavesim < simulation
             obj.k = sqrt(sample.e_r_center) * k00;
             
             % First construct V without epsilon
-            obj.V = sample.e_r*k00^2-obj.k^2;
-            obj.epsilonmin = max(abs(obj.V(:)));
+            V = sample.e_r*k00^2-obj.k^2;
+            obj.epsilonmin = max(abs(V(:)));
             obj.epsilonmin = max(obj.epsilonmin, 3); %%minimum value to avoid divergence when simulating empty medium
             if isfield(options,'epsilon')
                 obj.epsilon = options.epsilon*k00^2; %explicitly setting epsilon forces a specific value, may not converge
@@ -42,52 +41,72 @@ classdef wavesim < simulation
             obj.iterations_per_cycle = obj.lambda /(2*obj.k/obj.epsilon); %divide wavelength by pseudo-propagation length
             
             %% Potential map (V==k^2-k_0^2-1i*epsilon)
-            obj.V = obj.V - 1.0i*obj.epsilon;
+            V = V - 1.0i*obj.epsilon;
             for d=1:3
                 if ~isempty(sample.filters{d})
-                    obj.V = obj.V .* sample.filters{d};
+                    V = V .* sample.filters{d};
                 end
             end
+            obj.gamma = 1.0i / obj.epsilon * V;
             
             %% Calculate Green function for k_red (reduced k vector: k_red^2 = k_0^2 + 1.0i*epsilon)
-            obj.g0_k = 1./(p2(sample.grid) - obj.k^2 - 1.0i*obj.epsilon);
+            px = sample.grid.px_range;
+            py = sample.grid.py_range;
+            pz = sample.grid.pz_range;            
+            obj.g0_k = -1.0i * obj.epsilon./(px.^2+py.^2+pz.^2-obj.k^2 - 1.0i*obj.epsilon);
             
-            %%%% resummation: move center to origin and scale to unit circle to get \Phi
-            obj.g0_k = - 2.0i * obj.epsilon * obj.g0_k - 1; %\Phi
-            obj.Rp = (1.0i * obj.V) ./ (2 * obj.epsilon - 1.0i * obj.V ); 
-            
-            %convert to single or double precision, and put on gpu if
+            %convert to single our double precision, and put on gpu if
             %needed
-            obj.V = obj.data_array(obj.V);
+            obj.gamma = obj.data_array(obj.gamma);
             obj.g0_k = obj.data_array(obj.g0_k);
             obj.epsilon = obj.data_array(obj.epsilon);
             obj.filters = sample.filters; %todo: remove this line
         end
         
         function state = run_algorithm(obj, state)
+            % paper: 
+            %   E = [1+M+M^2+...] \gamma G S
+            % iterate:
+            %   E_{0}   = 0
+            %   E_{k+1} = M E_k + \gamma G S
+            %   M = \gamma G V - \gamma + 1
+            %   \gamma = i/epsilon V
+            %
+            % original implementation (equivalent):
+            %   Ediff = i/epsilon V [E_k - G (V E_k + S)]
+            %   E_{k+1} = E_{k} - Ediff
+            %
+            % optimized (no need to add source every step)
+            % iterate:
+            %   Ediff_{0}   = \gamma G S
+            %   E_{0}       = \gamma G S
+            %
+            %   Ediff_{k+1} = M Ediff_{k} = (\gamma G V - \gamma + 1) E_diff_{k}
+            %   E_{k+1}     = E_{k} + Ediff_{k+1}
+            %   
+            %   implementation:
+            %   Ediff_{k+1} = M Ediff_{k} = (1 - \gamma) E_diff_{k} + \gamma G' \gamma E_diff_{k}
+            %   with G' = G epsilon / i so that G'\gamma = G V
+            
+            
             %% Allocate memory for calculations
-            Esrc = simulation.add_at(data_array(obj), state.source, state.source_pos);
-            G = 1.0i / (2 * obj.epsilon) * (1 + obj.g0_k);
-            Esrc = - obj.V .* obj.V / obj.epsilon^2 .* ifftn(G .* fftn(Esrc));
-            state.E = data_array(obj);    
+            % start iteration with the \gamma G S term:
+            Ediff = simulation.add_sources(state, data_array(obj), obj.roi);
+            Ediff = 1.0i / obj.epsilon * obj.gamma .* ifftn(obj.g0_k .* fftn(Ediff)); %gamma G S
+            state.E = Ediff;
             
             %% simulation iterations
             while state.has_next
-           %original:
-           %     Etmp = simulation.add_at(obj.V.* state.E, state.source, state.source_pos);
-           %     Ediff = -(1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* fftn(Etmp)));
-           
-           %resummed:
-                state.E = obj.Rp .* ifftn(obj.g0_k .* fftn(state.E + Esrc));
+                % Ediff_(k+1) = [(1-gamma) + gamma^2 (epsilon/i G)] E(k)
+                Ediff = (1-obj.gamma) .* Ediff + obj.gamma .* ifftn(obj.g0_k .* fftn(obj.gamma .* Ediff));
            
                 if state.calculate_energy
-                   state.last_step_energy = 100;%simulation.energy(Ediff(obj.roi{1}, obj.roi{2}, obj.roi{3}));
+                   state.last_step_energy = simulation.energy(Ediff, obj.roi);
                 end
                 
-                %state.E = state.E + Ediff;
+                state.E = state.E + Ediff;
                 state = next(obj, state);
             end
-            state.E = (state.E + obj.Rp .* Esrc) ./ (obj.V * 1.0i / obj.epsilon) * 2;
         end
     end
 end
