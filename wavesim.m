@@ -92,12 +92,11 @@ classdef wavesim < simulation
             %% Allocate memory for calculations
             % start iteration with the \gamma G S term:
             Ediff = simulation.add_sources(state, data_array(obj), obj.roi);
-            Ediff = 1.0i / obj.epsilon * obj.gamma .* ifftn(obj.g0_k .* fftn(Ediff)); %gamma G S
+            Ediff = obj.gamma .* ifftn(1.0i / obj.epsilon * obj.g0_k .* fftn(Ediff)); %gamma G S
             state.E = Ediff;
             
             %% simulation iterations
             while state.has_next
-                % Ediff_(k+1) = [(1-gamma) + gamma^2 (epsilon/i G)] E(k)
                 Ediff = (1-obj.gamma) .* Ediff + obj.gamma .* ifftn(obj.g0_k .* fftn(obj.gamma .* Ediff));
            
                 if state.calculate_energy
