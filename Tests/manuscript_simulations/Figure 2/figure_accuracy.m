@@ -16,7 +16,7 @@ dt_relative_range = 1./2.^(0:0.5:12.5);
 
 mopt.lambda = sopt.lambda;
 mopt.pixel_size = sopt.lambda/PPW;
-mopt.boundary_widths = [0, 250*PPW];
+mopt.boundary_widths = [0, 25*PPW];
 mopt.boundary_strength = 0.2;
 mopt.boundary_type = 'PML3';
 N = [1 round(50*PPW)]; % size of medium (in pixels)

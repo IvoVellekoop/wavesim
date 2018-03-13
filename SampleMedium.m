@@ -65,7 +65,7 @@ classdef SampleMedium
             % padds to next efficient size for fft in each dimension, and makes sure to
             % append at least 'boundary_widths' pixels on both sides.
             sz = SampleMedium.make3(size(obj.e_r), 1);
-            bw = SampleMedium.make3(options.boundary_widths, 0);
+            bw = SampleMedium.make3(options.boundary_widths, 0)*2;
             obj.grid = simgrid(sz + bw, options.pixel_size, bw==0);
 
             % applies the padding, extrapolating the refractive index map to
