@@ -4,12 +4,12 @@ classdef wavesim < simulation
     
     properties
         gamma;   % potential array used in simulation
-        k;   % wave number for g0
-        epsilon; %convergence parameter
-        g0_k; % bare Green's function used in simulation, premultiplied by epsilon/i
+        k;       % wave number for g0
+        epsilon; % convergence parameter
+        g0_k;    % bare Green's function used in simulation, premultiplied by epsilon/i
+        filters; % filters for boundary conditions (may be removed in future version)
         %% diagnostics and feedback
         epsilonmin; %minimum value of epsilon for which convergence is guaranteed (equal to epsilon, unless a different value for epsilon was forced)
-        filters; %information for fft edge processing
     end
     
     methods
@@ -33,7 +33,7 @@ classdef wavesim < simulation
             V = sample.e_r*k00^2-obj.k^2;
             obj.epsilonmin = max(abs(V(:)));
             obj.epsilonmin = max(obj.epsilonmin, 3); %%minimum value to avoid divergence when simulating empty medium
-            if isfield(options,'epsilon')
+            if isfield(options, 'epsilon')
                 obj.epsilon = options.epsilon*k00^2; %explicitly setting epsilon forces a specific value, may not converge
             else
                 obj.epsilon = obj.epsilonmin; %guaranteed convergence
@@ -60,7 +60,6 @@ classdef wavesim < simulation
             obj.gamma = obj.data_array(obj.gamma);
             obj.g0_k = obj.data_array(obj.g0_k);
             obj.epsilon = obj.data_array(obj.epsilon);
-            obj.filters = sample.filters; %todo: remove this line
         end
         
         function state = run_algorithm(obj, state)

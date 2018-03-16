@@ -30,6 +30,14 @@ classdef PSTD < simulation
             %% Calculate time step dt
             % The light speed is defined as 1 distance_unit / time_unit.
             %
+            % determine dimensionality of the simulation for calculating
+            % the maximum time step
+            if min(sample.grid.N) == 1
+                obj.dimensions = 2;
+            else
+                obj.dimensions = 3;
+            end
+
             obj.dtmax = 2/sqrt(obj.dimensions)/pi*sample.grid.dx*sqrt(sample.e_r_min); %Stability condition (ref needed)
             obj.dt = obj.dt_relative * obj.dtmax;
             obj.iterations_per_cycle = obj.lambda / obj.dt; %lambda[distance] / dt[time] / c[distance/time]

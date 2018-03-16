@@ -23,10 +23,11 @@ classdef simgrid
             % pad = logic vector indicating whether or not to pad the
             % simulation size up to a size that is convenient for fft
 			%% setup coordinates
-            assert(isrow(min_size) && numel(min_size) == 3 && isrow(pad) && numel(pad) == 3);
+            assert(isequal(size(min_size), [1, 3]));
+            assert(isequal(size(pad), [1,3]));
             
             N = min_size;
-            N(pad) = simgrid.efficient_size(min_size(pad));
+            N(pad) = simgrid.efficient_size(min_size(pad)); %increase size to efficient number for fft
             
             obj.padding = N - min_size; %total amount of zero padding. Placed at right and bottom sides only (non-centric)
             obj.dx = dx;

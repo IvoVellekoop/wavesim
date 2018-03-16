@@ -26,8 +26,7 @@ classdef simulation
         y_range; %y-coordinates of roi
         z_range; %z-coordinates of roi
         lambda = 1; %wavelength (default = 1 unit)      
-        differential_mode = false; %when set to 'true', only the differential field for each iteration is calculated: the fields are not added to get a solution to the wave equation (used for debugging)
-        gpu_enabled = false; % flag to determine if simulation are run on the GPU (default: false)
+        gpu_enabled = gpuDeviceCount > 0; % flag to determine if simulation are run on the GPU (default: run on GPU if we have one)
         single_precision = false; % flag to determine if single precision is used (default: double)
         callback = @simulation.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
         callback_interval = 50; %the callback is called every 'callback_interval' steps. Default = 5
@@ -59,14 +58,13 @@ classdef simulation
             end
             
             obj.grid = sample.grid;
-            obj.roi  = [sample.roi, [1;1]]; %vector simulation objects change the last column to [1;3]
+            obj.roi  = [sample.roi, [1;1]]; %vector simulation objects change the last column to [1;3] to indicate 3 polarization channels.
             obj.x_range = sample.grid.x_range(obj.roi(1,1):obj.roi(2,1));
             obj.x_range = obj.x_range - obj.x_range(1);
             obj.y_range = sample.grid.y_range(obj.roi(1,2):obj.roi(2,2));
             obj.y_range = obj.y_range - obj.y_range(1);
             obj.z_range = sample.grid.z_range(obj.roi(1,3):obj.roi(2,3));
             obj.z_range = obj.z_range - obj.z_range(1);
-            obj.dimensions = sample.dimensions;
             
             % determine how many optical cycles to simulate.
             % By default, simulate enough cycles to pass the medium 1.5
@@ -108,7 +106,6 @@ classdef simulation
             %
             state.it = 1; %iteration
             state.max_iterations = ceil(obj.max_cycles * obj.iterations_per_cycle);
-            disp(state.max_iterations);
             state.diff_energy = zeros(state.max_iterations,1);
             state.threshold = obj.energy_threshold * simulation.energy(source); %energy_threshold = fraction of total input energy
             state.last_step_energy = inf;
@@ -139,7 +136,7 @@ classdef simulation
         %% Continue to the next iteration. Returns false to indicate that the simulation has terminated
         function state = next(obj, state)
             %% store energy
-            state.diff_energy(state.it) = gather(state.last_step_energy);           
+            state.diff_energy(state.it) = state.last_step_energy;      
             
             %% check if simulation should terminate
             if (state.last_step_energy < state.threshold)
@@ -160,11 +157,6 @@ classdef simulation
                 obj.callback(obj, state);
             end
             state.it = state.it+1;
-            
-            %% For the differential mode, shut down the source after iteration 1
-            if (obj.differential_mode)
-                state.source = 0;
-            end
         end
     end
     
@@ -251,6 +243,18 @@ classdef simulation
                 tls = tlt - pos + 1; %top left corner source
                 brs = brt - pos + 1; %bottom right corner source
                 
+                %TODO: the code below is really slow on a gpu because
+                % of the indexing. Fortunately we don't call it often in 
+                % wavesim, but for PSTD it is _the_ bottleneck
+                %
+                % it appears that it is already 50% faster if we convert the
+                % indices to int64 first! (for a 1x400x1 array set)
+                %%
+                tls = int64(tls);
+                brs = int64(brs);
+                tlt = int64(tlt);
+                brt = int64(brt);
+        
                 %add source
                 if nargin == 4 %with prefactor A
                     E(tlt(1):brt(1), tlt(2):brt(2), tlt(3):brt(3), tlt(4):brt(4)) =...
@@ -271,7 +275,7 @@ classdef simulation
             if nargin == 2
                 E_x = E_x(roi(1,1):roi(2,1), roi(1,2):roi(2,2), roi(1,3):roi(2,3), roi(1,4):roi(2,4));
             end
-            en = sum(abs(E_x(:)).^2);
+            en = gather(sum(abs(E_x(:)).^2));
         end
         
         function abs_image_callback(obj, state)

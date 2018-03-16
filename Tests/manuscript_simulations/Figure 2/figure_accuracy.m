@@ -9,7 +9,7 @@ addpath('..');
 %% options for grid (gopt) and for simulation (sopt) 
 PPW=4; %points per wavelength = lambda/h
 sopt.lambda = 1; %wavelength in vacuum (in um)
-sopt.callback_interval = 5;
+sopt.callback_interval = 100;
 sopt.max_iterations = 60000;
 
 dt_relative_range = 1./2.^(0:0.5:12.5);
@@ -44,12 +44,6 @@ difference=E(1,:)-E_theory;
 relative_error(1)=mean2(abs(difference).^2) / mean2(abs(E_theory).^2);
 disp(relative_error(1))
 figure(20);
-
-%%
-figure(3);
-plot(real(E_theory));
-hold on;
-plot(real(E(1,:)));
 
 %% simulate wave propagation for PSTD with varying values for dt
 for t_i=1:length(dt_relative_range)   

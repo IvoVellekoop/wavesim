@@ -11,7 +11,6 @@ classdef SampleMedium
         grid %  simgrid object, with x and k ranges
         filters = []% profiles for windowed absorbing boundaries
         leakage = 0
-        dimensions % number of dimensions (2 or 3). Internally we use 3-D arrays for everything
     end
     methods
         function obj = SampleMedium(refractive_index, options)
@@ -55,17 +54,11 @@ classdef SampleMedium
             obj.e_r_max = max(real(obj.e_r(:)));
             obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;
             
-            if ismatrix(refractive_index) || min(size(refractive_index)) == 1
-                obj.dimensions = 2;
-            else
-                obj.dimensions = 3;
-            end
-
             % construct coordinate set. 
             % padds to next efficient size for fft in each dimension, and makes sure to
             % append at least 'boundary_widths' pixels on both sides.
             sz = SampleMedium.make3(size(obj.e_r), 1);
-            bw = SampleMedium.make3(options.boundary_widths, 0)*2;
+            bw = SampleMedium.make3(options.boundary_widths * 2, 0);
             obj.grid = simgrid(sz + bw, options.pixel_size, bw==0);
 
             % applies the padding, extrapolating the refractive index map to
@@ -158,6 +151,7 @@ classdef SampleMedium
         end
         
         function filters = edge_filters(full_size, Bl, Br, options)
+            % Note: currently experimental, may be removed.
             % construct filters that simply nullify the field outside the roi
             % (but utilize a smooth transition function)
             filters = cell(3,1);
