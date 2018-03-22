@@ -98,7 +98,7 @@ classdef simulation
             if nargin < 3
                 source_pos = [1,1,1];
             end
-            [state.source, state.source_pos] = prepare_source(obj, source, source_pos);
+            [state.source, state.source_pos, state.source_energy] = prepare_source(obj, source, source_pos);
             
             
             %%% prepare state (contains all data that is unique to a single 
@@ -107,7 +107,6 @@ classdef simulation
             state.it = 1; %iteration
             state.max_iterations = ceil(obj.max_cycles * obj.iterations_per_cycle);
             state.diff_energy = zeros(state.max_iterations,1);
-            state.threshold = obj.energy_threshold * simulation.energy(source); %energy_threshold = fraction of total input energy
             state.last_step_energy = inf;
             state.calculate_energy = true;
             state.has_next = true;
@@ -135,11 +134,11 @@ classdef simulation
         
         %% Continue to the next iteration. Returns false to indicate that the simulation has terminated
         function state = next(obj, state)
-            %% store energy
-            state.diff_energy(state.it) = state.last_step_energy;      
+            %% store energy (relative to total energy in source)
+            state.diff_energy(state.it) = state.last_step_energy / state.source_energy;
             
             %% check if simulation should terminate
-            if (state.last_step_energy < state.threshold)
+            if (state.diff_energy(state.it) < obj.energy_threshold)
                 state.has_next = false;
                 state.converged = true;
             elseif (state.it >= state.max_iterations)
@@ -164,7 +163,7 @@ classdef simulation
         %
         % Some helper functions that are not to be called directly
         %
-        function [source, source_pos] = prepare_source(obj, source, source_pos)
+        function [source, source_pos, source_energy] = prepare_source(obj, source, source_pos)
             % prepares the source, returns a cell array with source matrices
             % and a cell array with source position vectors
             % Also verifies that the input is well formed and that
@@ -181,6 +180,7 @@ classdef simulation
             end
             
             % process each source / source_pos combination
+            source_energy = 0;
             for c=1:numel(source)             
                 % shift source positions so that they are relative to the start of the roi
                 pos = simulation.make4(source_pos{c}); %make sure all pos vectors have 4 elements
@@ -190,6 +190,7 @@ classdef simulation
                 end
                 
                 source{c} = data_array(obj, source{c}); %convert to gpu array when needed
+                source_energy = source_energy + simulation.energy(source{c});
             end
         end
         
@@ -210,7 +211,7 @@ classdef simulation
                 end
                 return;
             end
-            d = full(cast(data, p));
+            d = cast(full(data), p);
             if obj.gpu_enabled
                 d = gpuArray(d);
             end
@@ -275,7 +276,7 @@ classdef simulation
             if nargin == 2
                 E_x = E_x(roi(1,1):roi(2,1), roi(1,2):roi(2,2), roi(1,3):roi(2,3), roi(1,4):roi(2,4));
             end
-            en = gather(sum(abs(E_x(:)).^2));
+            en = full(gather(sum(abs(E_x(:)).^2)));
         end
         
         function abs_image_callback(obj, state)
