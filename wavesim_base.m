@@ -75,7 +75,7 @@ classdef wavesim_base < simulation
                 % and memory access. Unfortunately, using arrayfun on the
                 % CPU is extremely inefficient (tested in Matlab 2017a)
                 %
-                obj.mix = @(Eold, Enew, gamma) arrayfun(f_mix, Eold, Enew, gamma);
+                obj.mix = @(Eold, Enew, gamma) arrayfun(mix, Eold, Enew, gamma);
             else
                 obj.mix = mix;
             end
@@ -105,7 +105,6 @@ classdef wavesim_base < simulation
             %   implementation:
             %   Ediff_{k+1} = M Ediff_{k} = (1 - \gamma) E_diff_{k} + \gamma G' \gamma E_diff_{k}
             %   with G' = G epsilon / i so that G'\gamma = G V
-
             
             %% Allocate memory for calculations
             % start iteration with the \gamma G S term:

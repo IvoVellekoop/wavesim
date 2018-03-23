@@ -6,7 +6,6 @@ classdef wavesim < wavesim_base
     % propagation step
     %
     properties
-        g0_k
     end
     methods
         function obj = wavesim(sample, options)
@@ -31,12 +30,11 @@ classdef wavesim < wavesim_base
                 % distinction is needed because arrayfun for the CPU does not 
                 % support singleton expansion like arrayfun for the GPU!)
                 % also, arrayfun is incredibly slow on the CPU!
-                obj.g0_k = 1./(px2+py2+pz2e);
+                g0_k = 1./(px2+py2+pz2e);
                 obj.propagate = @(E) ...
-                    ifftn(obj.g0_k .* fftn(E));
+                    ifftn(g0_k .* fftn(E));
             end
         end
     end
-    
 end
 
