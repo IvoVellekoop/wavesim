@@ -10,6 +10,7 @@ classdef wavesimv < wavesim
     methods
         function obj=wavesimv(sample, options)
             obj@wavesim(sample, options);
+            obj.roi(4,2) = 3; %3-polarization planes
             
             red = 1/sqrt(obj.k^2 + 1.0i * obj.epsilon); 
             obj.pxr = sample.grid.px_range * red;
@@ -18,8 +19,14 @@ classdef wavesimv < wavesim
         end
         
         function state = run_algorithm(obj, state)
-            %% Allocate memory for calculations
-            state.E  = repmat(data_array(obj), [1, 1, 1, 3]);    
+            %% Allocate memory for calculations. 
+            % To conserve memory, we store the field in the Fourier domain
+            % and multiply by gamma (in the real domain) one polarization
+            % component at the time.
+            %
+            Ediff = simulation.add_sources(state, data_array(obj), obj.roi); %3-D array
+            Ediff = obj.gamma .* ifftn(1.0i / obj.epsilon * obj.g0_k .* fftn(Ediff)); %gamma G S
+            state.E = Ediff;
             
             %% simulation iterations
             while state.has_next
