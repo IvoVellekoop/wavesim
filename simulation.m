@@ -127,7 +127,7 @@ classdef simulation
             end
             
             %% return only part inside roi. Array remains on the gpu if gpuEnabled = true
-            E = state.E(obj.roi(1,1):obj.roi(2,1), obj.roi(1,2):obj.roi(2,2), obj.roi(1,3):obj.roi(2,3));
+            E = state.E(obj.roi(1,1):obj.roi(2,1), obj.roi(1,2):obj.roi(2,2), obj.roi(1,3):obj.roi(2,3), obj.roi(1,4):obj.roi(2,4));
             E = gather(E); % converting gpuArray back to normal array
         end
         

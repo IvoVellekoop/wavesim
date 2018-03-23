@@ -42,7 +42,7 @@ classdef wavesim_base < simulation
             obj.epsilonmin = max(abs(V(:)));
             obj.epsilonmin = max(obj.epsilonmin, 3); %%minimum value to avoid divergence when simulating empty medium
             if isfield(options, 'epsilon')
-                obj.epsilon = options.epsilon*k00^2; %explicitly setting epsilon forces a specific value, may not converge
+                obj.epsilon = options.epsilon; %explicitly setting epsilon forces a specific value, may not converge
             else
                 obj.epsilon = obj.epsilonmin; %guaranteed convergence
             end
