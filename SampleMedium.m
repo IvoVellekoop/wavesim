@@ -45,7 +45,7 @@ classdef SampleMedium
                 options.boundary_type = 'window'; %new default boundary type!
             end
             if ~isfield(options, 'ar_width')
-                options.ar_width = round(options.boundary_widths/2); %this factor may change into a more optimal one!!!
+                options.ar_width = round(options.boundary_widths*0.75); %this factor may change into a more optimal one!!!
             end
             
             %% calculate e_r and min/max values

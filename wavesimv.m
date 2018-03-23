@@ -1,71 +1,43 @@
-classdef wavesimv < wavesim
+classdef wavesimv < wavesim_base
     %Simulation of the 2-D or 3-D Maxwell's equations wave equation using a Born series approach
     %Only valid for non-magnetic media.
     % Ivo M. Vellekoop 2017
     properties
-        pxr; %p_x / sqrt(k_0^2 + i epsilon)        (used to evaluate dyadic Green's function)
-        pyr;
-        pzr;
+        px;
+        py;
+        pz;
+        g0_k;
     end
     methods
         function obj=wavesimv(sample, options)
-            obj@wavesim(sample, options);
+            obj@wavesim_base(sample, options);
             obj.roi(4,2) = 3; %3-polarization planes
-            
-            red = 1/sqrt(obj.k^2 + 1.0i * obj.epsilon); 
-            obj.pxr = sample.grid.px_range * red;
-            obj.pyr = sample.grid.py_range * red;
-            obj.pzr = sample.grid.pz_range * red;
-        end
-        
-        function state = run_algorithm(obj, state)
-            %% Allocate memory for calculations. 
-            % To conserve memory, we store the field in the Fourier domain
-            % and multiply by gamma (in the real domain) one polarization
-            % component at the time.
+            obj.N(4)     = 3;
+            % Set up propagation function (convolution with Green's function)
+            % the Green's function is pre-multiplied by epsilon to reduce the
+            % number of computations a bit
             %
-            Ediff = simulation.add_sources(state, data_array(obj), obj.roi); %3-D array
-            Ediff = obj.gamma .* ifftn(1.0i / obj.epsilon * obj.g0_k .* fftn(Ediff)); %gamma G S
-            state.E = Ediff;
-            
-            %% simulation iterations
-            while state.has_next
-                % Apply the potential function and add the source to all 3 field components
-                Etx = obj.V.* state.E;
-                Etx(state.source_range{1}, state.source_range{2}, state.source_range{3}) = Etx(state.source_range{1}, state.source_range{2}, state.source_range{3}) + state.source(1,:,:,:);
-                Etx = fftn(Etx);
-
-                Ety = obj.V.* state.Ey;
-                Ety(state.source_range{1}, state.source_range{2}, state.source_range{3}) = Ety(state.source_range{1}, state.source_range{2}, state.source_range{3}) + state.source(2,:,:,:);
-                Ety = fftn(Ety);
-                
-                Etz = obj.V.* state.Ez;
-                Etz(state.source_range{1}, state.source_range{2}, state.source_range{3}) = Etz(state.source_range{1}, state.source_range{2}, state.source_range{3}) + state.source(3,:,:,:);
-                Etz = fftn(Etz);
-                
-                %calculate divergence term in the dyadic Green function:
-                Ediv = Etx .* obj.pxr + Ety .* obj.pyr + Etz .* obj.pzr;
-                
-                % calculate gradient of the divergence (the p p^T term) and
-                % subtract it from E. Note that without the divergence
-                % term we simply have three independent scalar equations.
-                Etx = Etx - obj.pxr .* Ediv;
-                Ety = Ety - obj.pxy .* Ediv;
-                Etz = Etz - obj.pxz .* Ediv;
-                
-                Ediff = (1.0i/obj.epsilon*obj.V) .* (state.E-ifftn(obj.g0_k .* Etx));
-                Ediffy = (1.0i/obj.epsilon*obj.V) .* (state.Ey-ifftn(obj.g0_k .* Ety));
-                Ediffz = (1.0i/obj.epsilon*obj.V) .* (state.Ez-ifftn(obj.g0_k .* Etz));
-           
-                if state.calculate_energy
-                   state.last_step_energy = simulation.energy(Ediff(obj.roi{1}, obj.roi{2}, obj.roi{3})) + simulation.energy(Ediffy(obj.roi{1}, obj.roi{2}, obj.roi{3})) + simulation.energy(Ediffz(obj.roi{1}, obj.roi{2}, obj.roi{3}));
-                end
-                
-                state.E = state.E - Ediff;
-                state.Ey = state.Ey - Ediffy;
-                state.Ez = state.Ez - Ediffz;
-                state = next(obj, state);
-            end
+            k0e = obj.k^2 + 1.0i * obj.epsilon;
+            obj.px = obj.grid.px_range/sqrt(k0e);
+            obj.py = obj.grid.py_range/sqrt(k0e);
+            obj.pz = obj.grid.pz_range/sqrt(k0e);
+            obj.g0_k = 1./(k0e/obj.epsilon * (obj.px.^2+obj.py.^2+obj.pz.^2-1));
+            obj.propagate = @(E) wavesimv.propagate(obj, E);
+        end
+    end
+    methods (Static)
+        function E = propagate(obj, E)
+            % calculate (I - p p^T / (k_0^2+i epsilon)
+            fEx = fftn(E(:,:,:,1));
+            fEy = fftn(E(:,:,:,2));
+            fEz = fftn(E(:,:,:,3));
+            div = obj.px .* fEx + obj.py .* fEy + obj.pz .* fEz; %divergence term
+            fEx = obj.g0_k .* (fEx - obj.px .* div);
+            fEy = obj.g0_k .* (fEy - obj.py .* div);
+            fEz = obj.g0_k .* (fEz - obj.pz .* div);
+            E(:,:,:,1) = ifftn(fEx);
+            E(:,:,:,2) = ifftn(fEy);
+            E(:,:,:,3) = ifftn(fEz);
         end
     end
 end

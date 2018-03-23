@@ -14,7 +14,6 @@ classdef wavesim_base < simulation
         gamma;   % potential array used in simulation
         k;       % wave number for g0
         epsilon; % convergence parameter
-        filters; % filters for boundary conditions
         mix;     % function handle to function performing the mixing step
         propagate; % function handle to function performing the propagation step
         %% diagnostics and feedback

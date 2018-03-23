@@ -18,6 +18,7 @@ classdef simulation
     properties
         grid; %simgrid object
         roi; %position of simulation area with respect to padded array.
+        N;       % size of simulation grid
         % this matrix contains 2 rows, one for the start index and one for
         % the last index. It contains 4 columns (one for each dimension and
         % one to indicate the polarization component, which is always 1 for
@@ -59,6 +60,7 @@ classdef simulation
             
             obj.grid = sample.grid;
             obj.roi  = [sample.roi, [1;1]]; %vector simulation objects change the last column to [1;3] to indicate 3 polarization channels.
+            obj.N    = [obj.grid.N, 1]; %vector simulations set last parameter to 3
             obj.x_range = sample.grid.x_range(obj.roi(1,1):obj.roi(2,1));
             obj.x_range = obj.x_range - obj.x_range(1);
             obj.y_range = sample.grid.y_range(obj.roi(1,2):obj.roi(2,2));
@@ -195,7 +197,7 @@ classdef simulation
         end
         
         function d = data_array(obj, data)
-            % Creates an array of dimension obj.grid.N. If gpuEnabled is true, the array is created on the gpu
+            % Creates an array of dimension obj.N. If gpuEnabled is true, the array is created on the gpu
             % Check whether single precision and gpu computation options are enabled
             if obj.single_precision
                 p = 'single';
@@ -205,9 +207,9 @@ classdef simulation
             
             if nargin < 2 %no data is specified, fill with zeros
                 if obj.gpu_enabled
-                    d = zeros(obj.grid.N, p, 'gpuArray');  
+                    d = zeros(obj.N, p, 'gpuArray');  
                 else
-                    d = zeros(obj.grid.N, p);
+                    d = zeros(obj.N, p);
                 end
                 return;
             end
@@ -237,7 +239,7 @@ classdef simulation
 
                 %calculate intersection of source and roi
                 tlt = max(roi(1,:), pos); %top left corner target
-                brt = min(roi(2,:), pos + sz); %bottom right corner target
+                brt = min(roi(2,:), pos + sz - 1); %bottom right corner target
                 if any(tlt > brt)
                     continue; %overlap is empty
                 end
@@ -286,7 +288,7 @@ classdef simulation
         function default_callback(obj, state)
             figure(1);
             energy = state.diff_energy(1:state.it);
-            threshold = state.threshold;
+            threshold = obj.energy_threshold;
             E = state.E;
             subplot(2,1,1); plot(1:length(energy),log10(energy),'b',[1,length(energy)],log10(threshold)*ones(1,2),'--r');
             title(length(energy));  xlabel('# iterations'); ylabel('log_{10}(energy added)');
