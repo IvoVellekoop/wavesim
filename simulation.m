@@ -16,13 +16,13 @@ classdef simulation
     % through the 'state' variable that is an optional return argument.
     %
     properties
-        grid; %simgrid object
-        roi; %position of simulation area with respect to padded array.
-        N;       % size of simulation grid
-        % this matrix contains 2 rows, one for the start index and one for
-        % the last index. It contains 4 columns (one for each dimension and
-        % one to indicate the polarization component, which is always 1 for
-        % scalar simulations)
+        grid; % simgrid object
+        roi; % position of simulation area with respect to padded array.
+        %      this matrix contains 2 rows, one for the start index and one for
+        %      the last index. It contains 4 columns (one for each dimension and
+        %      one to indicate the polarization component, which is always 1 for
+        %      scalar simulations)
+        N; % size of simulation grid (in pixels)
         x_range; %x-coordinates of roi
         y_range; %y-coordinates of roi
         z_range; %z-coordinates of roi
@@ -34,7 +34,6 @@ classdef simulation
         energy_threshold = 1E-20; %the simulation stops when the difference for a step is less than 'energy_threshold'
         energy_calculation_interval = 10; %only calculate energy difference every N steps (to reduce overhead)
         max_cycles = 0; %number of wave periods to run the simulation. The number of actual iterations per cycle depends on the algorithm and its parameters
-        dimensions; % 2 or 3. Internally, all structures will be 3-D, but for some simulation methods (e.g. PSTD) the dimensionality needs to be known in order to calculate the stability criterion
         %internal:
         iterations_per_cycle;%must be set by derived class
     end
@@ -50,9 +49,7 @@ classdef simulation
             %   its parameters
 
             %copy values from 'options' to 'obj' (only if the field is present in obj)
-            obj_fields = fields(obj);
-            opt_fields = fields(options);
-            fs = intersect(obj_fields, opt_fields);
+            fs = intersect(fields(obj), fields(options));
             for f=1:length(fs)
                 fieldname = fs{f};
                 obj.(fieldname) = options.(fieldname);
@@ -102,7 +99,6 @@ classdef simulation
             end
             [state.source, state.source_pos, state.source_energy] = prepare_source(obj, source, source_pos);
             
-            
             %%% prepare state (contains all data that is unique to a single 
             % run of the simulation)
             %
@@ -127,6 +123,7 @@ classdef simulation
                 disp(['Time consumption: ' num2str(state.time) ' s']);
             else
                 disp('Did not reach steady state');
+                disp(['Time consumption: ' num2str(state.time) ' s']);
             end
             
             %% return only part inside roi. Array remains on the gpu if gpuEnabled = true
@@ -171,7 +168,6 @@ classdef simulation
             % Also verifies that the input is well formed and that
             % all sources fit inside the roi
             %
-            
             if ~iscell(source)
                 source = {source};
                 source_pos = {source_pos};
@@ -191,7 +187,10 @@ classdef simulation
                     error('Source does not fit inside the simulation');
                 end
                 
-                source{c} = data_array(obj, source{c}); %convert to gpu array when needed
+                % todo: only use non-zero part of source
+                % also clear source from GPU memory after usage
+                % 
+                source{c} = data_array(obj, source{c}); 
                 source_energy = source_energy + simulation.energy(source{c});
             end
         end
@@ -222,14 +221,21 @@ classdef simulation
     
     methods(Static)
         function sz = make4(sz)
+            % converts the vector sz to a 4-element vector by appending 1's
+            % when needed. This function is useful since 'size' removes
+            % trailing singleton dimensions of arrays, so a 100x100x1x1
+            % array returns a size of [100, 100], whereas a 100x100x1x3
+            % array retuns a size of [100, 100, 1, 3]
+            % As a workaround for this inconsistency, we always use
+            % 4-element size vectors.
             sz = sz(:).';
             if numel(sz) < 4
-                sz(4) = 1;
+                sz((end+1):4) = 1;
             end
         end
         function E = add_sources(state, E, roi, A)
             % roi and source_pos all contain 4-D coordinates (1 for optional polarization)
-            % A is optional amplitude prefactor to multiply source by
+            % A is an amplitude prefactor to multiply the source by
             
             % process all sources
             for c=1:numel(state.source)

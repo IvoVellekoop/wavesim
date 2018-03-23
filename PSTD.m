@@ -33,12 +33,12 @@ classdef PSTD < simulation
             % determine dimensionality of the simulation for calculating
             % the maximum time step
             if min(sample.grid.N) == 1
-                obj.dimensions = 2;
+                dimensions = 2;
             else
-                obj.dimensions = 3;
+                dimensions = 3;
             end
 
-            obj.dtmax = 2/sqrt(obj.dimensions)/pi*sample.grid.dx*sqrt(sample.e_r_min); %Stability condition (ref needed)
+            obj.dtmax = 2/sqrt(dimensions)/pi*sample.grid.dx*sqrt(sample.e_r_min); %Stability condition (ref needed)
             obj.dt = obj.dt_relative * obj.dtmax;
             obj.iterations_per_cycle = obj.lambda / obj.dt; %lambda[distance] / dt[time] / c[distance/time]
             
@@ -102,9 +102,9 @@ classdef PSTD < simulation
                 
                 if state.calculate_energy
                     phase_shift = exp(1.0i*(angle(A)-angle(A_prev))); %expected phase shift for single step (only works for CW source!!)
-                    state.last_step_energy = wavesim.energy(E_next - state.E * phase_shift, obj.roi);
+                    state.last_step_energy = wavesim.energy(E_next - state.E * phase_shift, obj.roi) / abs(A)^2;
                     if (A<0.5) %workaround: don't terminate when source is still spinning up
-                        state.last_step_energy = max(state.last_step_energy, state.threshold*2);
+                        state.last_step_energy = max(state.last_step_energy, obj.energy_threshold*2/state.source_energy);
                     end
                 end
                 %% update fields

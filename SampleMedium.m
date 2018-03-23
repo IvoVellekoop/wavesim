@@ -76,7 +76,7 @@ classdef SampleMedium
             %  trailing singleton dimensions)
             sz = sz(:).'; %make row vector
             if numel(sz) < 3
-                sz(3) = pad;
+                sz((end+1):3) = pad;
             end
         end
         
