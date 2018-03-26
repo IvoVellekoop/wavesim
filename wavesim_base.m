@@ -95,27 +95,41 @@ classdef wavesim_base < simulation
             %
             % optimized (no need to add source every step)
             % iterate:
-            %   Ediff_{0}   = \gamma G S
-            %   E_{0}       = \gamma G S
+            %   Ediff_{0}   = S
+            %   E_{0}       = 0
             %
             %   Ediff_{k+1} = M Ediff_{k} = (\gamma G V - \gamma + 1) E_diff_{k}
             %   E_{k+1}     = E_{k} + Ediff_{k+1}
             %   
-            %   implementation:
-            %   Ediff_{k+1} = M Ediff_{k} = (1 - \gamma) E_diff_{k} + \gamma G' \gamma E_diff_{k}
-            %   with G' = G epsilon / i so that G'\gamma = G V
+            %   substitute V = -1.0i \epsilon \gamma
+            %   Ediff_{k+1} = M Ediff_{k} = (1 - \gamma) E_diff_{k} - 1.0i \epsilon \gamma G \gamma E_diff_{k}
+            %
+            %   substitute G' = G epsilon  and Ediff' = \gamma Ediff
+            %   (in the end we have to divide E' by \gamma to get E)
+            %   Ediff'_{0}   = 0
+            %   Ediff'_{k+1} = (1 - \gamma) E_diff'_{k} - 1.0i \gamma^2 G' E'_diff_{k}
+            %
+            %   These iterations are implemented as:
+            %   1. a propagation step:   Eprop   = (G' E'_diff + 1.0i/epsilon S {only in 1st iteration})
+            %   2. a mixing step:        E_diff' => (1-\gamma) E_diff' - 1.0i \gamma^2 Eprop  
+            %   3. an accumulation step: E'      => E' + E_diff'
+            %
+            %   With finally a correction step: E    = E' / \gamma
             
             %% Allocate memory for calculations
-            % start iteration with the \gamma G S term:
+            % start iteration with the source term (pre-multiplied by 1.0i/obj.epsilon. epsilon to compensate for pre-multiplication of G):
             % pre-multiply by gamma/epsilon
-            Ediff = simulation.add_sources(state, data_array(obj), obj.roi, 1/obj.epsilon);
-            Ediff = obj.gamma.^2 .* obj.propagate(Ediff); %gamma G S
-            state.E = Ediff;
+            state.E = data_array(obj);
+            Ediff = data_array(obj);
             
             %% simulation iterations
             while state.has_next
-                Ediff = obj.mix(Ediff, obj.propagate(Ediff), obj.gamma);
-                %Ediff = (1-obj.gamma) .* Ediff + obj.gamma .* ifftn(obj.g0_k .* fftn(obj.gamma .* Ediff));
+                if (state.it == 1)
+                    Ediff = obj.mix(Ediff, obj.propagate(simulation.add_sources(state, data_array(obj), obj.roi, 1.0i/obj.epsilon)), obj.gamma);
+                else
+                    Ediff = obj.mix(Ediff, obj.propagate(Ediff), obj.gamma);
+                end
+                    %Ediff = (1-obj.gamma) .* Ediff + obj.gamma .* ifftn(obj.g0_k .* fftn(obj.gamma .* Ediff));
            
                 if state.calculate_energy
                    state.last_step_energy = simulation.energy(Ediff ./ obj.gamma, obj.roi);
