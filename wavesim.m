@@ -5,6 +5,7 @@ classdef wavesim < wavesim_base
     % The only difference that this function implements is in the
     % propagation step
     %
+    % Ivo M. Vellekoop 2018
     properties
     end
     methods

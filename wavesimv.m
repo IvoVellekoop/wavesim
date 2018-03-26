@@ -1,7 +1,11 @@
 classdef wavesimv < wavesim_base
-    %Simulation of the 2-D or 3-D Maxwell's equations wave equation using a Born series approach
-    %Only valid for non-magnetic media.
-    % Ivo M. Vellekoop 2017
+    % Implementation of the modified Born series approach for
+    % vector waves
+    %
+    % The only difference that this function implements is in the
+    % propagation step
+    %
+    % Ivo M. Vellekoop 2018
     properties
     end
     methods

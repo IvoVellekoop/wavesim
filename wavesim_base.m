@@ -125,12 +125,11 @@ classdef wavesim_base < simulation
             %% simulation iterations
             while state.has_next
                 if (state.it == 1)
-                    Ediff = obj.mix(Ediff, obj.propagate(simulation.add_sources(state, data_array(obj), obj.roi, 1.0i/obj.epsilon)), obj.gamma);
+                    Ediff = obj.mix(Ediff, obj.propagate(state.source.add_to(data_array(obj), obj.roi, 1.0i/obj.epsilon)), obj.gamma);
                 else
                     Ediff = obj.mix(Ediff, obj.propagate(Ediff), obj.gamma);
                 end
-                    %Ediff = (1-obj.gamma) .* Ediff + obj.gamma .* ifftn(obj.g0_k .* fftn(obj.gamma .* Ediff));
-           
+                
                 if state.calculate_energy
                    state.last_step_energy = simulation.energy(Ediff ./ obj.gamma, obj.roi);
                 end

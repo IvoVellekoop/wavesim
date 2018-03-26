@@ -76,28 +76,13 @@ classdef simulation
             end
         end
         
-        function [E, state] = exec(obj, source, source_pos)
+        function [E, state] = exec(obj, source)
  %% exec Executes the simulation with the given source
-% source    is a 2-D or 3-D array with source data.
-%           The size of 'source' should not exceed the size of
-%           the roi of the simulation grid, but it can be
-%           smaller. In that case the coordinate vector 
-%           source_pos can be used to indicate the starting
-%           index of the source within the refractive index map
-% source_pos  (optional for scalar simulations, defaults to [1,1,1]), can be specified to
-%           position the source with respect to the top left corner of the
-%           simulation grid. For vector simulations, this vector contains
-%           one extra coordinate (e. g. [1,1,1,1] for a 3-D simulation)
-%           to indicate the polarization of the source.
-%
-% It is possible to specify multiple sources by passing cell arrays for
-% 'sources' and 'positions'
+% source    is a 'source' object (see documentation for source)
 %
             tic;
-            if nargin < 3
-                source_pos = [1,1,1];
-            end
-            [state.source, state.source_pos, state.source_energy] = prepare_source(obj, source, source_pos);
+            state.source = source.prepare(obj);
+            state.source_energy = source.energy;
             
             %%% prepare state (contains all data that is unique to a single 
             % run of the simulation)
@@ -156,45 +141,9 @@ classdef simulation
             end
             state.it = state.it+1;
         end
-    end
+ %   end
     
-    methods(Access = protected)
-        %
-        % Some helper functions that are not to be called directly
-        %
-        function [source, source_pos, source_energy] = prepare_source(obj, source, source_pos)
-            % prepares the source, returns a cell array with source matrices
-            % and a cell array with source position vectors
-            % Also verifies that the input is well formed and that
-            % all sources fit inside the roi
-            %
-            if ~iscell(source)
-                source = {source};
-                source_pos = {source_pos};
-            end
-
-            if ~iscell(source_pos) || ~isequal(size(source_pos), size(source))
-                error('The number of elements in source and source_pos must match');
-            end
-            
-            % process each source / source_pos combination
-            source_energy = 0;
-            for c=1:numel(source)             
-                % shift source positions so that they are relative to the start of the roi
-                pos = simulation.make4(source_pos{c}); %make sure all pos vectors have 4 elements
-                source_pos{c} = pos + obj.roi(1,:) - 1;
-                if any((source_pos{c} + simulation.make4(size(source{c})) - 1) >  obj.roi(2,:))
-                    error('Source does not fit inside the simulation');
-                end
-                
-                % todo: only use non-zero part of source
-                % also clear source from GPU memory after usage
-                % 
-                source{c} = data_array(obj, source{c}); 
-                source_energy = source_energy + simulation.energy(source{c});
-            end
-        end
-        
+%    methods(Access = protected)
         function d = data_array(obj, data)
             % Creates an array of dimension obj.N. If gpuEnabled is true, the array is created on the gpu
             % Check whether single precision and gpu computation options are enabled
@@ -220,57 +169,6 @@ classdef simulation
     end
     
     methods(Static)
-        function sz = make4(sz)
-            % converts the vector sz to a 4-element vector by appending 1's
-            % when needed. This function is useful since 'size' removes
-            % trailing singleton dimensions of arrays, so a 100x100x1x1
-            % array returns a size of [100, 100], whereas a 100x100x1x3
-            % array retuns a size of [100, 100, 1, 3]
-            % As a workaround for this inconsistency, we always use
-            % 4-element size vectors.
-            sz = sz(:).';
-            if numel(sz) < 4
-                sz((end+1):4) = 1;
-            end
-        end
-        function E = add_sources(state, E, roi, A)
-            % roi and source_pos all contain 4-D coordinates (1 for optional polarization)
-            % A is an amplitude prefactor to multiply the source by
-            
-            % process all sources
-            for c=1:numel(state.source)
-                % determine size of overlap
-                pos = state.source_pos{c};
-                sz  = simulation.make4(size(state.source{c}));
-
-                %calculate intersection of source and roi
-                tlt = max(roi(1,:), pos); %top left corner target
-                brt = min(roi(2,:), pos + sz - 1); %bottom right corner target
-                if any(tlt > brt)
-                    continue; %overlap is empty
-                end
-                tls = tlt - pos + 1; %top left corner source
-                brs = brt - pos + 1; %bottom right corner source
-                
-                %TODO: the code below is really slow on a gpu because
-                % of the indexing. Fortunately we don't call it often in 
-                % wavesim, but for PSTD it is _the_ bottleneck
-                %
-                % it appears that it is already 50% faster if we convert the
-                % indices to int64 first! (for a 1x400x1 array set)
-                %%
-                tls = int64(tls);
-                brs = int64(brs);
-                tlt = int64(tlt);
-                brt = int64(brt);
-        
-                %add source, multiplied by prefactor A
-                E(tlt(1):brt(1), tlt(2):brt(2), tlt(3):brt(3), tlt(4):brt(4)) =...
-                        E(tlt(1):brt(1), tlt(2):brt(2), tlt(3):brt(3), tlt(4):brt(4)) + ...
-                        A * state.source{c}(tls(1):brs(1), tls(2):brs(2), tls(3):brs(3), tls(4):brs(4));
-             end
-        end
-        
         function en = energy(E_x, roi)
             % calculculate energy (absolute value squared) of E_x
             % optionally specify roi to indicate which values are to be

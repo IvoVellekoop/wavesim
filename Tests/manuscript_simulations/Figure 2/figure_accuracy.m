@@ -26,13 +26,12 @@ relative_error = zeros(1, length(dt_relative_range)+1);
 iterations_per_wavelength = zeros(1, length(dt_relative_range)+1);
 
 %% define a plane wave source and create homogeneous sample
-source = sparse(N(1), N(2));
-source(:,1) = 1; % plane wave source
+source = Source([1, 1], ones(N(1),1));
 sample = SampleMedium(ones(N), mopt);
 
 %% create wavesim object and run the wave propagation simulation
 sim = wavesim(sample, sopt);
-[E, state] = exec(sim, source);
+[E, state] = sim.exec(source);
 iterations_per_wavelength(1) = sim.iterations_per_cycle;
 
 %% calculate exact solution analytically
