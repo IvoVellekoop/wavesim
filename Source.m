@@ -12,7 +12,7 @@ classdef Source
     %
     % Ivo M. Vellekoop 2018
     properties
-        positions
+        positions %don't access directly, implementation may change!
         values
     end
     
@@ -48,43 +48,22 @@ classdef Source
             end
         end
         
-        function source = prepare(obj, sim)
-            % Shifts the sources to fit in the region of interest
-            % If the source does not fit inside the roi, an error
-            % is given.
-            % This function also converts all sources to the proper format
-            % (single / double precision, cpu / gpu)
-            % todo: design issue, this function is coupled too tightly with
-            % the simulation class
+        function source = shift(obj, pos)
+            % Shifts the sources so that an original source position of
+            % [1,1,1,1] now corresponds to 'pos'
             %
             source = obj;
             for c=1:numel(source.positions)
-                % shift source positions so that they are relative to the start of the roi
-                source.positions{c} = source.positions{c} + sim.roi(1,:) - 1;
-                if any((source.positions{c} + source.make4(size(source.values{c})) - 1) >  sim.roi(2,:))
-                    error('Source does not fit inside the simulation');
-                end
-                
-                % todo: clear source from GPU memory after usage
-                % 
-                source.values{c} = sim.data_array(source.values{c}); 
+                source.positions{c} = source.positions{c} + pos - 1;
             end
         end
-        
-        function E = add_to(obj, E, roi, A)
-            % adds the source to E
-            % the source is clipped tothe specified roi, values outside of
-            % the roi are discarded
-            %
-            % A is an amplitude prefactor to multiply the source by
-            
-            % process all sources
-            for c=1:numel(obj.positions)
-                % determine size of overlap
-                pos = obj.positions{c};
-                sz  = Source.make4(size(obj.values{c}));
 
-                %calculate intersection of source and roi
+        function source = crop(obj, roi)
+            % Removes all parts of the sources that fall outside of the roi
+            source = obj;
+            for c=1:numel(source.positions)
+                pos = source.positions{c};
+                sz  = Source.make4(size(source.values{c}));
                 tlt = max(roi(1,:), pos); %top left corner target
                 brt = min(roi(2,:), pos + sz - 1); %bottom right corner target
                 if any(tlt > brt)
@@ -92,23 +71,49 @@ classdef Source
                 end
                 tls = tlt - pos + 1; %top left corner source
                 brs = brt - pos + 1; %bottom right corner source
-                
-                %TODO: the code below is really slow on a gpu because
+                source.values{c} = source.values{c}(tls(1):brs(1), tls(2):brs(2), tls(3):brs(3), tls(4):brs(4));
+                source.positions{c} = tlt;
+            end
+        end
+
+        function source = gpuArray(obj)
+            % Places the source data on the gpu
+            source = obj;
+            for c=1:numel(source.positions)
+                source.values{c} = gpuArray(source.values{c});
+            end
+        end
+
+         function source = cast(obj, type)
+            % Converts the source data to the specified type ('single' or 'double')
+            source = obj;
+            for c=1:numel(source.positions)
+                source.values{c} = cast(source.values{c}, type);
+            end
+        end
+
+        function E = add_to(obj, E, A)
+            % pre-multiplies the source by A and adds it to E
+            
+            % process all sources
+            for c=1:numel(obj.positions)
+                % determine size of overlap
+                pos = obj.positions{c};
+                sz  = Source.make4(size(obj.values{c}));
+               %TODO: the code below is really slow on a gpu because
                 % of the indexing. Fortunately we don't call it often in 
                 % wavesim, but for PSTD it is _the_ bottleneck
                 %
                 % it appears that it is already 50% faster if we convert the
                 % indices to int64 first! (for a 1x400x1 array set)
                 %%
-                tls = int64(tls);
-                brs = int64(brs);
-                tlt = int64(tlt);
-                brt = int64(brt);
+                tlt = int64(pos);
+                brt = int64(pos + sz - 1);
         
                 %add source, multiplied by prefactor A
                 E(tlt(1):brt(1), tlt(2):brt(2), tlt(3):brt(3), tlt(4):brt(4)) =...
                         E(tlt(1):brt(1), tlt(2):brt(2), tlt(3):brt(3), tlt(4):brt(4)) + ...
-                        A * obj.values{c}(tls(1):brs(1), tls(2):brs(2), tls(3):brs(3), tls(4):brs(4));
+                        A * obj.values{c};
              end
         end
     end

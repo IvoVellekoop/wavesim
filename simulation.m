@@ -81,8 +81,16 @@ classdef simulation
 % source    is a 'source' object (see documentation for source)
 %
             tic;
-            state.source = source.prepare(obj);
-            state.source_energy = source.energy;
+            % shift source so that [1,1,1] corresponds to start of roi
+            % then clips source so that anything outside the simulation
+            % grid is removed. Note: it is still allowed to put a
+            % source energy outside of the roi, but inside the grid (that
+            % is, inside the boundary).
+            % finally, convert to correct data type (single, double,
+            % gpuarray or not)
+            %
+            state.source = obj.data_array(source).shift(obj.roi(1,:)).crop([1,1,1,1; obj.N]);
+            state.source_energy = state.source.energy;
             
             %%% prepare state (contains all data that is unique to a single 
             % run of the simulation)

@@ -50,7 +50,7 @@ for t_i=1:length(dt_relative_range)
     sopt.dt_relative = dt_relative_range(t_i);
     sim = PSTD(sample, sopt);
     iterations_per_wavelength(t_i+1) = sim.iterations_per_cycle;
-    [E, state] = exec(sim, source);
+    [E, state] = sim.exec(source);
     
     %%compare simulation result with exact value
     difference=E(1,:)-E_theory;

@@ -125,7 +125,7 @@ classdef wavesim_base < simulation
             %% simulation iterations
             while state.has_next
                 if (state.it == 1)
-                    Ediff = obj.mix(Ediff, obj.propagate(state.source.add_to(data_array(obj), obj.roi, 1.0i/obj.epsilon)), obj.gamma);
+                    Ediff = obj.mix(Ediff, obj.propagate(state.source.add_to(data_array(obj), 1.0i/obj.epsilon)), obj.gamma);
                 else
                     Ediff = obj.mix(Ediff, obj.propagate(Ediff), obj.gamma);
                 end
