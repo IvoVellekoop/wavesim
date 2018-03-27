@@ -1,4 +1,4 @@
-classdef wavesimv < wavesim_base
+classdef WaveSimVector < WaveSimBase
     % Implementation of the modified Born series approach for
     % vector waves
     %
@@ -9,8 +9,8 @@ classdef wavesimv < wavesim_base
     properties
     end
     methods
-        function obj=wavesimv(sample, options)
-            obj@wavesim_base(sample, options);
+        function obj=WaveSimVector(sample, options)
+            obj@WaveSimBase(sample, options);
             obj.roi(4,2) = 3; %3-polarization planes
             obj.N(4)     = 3;
             % Set up propagation function (convolution with Green's function)
@@ -24,12 +24,12 @@ classdef wavesimv < wavesim_base
             eps = obj.data_array(obj.epsilon);
             
             if obj.gpu_enabled
-                obj.propagate = @(E) wavesimv.propagate_gpu(E, px, py, pz, k0e, eps);
+                obj.propagate = @(E) WaveSimVector.propagate_gpu(E, px, py, pz, k0e, eps);
             else
 %                p = zeros(obj.N);
 %                [p(:,:,:,1), p(:,:,:,2), p(:,:,:,3)] = ndgrid(obj.px, obj.py, obj.pz);
                 g0_k = obj.epsilon ./ (px.^2+py.^2+pz.^2-k0e);
-                obj.propagate = @(E) wavesimv.propagate_cpu(E, px, py, pz, k0e, g0_k);
+                obj.propagate = @(E) WaveSimVector.propagate_cpu(E, px, py, pz, k0e, g0_k);
             end
         end
     end

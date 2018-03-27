@@ -1,5 +1,5 @@
-classdef SampleMedium
-% SampleMedium - Generates a sample object for use in wave
+classdef Medium
+% Medium - Generates a sample object for use in wave
 % simulations (wavesim, PSTD)
 % Ivo Vellekoop 2017
     properties
@@ -13,8 +13,8 @@ classdef SampleMedium
         leakage = 0
     end
     methods
-        function obj = SampleMedium(refractive_index, options)
-            % SampleMedium - Generates a sample object for use in wave
+        function obj = Medium(refractive_index, options)
+            % Medium - Generates a sample object for use in wave
             % simulations (wavesim, PSTD, FDTD)
             % 
             % internally, the object stores a map of the relative dielectric
@@ -57,15 +57,15 @@ classdef SampleMedium
             % construct coordinate set. 
             % padds to next efficient size for fft in each dimension, and makes sure to
             % append at least 'boundary_widths' pixels on both sides.
-            sz = SampleMedium.make3(size(obj.e_r), 1);
-            bw = SampleMedium.make3(options.boundary_widths * 2, 0);
-            obj.grid = simgrid(sz + bw, options.pixel_size, bw==0);
+            sz = Medium.make3(size(obj.e_r), 1);
+            bw = Medium.make3(options.boundary_widths * 2, 0);
+            obj.grid = SimulationGrid(sz + bw, options.pixel_size, bw==0);
 
             % applies the padding, extrapolating the refractive index map to
             % into the added regions
-            [obj.e_r, obj.roi, Bl, Br] = SampleMedium.extrapolate(obj.e_r, obj.grid.N);
-            [obj.e_r, obj.leakage] = SampleMedium.add_absorbing_boundaries(obj.e_r, Bl, Br, options); 
-            obj.filters = SampleMedium.edge_filters(obj.grid.N, Bl, Br, options);
+            [obj.e_r, obj.roi, Bl, Br] = Medium.extrapolate(obj.e_r, obj.grid.N);
+            [obj.e_r, obj.leakage] = Medium.add_absorbing_boundaries(obj.e_r, Bl, Br, options); 
+            obj.filters = Medium.edge_filters(obj.grid.N, Bl, Br, options);
         end
     end
     methods (Static)
@@ -86,7 +86,7 @@ classdef SampleMedium
             
             % Calculate effective boundary width (absorbing boundaries + padding)
             % on left and right hand side, respectively.
-            roi_size = SampleMedium.make3(size(e_r), 1);
+            roi_size = Medium.make3(size(e_r), 1);
             Bl = ceil((new_size - roi_size) / 2); 
             Br = floor((new_size - roi_size) / 2); %effective boundary width (absorbing boundaries + padding)
             
@@ -140,12 +140,12 @@ classdef SampleMedium
                 otherwise
                     error(['unknown boundary type' obj.boundary_type]);
             end
-            roi_size = SampleMedium.make3(size(e_r), 1) - Bl - Br;
-            x = [(Bl(1):-1:1), zeros(1, roi_size(1)), (1:Br(1))];
-            y = [(Bl(2):-1:1), zeros(1, roi_size(2)), (1:Br(2))];
+            roi_size = Medium.make3(size(e_r), 1) - Bl - Br;
+            x = [(Bl(2):-1:1), zeros(1, roi_size(2)), (1:Br(2))];
+            y = [(Bl(1):-1:1), zeros(1, roi_size(1)), (1:Br(1))];
             z = [(Bl(3):-1:1), zeros(1, roi_size(3)), (1:Br(3))];
-            x = reshape(x, [length(x),1,1]);
-            y = reshape(y, [1,length(y),1]);
+            x = reshape(x, [1,length(x),1]);
+            y = reshape(y, [length(y),1,1]);
             z = reshape(z, [1,1,length(z)]);
             e_r = e_r + f_boundary_curve(sqrt(x.^2 + y.^2 + z.^2));
         end

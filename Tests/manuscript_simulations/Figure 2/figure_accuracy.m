@@ -27,16 +27,16 @@ iterations_per_wavelength = zeros(1, length(dt_relative_range)+1);
 
 %% define a plane wave source and create homogeneous sample
 source = Source(ones(N(1),1));
-sample = SampleMedium(ones(N), mopt);
+sample = Medium(ones(N), mopt);
 
 %% create wavesim object and run the wave propagation simulation
-sim = wavesim(sample, sopt);
+sim = WaveSim(sample, sopt);
 [E, state] = sim.exec(source);
 iterations_per_wavelength(1) = sim.iterations_per_cycle;
 
 %% calculate exact solution analytically
 k0 = 2*pi/sopt.lambda;
-E_theory=homogeneous_medium_analytic_solution(k0, mopt.pixel_size, sim.y_range);
+E_theory=homogeneous_medium_analytic_solution(k0, mopt.pixel_size, sim.x_range);
 
 % compute relative error of wavesim
 difference=E(1,:)-E_theory;

@@ -1,4 +1,4 @@
-classdef wavesim < wavesim_base
+classdef WaveSim < WaveSimBase
     % Implementation of the modified Born series approach for
     % scalar waves
     %
@@ -9,8 +9,8 @@ classdef wavesim < wavesim_base
     properties
     end
     methods
-        function obj = wavesim(sample, options)
-            obj@wavesim_base(sample, options);
+        function obj = WaveSim(sample, options)
+            obj@WaveSimBase(sample, options);
             
             % Set up propagation function (convolution with Green's function)
             % the Green's function is pre-multiplied by epsilon to reduce the

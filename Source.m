@@ -49,7 +49,7 @@ classdef Source
             % todo: properly account for overlapping sources!
             source_energy = 0;
             for c=1:numel(obj.positions)
-                source_energy = source_energy + simulation.energy(obj.values{c});
+                source_energy = source_energy + Simulation.energy(obj.values{c});
             end
         end
         

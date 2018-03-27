@@ -1,4 +1,4 @@
-classdef PSTD < simulation
+classdef PSTD < Simulation
     %Simulation of the 2-D wave equation using PSTD
     % Saroch Leedumrongwatthanakun 2015
     
@@ -24,7 +24,7 @@ classdef PSTD < simulation
             %   options.wavelength = free space wavelength (same unit as pixel_size, e. g. um)
             %   options.dt         = time step (leave empty unless forcing a specific value)
             %   options.time_duration = time duration of whole simulation
-            obj@simulation(sample, options);
+            obj@Simulation(sample, options);
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             
             %% Calculate time step dt
@@ -102,7 +102,7 @@ classdef PSTD < simulation
                 
                 if state.calculate_energy
                     phase_shift = exp(1.0i*(angle(A)-angle(A_prev))); %expected phase shift for single step (only works for CW source!!)
-                    state.last_step_energy = wavesim.energy(E_next - state.E * phase_shift, obj.roi) / abs(A)^2;
+                    state.last_step_energy = Simulation.energy(E_next - state.E * phase_shift, obj.roi) / abs(A)^2;
                     if (A<0.5) %workaround: don't terminate when source is still spinning up
                         state.last_step_energy = max(state.last_step_energy, obj.energy_threshold*2/state.source_energy);
                     end

@@ -1,4 +1,4 @@
-classdef wavesim_base < simulation
+classdef WaveSimBase < Simulation
     % Base class for the simulation of 2-D or 3-D wave equations using
     % the modified Born series approach
     % This class is overridden by wavesim (for scalar simulations)
@@ -21,12 +21,12 @@ classdef wavesim_base < simulation
     end
     
     methods
-        function obj=wavesim_base(sample, options)
+        function obj = WaveSimBase(sample, options)
             %% Constructs a wave simulation object
             %	sample = SampleMedium object
             %   options.lambda = free space wavelength (same unit as pixel_size, e. g. um)
             %   options.epsilon = convergence parameter (leave empty unless forcing a specific value)
-            obj@simulation(sample, options);
+            obj@Simulation(sample, options);
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             
             %% Determine k_0 to minimize epsilon
@@ -131,7 +131,7 @@ classdef wavesim_base < simulation
                 end
                 
                 if state.calculate_energy
-                   state.last_step_energy = simulation.energy(Ediff ./ obj.gamma, obj.roi);
+                   state.last_step_energy = Simulation.energy(Ediff ./ obj.gamma, obj.roi);
                 end
                 
                 state.E = state.E + Ediff;

@@ -1,4 +1,4 @@
-classdef simgrid
+classdef SimulationGrid
     %grid parameters for simulation
     % Ivo M. Vellekoop
     properties
@@ -13,7 +13,7 @@ classdef simgrid
         pz_range % grid point coordinates in Fourier transformed z-dimension
     end
     methods
-       function obj = simgrid(min_size, dx, pad)
+       function obj = SimulationGrid(min_size, dx, pad)
             % Construct a wave simulation grid object with specified size (2-D or 3-D)
             % as a convention, the first, second, and third indices address the
             % x, y, and z dimensions, respectively.
@@ -27,16 +27,16 @@ classdef simgrid
             assert(isequal(size(pad), [1,3]));
             
             N = min_size;
-            N(pad) = simgrid.efficient_size(min_size(pad)); %increase size to efficient number for fft
+            N(pad) = SimulationGrid.efficient_size(min_size(pad)); %increase size to efficient number for fft
             
             obj.padding = N - min_size; %total amount of zero padding. Placed at right and bottom sides only (non-centric)
             obj.dx = dx;
-            obj.x_range = reshape((0:(N(1)-1))*dx, [N(1), 1, 1]);
-            obj.y_range = reshape((0:(N(2)-1))*dx, [1, N(2), 1]);
+            obj.x_range = reshape((0:(N(2)-1))*dx, [1, N(2), 1]);
+            obj.y_range = reshape((0:(N(1)-1))*dx, [N(1), 1, 1]);
             obj.z_range = reshape((0:(N(3)-1))*dx, [1, 1, N(3)]);
-            obj.px_range = reshape(2*pi*simgrid.symrange(N(1))/(dx*N(1)), [N(1), 1, 1]);
-            obj.py_range = reshape(2*pi*simgrid.symrange(N(2))/(dx*N(2)), [1, N(2), 1]);
-            obj.pz_range = reshape(2*pi*simgrid.symrange(N(3))/(dx*N(3)), [1, 1, N(3)]);
+            obj.px_range = reshape(2*pi*SimulationGrid.symrange(N(2))/(dx*N(2)), [1, N(2), 1]);
+            obj.py_range = reshape(2*pi*SimulationGrid.symrange(N(1))/(dx*N(1)), [N(1), 1, 1]);
+            obj.pz_range = reshape(2*pi*SimulationGrid.symrange(N(3))/(dx*N(3)), [1, 1, N(3)]);
             obj.N = N;
        end
     end

@@ -1,4 +1,4 @@
-classdef simulation
+classdef Simulation
     %Base class for a 2-D wave simulation
     % Ivo M. Vellekoop 2015-2018
     %
@@ -29,7 +29,7 @@ classdef simulation
         lambda = 1; %wavelength (default = 1 unit)      
         gpu_enabled = gpuDeviceCount > 0; % flag to determine if simulation are run on the GPU (default: run on GPU if we have one)
         single_precision = false; % flag to determine if single precision is used (default: double)
-        callback = @simulation.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
+        callback = @Simulation.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
         callback_interval = 50; %the callback is called every 'callback_interval' steps. Default = 5
         energy_threshold = 1E-20; %the simulation stops when the difference for a step is less than 'energy_threshold'
         energy_calculation_interval = 10; %only calculate energy difference every N steps (to reduce overhead)
@@ -39,7 +39,7 @@ classdef simulation
     end
     
     methods
-        function obj=simulation(sample, options)
+        function obj = Simulation(sample, options)
             %% Constructs a simulation object
             %	sample = SampleMedium object
             %   options = simulation options. 
@@ -58,9 +58,9 @@ classdef simulation
             obj.grid = sample.grid;
             obj.roi  = [sample.roi, [1;1]]; %vector simulation objects change the last column to [1;3] to indicate 3 polarization channels.
             obj.N    = [obj.grid.N, 1]; %vector simulations set last parameter to 3
-            obj.x_range = sample.grid.x_range(obj.roi(1,1):obj.roi(2,1));
+            obj.x_range = sample.grid.x_range(obj.roi(1,2):obj.roi(2,2));
             obj.x_range = obj.x_range - obj.x_range(1);
-            obj.y_range = sample.grid.y_range(obj.roi(1,2):obj.roi(2,2));
+            obj.y_range = sample.grid.y_range(obj.roi(1,1):obj.roi(2,1));
             obj.y_range = obj.y_range - obj.y_range(1);
             obj.z_range = sample.grid.z_range(obj.roi(1,3):obj.roi(2,3));
             obj.z_range = obj.z_range - obj.z_range(1);
@@ -77,7 +77,7 @@ classdef simulation
         end
         
         function [E, state] = exec(obj, source)
- %% exec Executes the simulation with the given source
+% EXEC Executes the simulation with the given source
 % source    is a 'source' object (see documentation for source)
 %
             tic;
