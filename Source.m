@@ -17,16 +17,21 @@ classdef Source
     end
     
     methods
-        function obj = Source(position, value)
+        function obj = Source(value, position)
             % Creates a new source at the specified position
-            % pos = relative position of source within roi of the simulation
-            %       for vector simulations, specify a 4-element vector
-            %       where the last element represents the polarization
-            %       (1=x, 2=y, 3=z).
             %
             % value = scalar (for a point source), or any array (1-D, 2-D,
             %       3-D, 4-D) describing the amplitude and dimensions
             %       of the source.
+            %
+            % position = relative position of source within roi of the simulation
+            %       for vector simulations, specify a 4-element vector
+            %       where the last element represents the polarization
+            %       (1=x, 2=y, 3=z). Defaults to [1,1,1,1]
+            %
+            if nargin < 2
+                position = [1,1,1,1];
+            end
             obj.positions = cell(1,1);
             obj.positions{1} = Source.make4(position);
             obj.values = cell(1,1);
@@ -61,12 +66,14 @@ classdef Source
         function source = crop(obj, roi)
             % Removes all parts of the sources that fall outside of the roi
             source = obj;
+            keep = ones(1, numel(source.positions), 'logical');
             for c=1:numel(source.positions)
                 pos = source.positions{c};
                 sz  = Source.make4(size(source.values{c}));
                 tlt = max(roi(1,:), pos); %top left corner target
                 brt = min(roi(2,:), pos + sz - 1); %bottom right corner target
                 if any(tlt > brt)
+                    keep(c) = 0;
                     continue; %overlap is empty
                 end
                 tls = tlt - pos + 1; %top left corner source
@@ -74,8 +81,14 @@ classdef Source
                 source.values{c} = source.values{c}(tls(1):brs(1), tls(2):brs(2), tls(3):brs(3), tls(4):brs(4));
                 source.positions{c} = tlt;
             end
+            source.values = source.values(keep);
+            source.positions = source.positions(keep);
         end
 
+        function empty = isEmpty(obj)
+            empty = numel(obj.values) == 0;
+        end
+        
         function source = gpuArray(obj)
             % Places the source data on the gpu
             source = obj;
@@ -100,8 +113,8 @@ classdef Source
                 % determine size of overlap
                 pos = obj.positions{c};
                 sz  = Source.make4(size(obj.values{c}));
-               %TODO: the code below is really slow on a gpu because
-                % of the indexing. Fortunately we don't call it often in 
+                %Note: the code below is relatively slow for small array on a gpu
+                % this is because of the the indexing. Fortunately we don't call it often in 
                 % wavesim, but for PSTD it is _the_ bottleneck
                 %
                 % it appears that it is already 50% faster if we convert the

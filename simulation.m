@@ -81,16 +81,25 @@ classdef simulation
 % source    is a 'source' object (see documentation for source)
 %
             tic;
+            % convert the source to the correct data type (single, double,
+            % gpuarray or not).
             % shift source so that [1,1,1] corresponds to start of roi
-            % then clips source so that anything outside the simulation
-            % grid is removed. Note: it is still allowed to put a
+            % then crops source so that anything outside the simulation
+            % grid is removed. Note: it is allowed to put a
             % source energy outside of the roi, but inside the grid (that
-            % is, inside the boundary).
-            % finally, convert to correct data type (single, double,
-            % gpuarray or not)
+            % is, inside the absorbing boundary).
             %
-            state.source = obj.data_array(source).shift(obj.roi(1,:)).crop([1,1,1,1; obj.N]);
+            state.source = obj.data_array(source)...
+                              .shift(obj.roi(1,:))...
+                              .crop([1,1,1,1; obj.N]);
             state.source_energy = state.source.energy;
+            if state.source_energy == 0
+                warning('There is no source inside the grid boundaries, aborting');
+                state.E = data_array(obj); %return empty array for consistency4
+                E = gather(state.E(obj.roi(1,1):obj.roi(2,1), obj.roi(1,2):obj.roi(2,2), obj.roi(1,3):obj.roi(2,3), obj.roi(1,4):obj.roi(2,4)));
+                state.time = toc;
+                return;
+            end
             
             %%% prepare state (contains all data that is unique to a single 
             % run of the simulation)
@@ -149,9 +158,9 @@ classdef simulation
             end
             state.it = state.it+1;
         end
- %   end
+    end
     
-%    methods(Access = protected)
+    methods(Access = protected)
         function d = data_array(obj, data)
             % Creates an array of dimension obj.N. If gpuEnabled is true, the array is created on the gpu
             % Check whether single precision and gpu computation options are enabled

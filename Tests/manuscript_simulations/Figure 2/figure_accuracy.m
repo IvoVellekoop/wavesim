@@ -26,7 +26,7 @@ relative_error = zeros(1, length(dt_relative_range)+1);
 iterations_per_wavelength = zeros(1, length(dt_relative_range)+1);
 
 %% define a plane wave source and create homogeneous sample
-source = Source([1, 1], ones(N(1),1));
+source = Source(ones(N(1),1));
 sample = SampleMedium(ones(N), mopt);
 
 %% create wavesim object and run the wave propagation simulation
