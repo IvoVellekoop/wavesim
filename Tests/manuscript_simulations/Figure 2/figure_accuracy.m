@@ -11,6 +11,7 @@ PPW=4; %points per wavelength = lambda/h
 sopt.lambda = 1; %wavelength in vacuum (in um)
 sopt.callback_interval = 100;
 sopt.max_iterations = 60000;
+sopt.energy_threshold = 10E-12;
 
 dt_relative_range = 1./2.^(0:0.5:12.5);
 

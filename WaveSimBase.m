@@ -119,13 +119,13 @@ classdef WaveSimBase < Simulation
             %% Allocate memory for calculations
             % start iteration with the source term (pre-multiplied by 1.0i/obj.epsilon. epsilon to compensate for pre-multiplication of G):
             % pre-multiply by gamma/epsilon
-            state.E = data_array(obj);
-            Ediff = data_array(obj);
+            state.E = 0;
+            Ediff = obj.data_array([], obj.N);
             
             %% simulation iterations
             while state.has_next
-                if (state.it == 1)
-                    Ediff = obj.mix(Ediff, obj.propagate(state.source.add_to(data_array(obj), 1.0i/obj.epsilon)), obj.gamma);
+                if state.it == 1
+                    Ediff = obj.mix(Ediff, obj.propagate(state.source.add_to(Ediff, 1.0i / obj.epsilon)), obj.gamma);
                 else
                     Ediff = obj.mix(Ediff, obj.propagate(Ediff), obj.gamma);
                 end
@@ -134,10 +134,18 @@ classdef WaveSimBase < Simulation
                    state.last_step_energy = Simulation.energy(Ediff ./ obj.gamma, obj.roi);
                 end
                 
-                state.E = state.E + Ediff;
+                state.E = state.E + Ediff(...
+                    obj.output_roi(1,1):obj.output_roi(2,1),...
+                    obj.output_roi(1,2):obj.output_roi(2,2),...
+                    obj.output_roi(1,3):obj.output_roi(2,3),...
+                    obj.output_roi(1,4):obj.output_roi(2,4));
                 state = next(obj, state);
             end
-            state.E = state.E ./ obj.gamma;
+            state.E = state.E ./ obj.gamma(...
+                obj.output_roi(1,1):obj.output_roi(2,1),...
+                    obj.output_roi(1,2):obj.output_roi(2,2),...
+                    obj.output_roi(1,3):obj.output_roi(2,3),...
+                    obj.output_roi(1,4):obj.output_roi(2,4));
         end
     end
 end

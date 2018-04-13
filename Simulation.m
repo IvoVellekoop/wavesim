@@ -16,6 +16,20 @@ classdef Simulation
     % through the 'state' variable that is an optional return argument.
     %
     properties
+        %options:
+        output_roi = []; % Part of the simulated field that is returned as output, 
+        %                  Defaults to the full medium. To save memory, a smaller
+        %                  output_roi can be specified.
+        lambda = 1;      % Wavelength (default = 1 unit)      
+        gpu_enabled = gpuDeviceCount > 0; % flag to determine if simulation are run on the GPU (default: run on GPU if we have one)
+        single_precision = false; % flag to determine if single precision is used (default: double)
+        callback = @Simulation.default_callback; % callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
+        callback_interval = 50; % the callback is called every 'callback_interval' steps. Default = 5
+        energy_threshold = 1E-20; % the simulation stops when the difference for a step is less than 'energy_threshold'
+        energy_calculation_interval = 10; % only calculate energy difference every N steps (to reduce overhead)
+        max_cycles = inf; % number of wave periods to run the simulation. The number of actual iterations per cycle depends on the algorithm and its parameters
+        
+        %internal:
         grid; % simgrid object
         roi; % position of simulation area with respect to padded array.
         %      this matrix contains 2 rows, one for the start index and one for
@@ -26,14 +40,6 @@ classdef Simulation
         x_range; %x-coordinates of roi
         y_range; %y-coordinates of roi
         z_range; %z-coordinates of roi
-        lambda = 1; %wavelength (default = 1 unit)      
-        gpu_enabled = gpuDeviceCount > 0; % flag to determine if simulation are run on the GPU (default: run on GPU if we have one)
-        single_precision = false; % flag to determine if single precision is used (default: double)
-        callback = @Simulation.default_callback; %callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
-        callback_interval = 50; %the callback is called every 'callback_interval' steps. Default = 5
-        energy_threshold = 1E-20; %the simulation stops when the difference for a step is less than 'energy_threshold'
-        energy_calculation_interval = 10; %only calculate energy difference every N steps (to reduce overhead)
-        max_cycles = 0; %number of wave periods to run the simulation. The number of actual iterations per cycle depends on the algorithm and its parameters
         %internal:
         iterations_per_cycle;%must be set by derived class
     end
@@ -57,6 +63,13 @@ classdef Simulation
             
             obj.grid = sample.grid;
             obj.roi  = [sample.roi, [1;1]]; %vector simulation objects change the last column to [1;3] to indicate 3 polarization channels.
+            if isempty(obj.output_roi)
+                obj.output_roi = obj.roi; % by default return the full field
+            else
+                obj.output_roi = [Source.make4(obj.output_roi(1,:)); Source.make4(obj.output_roi(2,:))];
+                obj.output_roi = obj.output_roi + obj.roi(1,:) - 1; %shift to match grid coordinates
+            end
+                
             obj.N    = [obj.grid.N, 1]; %vector simulations set last parameter to 3
             obj.x_range = sample.grid.x_range(obj.roi(1,2):obj.roi(2,2));
             obj.x_range = obj.x_range - obj.x_range(1);
@@ -70,10 +83,10 @@ classdef Simulation
             % times. Note that this will not be sufficient if there are
             % significant reflections.
             %
-            if (obj.max_cycles == 0)
-                LN = sqrt(length(obj.x_range).^2 + length(obj.y_range)^2 + length(obj.z_range)^2);
-                obj.max_cycles = LN * obj.grid.dx / obj.lambda * 2;
-            end
+            %if (obj.max_cycles == 0)
+            %    LN = sqrt(length(obj.x_range).^2 + length(obj.y_range)^2 + length(obj.z_range)^2);
+            %    obj.max_cycles = LN * obj.grid.dx / obj.lambda * 2;
+            %end
         end
         
         function [E, state] = exec(obj, source)
@@ -92,12 +105,9 @@ classdef Simulation
             state.source = obj.data_array(source)...
                               .shift(obj.roi(1,:))...
                               .crop([1,1,1,1; obj.N]);
-            state.source_energy = state.source.energy;
+            state.source_energy = sum(state.source.energy);
             if state.source_energy == 0
-                warning('There is no source inside the grid boundaries, aborting');
-                state.E = data_array(obj); %return empty array for consistency4
-                E = gather(state.E(obj.roi(1,1):obj.roi(2,1), obj.roi(1,2):obj.roi(2,2), obj.roi(1,3):obj.roi(2,3), obj.roi(1,4):obj.roi(2,4)));
-                state.time = toc;
+                warning('There is no source inside the grid boundaries, expect to get zero field everywhere.');
                 return;
             end
             
@@ -106,7 +116,7 @@ classdef Simulation
             %
             state.it = 1; %iteration
             state.max_iterations = ceil(obj.max_cycles * obj.iterations_per_cycle);
-            state.diff_energy = zeros(state.max_iterations,1);
+            state.diff_energy = [];
             state.last_step_energy = inf;
             state.calculate_energy = true;
             state.has_next = true;
@@ -128,9 +138,7 @@ classdef Simulation
                 disp(['Time consumption: ' num2str(state.time) ' s']);
             end
             
-            %% return only part inside roi. Array remains on the gpu if gpuEnabled = true
-            E = state.E(obj.roi(1,1):obj.roi(2,1), obj.roi(1,2):obj.roi(2,2), obj.roi(1,3):obj.roi(2,3), obj.roi(1,4):obj.roi(2,4));
-            E = gather(E); % converting gpuArray back to normal array
+            E = gather(state.E); % convert gpuArray back to normal array
         end
         
         %% Continue to the next iteration. Returns false to indicate that the simulation has terminated
@@ -139,10 +147,11 @@ classdef Simulation
             state.diff_energy(state.it) = state.last_step_energy / state.source_energy;
             
             %% check if simulation should terminate
-            if (state.diff_energy(state.it) < obj.energy_threshold)
+            can_terminate = mod(state.it, numel(state.source)) == 0;
+            if can_terminate && state.diff_energy(state.it) < obj.energy_threshold
                 state.has_next = false;
                 state.converged = true;
-            elseif (state.it >= state.max_iterations)
+            elseif can_terminate && state.it >= state.max_iterations
                 state.has_next = false;
                 state.converged = false;
             else
@@ -161,8 +170,14 @@ classdef Simulation
     end
     
     methods(Access = protected)
-        function d = data_array(obj, data)
-            % Creates an array of dimension obj.N. If gpuEnabled is true, the array is created on the gpu
+        function d = data_array(obj, data, N)
+            % data_array(obj, data) - converts the data to an array of the correct format
+            %                         if gpu_enabled is true, the array is created on the gpu
+            %                         the data is converted to
+            %                         single/double precision based on the
+            %                         options set when creating the
+            %                         simulation object.
+            % data_array(obj, [], N)- creates an empty array (filled with zeros) of size N
             % Check whether single precision and gpu computation options are enabled
             if obj.single_precision
                 p = 'single';
@@ -170,11 +185,12 @@ classdef Simulation
                 p = 'double';
             end
             
-            if nargin < 2 %no data is specified, fill with zeros
+            %obj.N
+            if isempty(data) %no data is specified, generate empty array of specified size
                 if obj.gpu_enabled
-                    d = zeros(obj.N, p, 'gpuArray');  
+                    d = zeros(N, p, 'gpuArray');  
                 else
-                    d = zeros(obj.N, p);
+                    d = zeros(N, p);
                 end
                 return;
             end
@@ -199,8 +215,8 @@ classdef Simulation
         function abs_image_callback(obj, state)
             figure(1);
             E = state.E;
-            zpos = ceil(size(E, 3)/2);
-            imagesc(abs(E(:,:,zpos)));
+            imagesc(abs(E(:,:,ceil(end/2), 1, ceil(end/2))));
+            axis image;
             title(['Differential energy ' num2str(state.diff_energy(state.it))]);
             drawnow;
         end

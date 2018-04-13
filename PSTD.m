@@ -68,8 +68,8 @@ classdef PSTD < Simulation
         
         function state = run_algorithm(obj, state)
             %% Allocate memory for calculations
-            state.E = data_array(obj);
-            E_prev = data_array(obj);
+            state.E = obj.data_array([], obj.N);
+            E_prev = obj.data_array([], obj.N);
             A = 1; %source amplitude
             %todo: gpuarray for c1,c2,c3 and koperator
             %% iterate algorithm
@@ -113,9 +113,14 @@ classdef PSTD < Simulation
                 state = next(obj, state);
             end
             
-            %finally, compensate for phase of source
+            %finally, crop to output_roi and compensate for phase of source
             A_next = obj.source_amplitude(state.it / obj.iterations_per_cycle);
-            state.E = state.E * exp(-1.0i*angle(A_next));
+            state.E = state.E(...
+                obj.output_roi(1,1):obj.output_roi(2,1),...
+                obj.output_roi(1,2):obj.output_roi(2,2),...
+                obj.output_roi(1,3):obj.output_roi(2,3),...
+                obj.output_roi(1,4):obj.output_roi(2,4))...
+                    * exp(-1.0i*angle(A_next));
         end
     end
     methods(Static)
