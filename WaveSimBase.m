@@ -16,6 +16,7 @@ classdef WaveSimBase < Simulation
         epsilon; % convergence parameter
         mix;     % function handle to function performing the mixing step
         propagate; % function handle to function performing the propagation step
+        wiggle;  % 'true' indicates that the anti-wraparound algorithm is used
         %% diagnostics and feedback
         epsilonmin; %minimum value of epsilon for which convergence is guaranteed (equal to epsilon, unless a different value for epsilon was forced)
     end
