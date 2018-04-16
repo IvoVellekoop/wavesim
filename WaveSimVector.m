@@ -11,7 +11,7 @@ classdef WaveSimVector < WaveSimBase
     methods
         function obj=WaveSimVector(sample, options)
             obj@WaveSimBase(sample, options);
-            obj.roi(4,2) = 3; %3-polarization planes
+            obj.roi(2,4) = 3; %3-polarization planes
             obj.N(4)     = 3;
             % Set up propagation function (convolution with Green's function)
             % the Green's function is pre-multiplied by epsilon to reduce the
