@@ -1,4 +1,4 @@
-classdef WaveSimBase < Simulation
+classdef(Abstract) WaveSimBase < Simulation
     % Base class for the simulation of 2-D or 3-D wave equations using
     % the modified Born series approach
     % This class is overridden by wavesim (for scalar simulations)
@@ -15,12 +15,19 @@ classdef WaveSimBase < Simulation
         k;       % wave number for g0
         epsilon; % convergence parameter
         mix;     % function handle to function performing the mixing step
-        propagate; % function handle to function performing the propagation step
         wiggle;  % 'true' indicates that the anti-wraparound algorithm is used
         %% diagnostics and feedback
         epsilonmin; %minimum value of epsilon for which convergence is guaranteed (equal to epsilon, unless a different value for epsilon was forced)
-    end
     
+        % precomputed vectors and constants (pre-divided by sqrt epsilon)
+        pxe;
+        pye;
+        pze;
+        k02e;
+    end
+    methods(Abstract)
+        propagate(obj); % function performing the propagation step        
+    end
     methods
         function obj = WaveSimBase(sample, options)
             %% Constructs a wave simulation object
@@ -63,6 +70,13 @@ classdef WaveSimBase < Simulation
             obj.gamma = obj.data_array(obj.gamma);
             obj.epsilon = obj.data_array(obj.epsilon);
             
+            %pre-scale Fourier coordinates to optimize the propagation
+            %functions a bit
+            obj.pxe = obj.data_array(obj.grid.px_range)/sqrt(obj.epsilon);
+            obj.pye = obj.data_array(obj.grid.py_range)/sqrt(obj.epsilon);
+            obj.pze = obj.data_array(obj.grid.pz_range)/sqrt(obj.epsilon);
+            obj.k02e = obj.data_array(obj.k^2/obj.epsilon + 1.0i);
+        
             %%define function for the mixing step:
             % Ediff = (1-gamma) Ediff + gamma^2 [G Ediff]
             % (where [G Ediff] is the propagated field)
