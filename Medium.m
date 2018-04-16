@@ -165,7 +165,7 @@ classdef Medium
                 roi_size = full_size(dim) - bl - br;
                 if bl > 0
                     L = options.ar_width(dim); % width of window
-                    %window = hamming(L);
+                   % window = parzenwin(L);
                     window = nuttallwin(L);
                     smoothstep = cumsum(window)/sum(window); % integrate window to get step function
                     filt = [zeros(bl-L, 1); smoothstep; ones(roi_size, 1); flipud(smoothstep); zeros(br-L, 1)];
