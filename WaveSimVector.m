@@ -14,19 +14,29 @@ classdef WaveSimVector < WaveSimBase
             obj.roi(2,4) = 3; %3-polarization planes
             obj.N(4)     = 3;
         end
-        function E = propagate(obj, E)
+        function E = propagate(obj, E, wiggle)
             % calculate (I - p p^T / (k_0^2+i epsilon)
+            if obj.gpu_enabled
+                E = arrayfun(f_wiggle, E, wiggle.x, wiggle.y, wiggle.z);
+            else
+                E = f_wiggle(E, wiggle.x, wiggle.y, wiggle.z);
+            end
             fEx = fftn(E(:,:,:,1));
             fEy = fftn(E(:,:,:,2));
             fEz = fftn(E(:,:,:,3));
             if obj.gpu_enabled
-                [fEx, fEy, fEz] = arrayfun(f_g0_vector, fEx, fEy, fEz, obj.pxe, obj.pye, obj.pze, obj.k02e);
+                [fEx, fEy, fEz] = arrayfun(f_g0_vector, fEx, fEy, fEz, wiggle.pxe, wiggle.pye, wiggle.pze, obj.k02e);
             else
-                [fEx, fEy, fEz] = f_g0_vector(fEx, fEy, fEz, obj.pxe, obj.pye, obj.pze, obj.k02e);
+                [fEx, fEy, fEz] = f_g0_vector(fEx, fEy, fEz, obj.pxe, wiggle.pye, wiggle.pze, wiggle.k02e);
             end    
             E(:,:,:,1) = ifftn(fEx);
             E(:,:,:,2) = ifftn(fEy);
             E(:,:,:,3) = ifftn(fEz);
+            if obj.gpu_enabled
+                E = arrayfun(f_wiggle, E, conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
+            else
+                E = f_wiggle(E, conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
+            end
         end
     end
 end

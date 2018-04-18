@@ -8,6 +8,9 @@ classdef SimulationGrid
         x_range % grid point coordinates in x-dimension
         y_range % grid point coordinates in y-dimension
         z_range % grid point coordinates in z-dimension
+        dpx % step size in px
+        dpy % step size in py
+        dpz % step size in pz
         px_range % grid point coordinates in Fourier transformed x-dimension
         py_range % grid point coordinates in Fourier transformed y-dimension
         pz_range % grid point coordinates in Fourier transformed z-dimension
@@ -34,9 +37,12 @@ classdef SimulationGrid
             obj.x_range = reshape((0:(N(2)-1))*dx, [1, N(2), 1]);
             obj.y_range = reshape((0:(N(1)-1))*dx, [N(1), 1, 1]);
             obj.z_range = reshape((0:(N(3)-1))*dx, [1, 1, N(3)]);
-            obj.px_range = reshape(2*pi*SimulationGrid.symrange(N(2))/(dx*N(2)), [1, N(2), 1]);
-            obj.py_range = reshape(2*pi*SimulationGrid.symrange(N(1))/(dx*N(1)), [N(1), 1, 1]);
-            obj.pz_range = reshape(2*pi*SimulationGrid.symrange(N(3))/(dx*N(3)), [1, 1, N(3)]);
+            obj.dpx = 2*pi/(dx*N(2));
+            obj.dpy = 2*pi/(dx*N(1));
+            obj.dpz = 2*pi/(dx*N(3));
+            obj.px_range = reshape(obj.dpx*SimulationGrid.symrange(N(2)), [1, N(2), 1]);
+            obj.py_range = reshape(obj.dpy*SimulationGrid.symrange(N(1)), [N(1), 1, 1]);
+            obj.pz_range = reshape(obj.dpz*SimulationGrid.symrange(N(3)), [1, 1, N(3)]);
             obj.N = N;
        end
     end

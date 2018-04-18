@@ -12,13 +12,29 @@ classdef WaveSim < WaveSimBase
         function obj = WaveSim(sample, options)
             obj@WaveSimBase(sample, options);
         end
-        function E = propagate(obj, E)
+        function E = propagate(obj, E, wiggle)
             % calculate (I - p p^T / (k_0^2+i epsilon)
+            
+            % prepare coordinate vectors (shifted by half a pixel if
+            % wiggling)
+            px2 = wiggle.pxe.^2;
+            py2 = wiggle.pye.^2;
+            pz2k = wiggle.pze.^2 - obj.k02e;
+            
             if obj.gpu_enabled
-                E = ifftn(arrayfun(f_g0_scalar, fftn(E), obj.pxe.^2, obj.pye.^2, obj.pze.^2 - obj.k02e));
+                % wiggle, then Fourier transform
+                fE = fftn(arrayfun(f_wiggle, E, wiggle.gx, wiggle.gy, wiggle.gz));
+                
+                % apply propagation kernel
+                fE = arrayfun(f_g0_scalar, fE, px2, py2, pz2k);
+                
+                % Fourier tranform back, then wiggle back
+                E = arrayfun(f_wiggle, ifftn(fE), conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
             else
-                E = ifftn(f_g0_scalar(fftn(E), obj.pxe.^2, obj.pye.^2, obj.pze.^2 - obj.k02e));
-            end    
+                fE = fftn(f_wiggle(E, wiggle.gx, wiggle.gy, wiggle.gz));
+                fE = f_g0_scalar(fE, px2, py2, pz2k);
+                E = f_wiggle(ifftn(fE), conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
+            end
         end
     end
 end

@@ -65,18 +65,49 @@ classdef(Abstract) WaveSimBase < Simulation
             end
             obj.gamma = 1.0i / obj.epsilon * V;
             
-            %convert to single our double precision, and put on gpu if
-            %needed
+            %% calculate wiggle coefficients
+            if obj.wiggle
+                wiggles = ...
+                    [0, 1, 0, 1, 0, 1, 0, 1;...
+                     0, 0, 1, 1, 0, 0, 1, 1;...
+                     0, 0, 0, 0, 1, 1, 1, 1]/2;
+                wiggles = ...
+                    [0, 0;...
+                     0, 1;...
+                     0, 0]/2;
+            else
+                wiggles = [0;0;0];
+            end
+            %
+            % Construct shifted coordinates and phase ramps for all wiggle
+            % steps. Pre-scale Fourier coordinates to optimize the
+            % propagation functions a bit
+            %
+            for w_i=1:size(wiggles, 2)
+                w = wiggles(:, w_i);
+                c = struct;
+                % construct coordinates, shift half a pixel when wiggling
+                c.pxe = obj.data_array((obj.grid.px_range - obj.grid.dpx * w(2))/sqrt(obj.epsilon));
+                c.pye = obj.data_array((obj.grid.py_range - obj.grid.dpy * w(1))/sqrt(obj.epsilon));
+                c.pze = obj.data_array((obj.grid.pz_range - obj.grid.dpz * w(3))/sqrt(obj.epsilon));
+                % construct phase gradients to compensate for the pixel
+                % shift
+                c.gx = obj.data_array(exp(2.0i * pi * w(2) * obj.grid.x_range / obj.grid.dx / length(obj.grid.x_range)));% - floor(obj.grid.N(2)/2));
+                c.gy = obj.data_array(exp(2.0i * pi * w(1) * obj.grid.y_range / obj.grid.dx / length(obj.grid.y_range)));%
+                c.gz = obj.data_array(exp(2.0i * pi * w(3) * obj.grid.z_range / obj.grid.dx / length(obj.grid.z_range)));%
+                if w_i == 1
+                    obj.wiggle = c;
+                else
+                    obj.wiggle(w_i) = c;
+                end
+            end
+            
+            %% convert to single or double precision, and put on gpu if
+            % needed. 
+            obj.k02e = obj.data_array(obj.k^2/obj.epsilon + 1.0i);
             obj.gamma = obj.data_array(obj.gamma);
             obj.epsilon = obj.data_array(obj.epsilon);
-            
-            %pre-scale Fourier coordinates to optimize the propagation
-            %functions a bit
-            obj.pxe = obj.data_array(obj.grid.px_range)/sqrt(obj.epsilon);
-            obj.pye = obj.data_array(obj.grid.py_range)/sqrt(obj.epsilon);
-            obj.pze = obj.data_array(obj.grid.pz_range)/sqrt(obj.epsilon);
-            obj.k02e = obj.data_array(obj.k^2/obj.epsilon + 1.0i);
-        
+
             %%define function for the mixing step:
             % Ediff = (1-gamma) Ediff + gamma^2 [G Ediff]
             % (where [G Ediff] is the propagated field)
@@ -138,11 +169,13 @@ classdef(Abstract) WaveSimBase < Simulation
             Ediff = obj.data_array([], obj.N);
             
             %% simulation iterations
+            Nwiggle = size(obj.wiggle, 2);
             while state.has_next
-                if state.it == 1
-                    Ediff = obj.mix(Ediff, obj.propagate(state.source.add_to(Ediff, 1.0i / obj.epsilon)), obj.gamma);
+                wigg = obj.wiggle(mod(state.it, Nwiggle) + 1); 
+                if state.it <= size(obj.wiggle, 2)
+                    Ediff = obj.mix(Ediff, obj.propagate(state.source.add_to(Ediff, 1.0i / obj.epsilon / Nwiggle), wigg), obj.gamma);
                 else
-                    Ediff = obj.mix(Ediff, obj.propagate(Ediff), obj.gamma);
+                    Ediff = obj.mix(Ediff, obj.propagate(Ediff, wigg), obj.gamma);
                 end
                 
                 if state.calculate_energy
