@@ -66,7 +66,7 @@ classdef(Abstract) WaveSimBase < Simulation
             obj.gamma = 1.0i / obj.epsilon * V;
             
             %% calculate wiggle coefficients
-            if obj.wiggle
+            if obj.wiggle && ~all(obj.grid.periodic)
                 %wiggle left/right in the dimensions that are not periodic
                 %for simplicity, we always wiggle in all three dimensions,
                 %but we reduce the wiggle amplitude to 0 in the periodic
@@ -75,7 +75,7 @@ classdef(Abstract) WaveSimBase < Simulation
                     [0, 1, 0, 1, 0, 1, 0, 1;...
                      0, 0, 1, 1, 0, 0, 1, 1;...
                      0, 0, 0, 0, 1, 1, 1, 1]/2 - 0.25;
-                wiggles(obj.grid.periodic, :) = 0;
+                wiggles = wiggles(~obj.grid.periodic, :);
             else
                 wiggles = [0;0;0];
             end
