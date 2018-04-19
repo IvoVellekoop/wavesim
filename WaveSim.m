@@ -23,13 +23,13 @@ classdef WaveSim < WaveSimBase
             
             if obj.gpu_enabled
                 % wiggle, then Fourier transform
-                fE = fftn(arrayfun(f_wiggle, E, wiggle.gx, wiggle.gy, wiggle.gz));
+                fE = fftn(arrayfun(@f_wiggle, E, wiggle.gx, wiggle.gy, wiggle.gz));
                 
                 % apply propagation kernel
-                fE = arrayfun(f_g0_scalar, fE, px2, py2, pz2k);
+                fE = arrayfun(@f_g0_scalar, fE, px2, py2, pz2k);
                 
                 % Fourier tranform back, then wiggle back
-                E = arrayfun(f_wiggle, ifftn(fE), conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
+                E = arrayfun(@f_wiggle, ifftn(fE), conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
             else
                 fE = fftn(f_wiggle(E, wiggle.gx, wiggle.gy, wiggle.gz));
                 fE = f_g0_scalar(fE, px2, py2, pz2k);

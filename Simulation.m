@@ -24,9 +24,10 @@ classdef Simulation
         gpu_enabled = gpuDeviceCount > 0; % flag to determine if simulation are run on the GPU (default: run on GPU if we have one)
         single_precision = false; % flag to determine if single precision is used (default: double)
         callback = @Simulation.default_callback; % callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
+        callback_options = struct; %other options for the callback
         callback_interval = 50; % the callback is called every 'callback_interval' steps. Default = 5
         energy_threshold = 1E-20; % the simulation stops when the difference for a step is less than 'energy_threshold'
-        energy_calculation_interval = 10; % only calculate energy difference every N steps (to reduce overhead)
+        energy_calculation_interval = 8; % only calculate energy difference every N steps (to reduce overhead)
         max_cycles = inf; % number of wave periods to run the simulation. The number of actual iterations per cycle depends on the algorithm and its parameters
         
         %internal:
@@ -69,6 +70,8 @@ classdef Simulation
                 obj.output_roi = [Source.make4(obj.output_roi(1,:)); Source.make4(obj.output_roi(2,:))];
                 obj.output_roi = obj.output_roi + obj.roi(1,:) - 1; %shift to match grid coordinates
             end
+            
+            obj.energy_calculation_interval = min(obj.energy_calculation_interval, obj.callback_interval); %update the energy at least every callback
                 
             obj.N    = [obj.grid.N, 1]; %vector simulations set last parameter to 3
             obj.x_range = sample.grid.x_range(obj.roi(1,2):obj.roi(2,2));
@@ -144,11 +147,11 @@ classdef Simulation
         %% Continue to the next iteration. Returns false to indicate that the simulation has terminated
         function state = next(obj, state)
             %% store energy (relative to total energy in source)
-            state.diff_energy(state.it) = state.last_step_energy / state.source_energy;
+            state.diff_energy(state.it) = state.last_step_energy;
             
             %% check if simulation should terminate
             can_terminate = mod(state.it, numel(state.source)) == 0;
-            if can_terminate && state.diff_energy(state.it) < obj.energy_threshold
+            if can_terminate && state.diff_energy(state.it) / state.diff_energy(1) < obj.energy_threshold
                 state.has_next = false;
                 state.converged = true;
             elseif can_terminate && state.it >= state.max_iterations
@@ -159,7 +162,7 @@ classdef Simulation
             end
             
             %% do we need to calculate the last added energy? (only do this once in a while, because of the overhead)
-            state.calculate_energy = mod(state.it, obj.energy_calculation_interval)==0;
+            state.calculate_energy = mod(state.it - 1, obj.energy_calculation_interval)==0;
             
             %% call callback function if neened
             if (mod(state.it, obj.callback_interval)==0 || ~state.has_next) %now and then, call the callback function to give user feedback
@@ -213,11 +216,18 @@ classdef Simulation
         end
         
         function abs_image_callback(obj, state)
+            % by default this function displays state.E, but it can be
+            % configured to show different variables, such as state.Ediff
+            %
             figure(1);
-            E = state.E;
+            if isfield(obj.callback_options, 'fieldname')
+                E = state.(obj.callback_options.fieldname);
+            else
+                E = state.E;
+            end
             imagesc(abs(E(:,:,ceil(end/2), 1, ceil(end/2))));
             axis image;
-            title(['Differential energy ' num2str(state.diff_energy(state.it))]);
+            title(['Differential energy ' num2str(state.diff_energy(state.it)/state.diff_energy(1))]);
             drawnow;
         end
         

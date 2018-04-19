@@ -3,8 +3,9 @@ classdef SimulationGrid
     % Ivo M. Vellekoop
     properties
         N  % number of grid points in y,x,z-dimension
-        dx  % grid resolution (x and y)
+        dx  % grid resolution (same in all directions)
         padding % amount of added zero padding
+        periodic % indicates whether simulation is periodic in y,x,z
         x_range % grid point coordinates in x-dimension
         y_range % grid point coordinates in y-dimension
         z_range % grid point coordinates in z-dimension
@@ -16,22 +17,23 @@ classdef SimulationGrid
         pz_range % grid point coordinates in Fourier transformed z-dimension
     end
     methods
-       function obj = SimulationGrid(min_size, dx, pad)
+       function obj = SimulationGrid(min_size, dx, periodic)
             % Construct a wave simulation grid object with specified size (2-D or 3-D)
             % as a convention, the first, second, and third indices address the
             % x, y, and z dimensions, respectively.
             %
             % min_size = [height,width], minimum required size (will be rounded up)
 			% dx = step size of grid (in arbitrary units)
-            % pad = logic vector indicating whether or not to pad the
+            % periodic = logic vector indicating whether or not to pad the
             % simulation size up to a size that is convenient for fft
 			%% setup coordinates
             assert(isequal(size(min_size), [1, 3]));
-            assert(isequal(size(pad), [1,3]));
+            assert(isequal(size(periodic), [1,3]));
             
             N = min_size;
-            N(pad) = SimulationGrid.efficient_size(min_size(pad)); %increase size to efficient number for fft
+            N(periodic) = SimulationGrid.efficient_size(min_size(periodic)); %increase size to efficient number for fft
             
+            obj.periodic = periodic;
             obj.padding = N - min_size; %total amount of zero padding. Placed at right and bottom sides only (non-centric)
             obj.dx = dx;
             obj.x_range = reshape((0:(N(2)-1))*dx, [1, N(2), 1]);

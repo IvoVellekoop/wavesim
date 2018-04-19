@@ -173,6 +173,10 @@ classdef Source
             sz = sz(:).';
             if numel(sz) < 4
                 sz((end+1):4) = 1;
+            else
+                if numel(sz) > 4
+                    error('Position and size vectors can be 4-dimensional at most');
+                end
             end
         end
     end

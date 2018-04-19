@@ -67,14 +67,15 @@ classdef(Abstract) WaveSimBase < Simulation
             
             %% calculate wiggle coefficients
             if obj.wiggle
+                %wiggle left/right in the dimensions that are not periodic
+                %for simplicity, we always wiggle in all three dimensions,
+                %but we reduce the wiggle amplitude to 0 in the periodic
+                %directions
                 wiggles = ...
                     [0, 1, 0, 1, 0, 1, 0, 1;...
                      0, 0, 1, 1, 0, 0, 1, 1;...
-                     0, 0, 0, 0, 1, 1, 1, 1]/2;
-                wiggles = ...
-                    [0, 0;...
-                     0, 1;...
-                     0, 0]/2;
+                     0, 0, 0, 0, 1, 1, 1, 1]/2 - 0.25;
+                wiggles(obj.grid.periodic, :) = 0;
             else
                 wiggles = [0;0;0];
             end
@@ -166,28 +167,34 @@ classdef(Abstract) WaveSimBase < Simulation
             % start iteration with the source term (pre-multiplied by 1.0i/obj.epsilon. epsilon to compensate for pre-multiplication of G):
             % pre-multiply by gamma/epsilon
             state.E = 0;
-            Ediff = obj.data_array([], obj.N);
+            state.Ediff = obj.data_array([], obj.N);
             
             %% simulation iterations
             Nwiggle = size(obj.wiggle, 2);
             while state.has_next
                 wigg = obj.wiggle(mod(state.it, Nwiggle) + 1); 
                 if state.it <= size(obj.wiggle, 2)
-                    Ediff = obj.mix(Ediff, obj.propagate(state.source.add_to(Ediff, 1.0i / obj.epsilon / Nwiggle), wigg), obj.gamma);
+                    state.Ediff = obj.mix(state.Ediff, obj.propagate(...
+                        state.source.add_to(state.Ediff, 1.0i / obj.epsilon / Nwiggle)...
+                        , wigg), obj.gamma);
                 else
-                    Ediff = obj.mix(Ediff, obj.propagate(Ediff, wigg), obj.gamma);
+                    state.Ediff = obj.mix(state.Ediff, obj.propagate(state.Ediff, wigg), obj.gamma);
                 end
                 
-                if state.calculate_energy
-                   state.last_step_energy = Simulation.energy(Ediff ./ obj.gamma, obj.roi);
-                end
-                
-                state.E = state.E + Ediff(...
+                state.E = state.E + state.Ediff(...
                     obj.output_roi(1,1):obj.output_roi(2,1),...
                     obj.output_roi(1,2):obj.output_roi(2,2),...
                     obj.output_roi(1,3):obj.output_roi(2,3),...
                     obj.output_roi(1,4):obj.output_roi(2,4));
+                
+                if state.calculate_energy
+                    state.last_step_energy = Simulation.energy(state.Ediff);
+                end
+                
                 state = next(obj, state);
+                if mod(state.it, Nwiggle) ~= 0
+                    state.has_next = true; %only stop after multiple of 8 iterations
+                end
             end
             state.E = state.E ./ obj.gamma(...
                 obj.output_roi(1,1):obj.output_roi(2,1),...
