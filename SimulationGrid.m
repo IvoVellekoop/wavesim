@@ -61,17 +61,38 @@ classdef SimulationGrid
         function sz = efficient_size(min_size)
             % returns nearest size greater than or equal to min_size
             % for which the fft is efficient.
-            % cuFFT is efficient for sizes that can be factored as 2^a * 3^b * 5^c * 7^d
+            % cuFFT is efficient for sizes that can be factored as 2^a *
+            % 3^b * 5^c * 7^d * 11^e (tested empirically using test_efficient_size)
             %
             sz = min_size;
             for s_i=1:length(sz)
                 s = sz(s_i);
                 f = factor(s);
-                while f(end) > 7
+                while f(end) > 11 || (length(f)>2 && f(end-1) > 5)
                     s = s + 1;
                     f = factor(s);
                 end
                 sz(s_i) = s;
+            end
+        end
+        function test_efficient_size()
+            s_range = 1:200;
+            times = zeros(numel(s_range), 1);
+            efficient = zeros(numel(s_range), 1, 'logical');
+            for s_i=1:numel(s_range)
+                s = s_range(s_i);
+                f = factor(s);
+                efficient(s_i) = true;
+                if f(end) > 11 || (length(f)>2 && f(end-1) > 5)
+                    efficient(s_i) = false;
+                end
+                data = gpuArray((1+1i)*ones([s,s,s], 'single'));
+                times(s_i) = gputimeit(@() fftn(data)) / (s * log2(s));
+                plot(s_range(efficient), times(efficient), '.'); 
+                hold on;
+                plot(s_range(~efficient), times(~efficient), '*'); 
+                hold off;
+                drawnow;
             end
         end
     end
