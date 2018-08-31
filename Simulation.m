@@ -18,17 +18,50 @@ classdef Simulation
     properties
         %options:
         output_roi = []; % Part of the simulated field that is returned as output, 
-        %                  Defaults to the full medium. To save memory, a smaller
-        %                  output_roi can be specified.
-        lambda = 1;      % Wavelength (default = 1 unit)      
-        gpu_enabled = gpuDeviceCount > 0; % flag to determine if simulation are run on the GPU (default: run on GPU if we have one)
-        single_precision = false; % flag to determine if single precision is used (default: double)
+                         % Defaults to the full medium. To save memory, a smaller
+                         % output_roi can be specified. [experimental]
+        
+        lambda = 1;      % Wavelength (in micrometers)      
+        
+        gpu_enabled = gpuDeviceCount > 0; % flag to determine if simulation are run
+                                          % on the GPU (default: run on GPU if we have one)
+        
+        single_precision = true; % flag to determine if single precision or 
+                                 % double precision calculations are used.
+                                 % Note that on a typical GPU, double
+                                 % precision calculations are about 10
+                                 % times as slow as single precision.
+                                 
+        % Callback function options
+        % The simulation code calls a callback function every few
+        % iteratations. There are two callbacks already implemented:
+        % default_callback and abs_image_callback. 
+        % you can choose which one to use to set the 'callback' option
+        % note that you can also specify your own custom callback function
         callback = @Simulation.default_callback; % callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
         callback_options = struct; %other options for the callback
-        callback_interval = 50; % the callback is called every 'callback_interval' steps. Default = 5
-        energy_threshold = 1E-20; % the simulation stops when the difference for a step is less than 'energy_threshold'
+        callback_interval = 50; % the callback is called every 'callback_interval' iterations.
+        
+        % Stopping options
+        % To determine when to stop, the algorithm calculates the
+        % difference in the field before and after an iteration. The
+        % simulation is stopped when the total energy in this 'Ediff' is
+        % lower than a threshold value.
+        %
+        energy_threshold = 0.1; % Threshold for terminating the simulation.
+                                % The threshold is specified as a fraction
+                                % of the amount of energy added during the
+                                % first iteration of the algorithm. Therefore
+                                % it is compensates for the
+                                % amplitude of the source terms.
+        
         energy_calculation_interval = 8; % only calculate energy difference every N steps (to reduce overhead)
-        max_cycles = inf; % number of wave periods to run the simulation. The number of actual iterations per cycle depends on the algorithm and its parameters
+        max_cycles = inf; % Maximum number of wave periods to run the simulation.
+                          % Note that the number of actual iterations per optical cycle
+                          % depends on the algorithm and its parameters
+                          % (notably the refractive index contrast).
+                          % Therefore, it is not recommended to specify
+                          % max_cycles explicitly.
         
         %internal:
         grid; % simgrid object
@@ -234,7 +267,7 @@ classdef Simulation
         %default callback function. Shows real value of field, and total energy evolution
         function default_callback(obj, state)
             figure(1);
-            energy = state.diff_energy(1:state.it);
+            energy = state.diff_energy(1:state.it) / state.diff_energy(1);
             threshold = obj.energy_threshold;
             E = state.E;
             subplot(2,1,1); plot(1:length(energy),log10(energy),'b',[1,length(energy)],log10(threshold)*ones(1,2),'--r');
