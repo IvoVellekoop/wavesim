@@ -1,4 +1,9 @@
 % Creates the 'pseudo-propagation' figure of the manuscript
+% !!!!!
+% NOTE: this code no longer works because the differential mode was reduced
+% to make it work again, run the simulation twice with different upper
+% bounds to iteration count, and subtract the results.
+%
 addpath('../../../');
 addpath('..');
 %Note: uncomment print commands to save figures in eps format

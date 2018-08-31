@@ -9,8 +9,9 @@ addpath('..');
 %% options for grid (gopt) and for simulation (sopt) 
 PPW=4; %points per wavelength = lambda/h
 sopt.lambda = 1; %wavelength in vacuum (in um)
-sopt.callback_interval = 25;
-sopt.max_iterations = 6000;
+sopt.callback_interval = 100;
+sopt.max_iterations = 60000;
+sopt.energy_threshold = 10E-12;
 
 dt_relative_range = 1./2.^(0:0.5:12.5);
 
@@ -26,25 +27,23 @@ relative_error = zeros(1, length(dt_relative_range)+1);
 iterations_per_wavelength = zeros(1, length(dt_relative_range)+1);
 
 %% define a plane wave source and create homogeneous sample
-source = sparse(N(1), N(2));
-source(:,1) = 1; % plane wave source
-sample = SampleMedium(ones(N), mopt);
+source = Source(ones(N(1),1));
+sample = Medium(ones(N), mopt);
 
 %% create wavesim object and run the wave propagation simulation
-sim = wavesim(sample, sopt);
-[E, state] = exec(sim, source);
+sim = WaveSim(sample, sopt);
+[E, state] = sim.exec(source);
 iterations_per_wavelength(1) = sim.iterations_per_cycle;
 
 %% calculate exact solution analytically
 k0 = 2*pi/sopt.lambda;
-E_theory=homogeneous_medium_analytic_solution(k0, mopt.pixel_size, sim.z_range);
+E_theory=homogeneous_medium_analytic_solution(k0, mopt.pixel_size, sim.x_range);
 
 % compute relative error of wavesim
 difference=E(1,:)-E_theory;
 relative_error(1)=mean2(abs(difference).^2) / mean2(abs(E_theory).^2);
-
+disp(relative_error(1))
 figure(20);
-
 
 %% simulate wave propagation for PSTD with varying values for dt
 for t_i=1:length(dt_relative_range)   
@@ -52,7 +51,7 @@ for t_i=1:length(dt_relative_range)
     sopt.dt_relative = dt_relative_range(t_i);
     sim = PSTD(sample, sopt);
     iterations_per_wavelength(t_i+1) = sim.iterations_per_cycle;
-    [E, state] = exec(sim, source);
+    [E, state] = sim.exec(source);
     
     %%compare simulation result with exact value
     difference=E(1,:)-E_theory;

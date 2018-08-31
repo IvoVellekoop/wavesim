@@ -1,4 +1,4 @@
-classdef PSTD < simulation
+classdef PSTD < Simulation
     %Simulation of the 2-D wave equation using PSTD
     % Saroch Leedumrongwatthanakun 2015
     
@@ -24,13 +24,21 @@ classdef PSTD < simulation
             %   options.wavelength = free space wavelength (same unit as pixel_size, e. g. um)
             %   options.dt         = time step (leave empty unless forcing a specific value)
             %   options.time_duration = time duration of whole simulation
-            obj@simulation(sample, options);
+            obj@Simulation(sample, options);
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             
             %% Calculate time step dt
             % The light speed is defined as 1 distance_unit / time_unit.
             %
-            obj.dtmax = 2/sqrt(obj.dimensions)/pi*sample.grid.dx*sqrt(sample.e_r_min); %Stability condition (ref needed)
+            % determine dimensionality of the simulation for calculating
+            % the maximum time step
+            if min(sample.grid.N) == 1
+                dimensions = 2;
+            else
+                dimensions = 3;
+            end
+
+            obj.dtmax = 2/sqrt(dimensions)/pi*sample.grid.dx*sqrt(sample.e_r_min); %Stability condition (ref needed)
             obj.dt = obj.dt_relative * obj.dtmax;
             obj.iterations_per_cycle = obj.lambda / obj.dt; %lambda[distance] / dt[time] / c[distance/time]
             
@@ -44,7 +52,10 @@ classdef PSTD < simulation
             obj.c3 = 2*c2dt./(sdt+2);
             
             %% Calculate PSTD laplace operator
-            obj.koperator = -p2(sample.grid);
+            px = sample.grid.px_range;
+            py = sample.grid.py_range;
+            pz = sample.grid.pz_range;            
+            obj.koperator = -px.^2-py.^2-pz.^2;
             obj.max_cycles = obj.max_cycles+100; %slow starting source
             
             if obj.gpu_enabled
@@ -57,8 +68,8 @@ classdef PSTD < simulation
         
         function state = run_algorithm(obj, state)
             %% Allocate memory for calculations
-            state.E = data_array(obj);
-            E_prev = data_array(obj);
+            state.E = obj.data_array([], obj.N);
+            E_prev = obj.data_array([], obj.N);
             A = 1; %source amplitude
             %todo: gpuarray for c1,c2,c3 and koperator
             %% iterate algorithm
@@ -84,15 +95,17 @@ classdef PSTD < simulation
                 %
                 % isolate E_next:
                 % E_next = (nabla^2 E + source) * dt^2/e_r + 2*E - E_prev
-                Etmp = simulation.add_at(ifftn(obj.koperator.*fftn(state.E)), A * state.source, state.source_pos);
+                Etmp = ifftn(obj.koperator.*fftn(state.E));
+                Etmp = state.source.add_to(Etmp, A); 
+                %simulation.add_at(ifftn(obj.koperator.*fftn(state.E)), A * state.source, state.source_pos);
                 E_next = obj.c2.*state.E + obj.c1.*E_prev + obj.c3 .* Etmp;
                 
                 if state.calculate_energy
                     phase_shift = exp(1.0i*(angle(A)-angle(A_prev))); %expected phase shift for single step (only works for CW source!!)
-                    state.last_step_energy = wavesim.energy(E_next(obj.roi{1}, obj.roi{2}, obj.roi{3}) - state.E(obj.roi{1}, obj.roi{2}, obj.roi{3})*phase_shift);
-                    if (A<0.5) %workaround: don't terminate when source is still spinning ups
-                        state.last_step_energy = max(state.last_step_energy, state.threshold*2);
-                    end;
+                    state.last_step_energy = Simulation.energy(E_next - state.E * phase_shift, obj.roi) / abs(A)^2;
+                    if (A<0.5) %workaround: don't terminate when source is still spinning up
+                        state.last_step_energy = max(state.last_step_energy, obj.energy_threshold*2/state.source_energy);
+                    end
                 end
                 %% update fields
                 E_prev = state.E;
@@ -100,9 +113,14 @@ classdef PSTD < simulation
                 state = next(obj, state);
             end
             
-            %finally, compensate for phase of source
+            %finally, crop to output_roi and compensate for phase of source
             A_next = obj.source_amplitude(state.it / obj.iterations_per_cycle);
-            state.E = state.E * exp(-1.0i*angle(A_next));
+            state.E = state.E(...
+                obj.output_roi(1,1):obj.output_roi(2,1),...
+                obj.output_roi(1,2):obj.output_roi(2,2),...
+                obj.output_roi(1,3):obj.output_roi(2,3),...
+                obj.output_roi(1,4):obj.output_roi(2,4))...
+                    * exp(-1.0i*angle(A_next));
         end
     end
     methods(Static)
