@@ -75,7 +75,8 @@ classdef(Abstract) WaveSimBase < Simulation
                     [0, 1, 0, 1, 0, 1, 0, 1;...
                      0, 0, 1, 1, 0, 0, 1, 1;...
                      0, 0, 0, 0, 1, 1, 1, 1]/2 - 0.25;
-                wiggles = wiggles(~obj.grid.periodic, :);
+                % don't wiggle where the boundaries are periodic
+                wiggles = unique(wiggles.' .* ~obj.grid.periodic, 'rows').';
             else
                 wiggles = [0;0;0];
             end
