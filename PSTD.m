@@ -19,6 +19,7 @@ classdef PSTD < Simulation
     
     methods
         function obj = PSTD(sample, options)
+            warning('The PSTD code is only provided for comparison with wavesim, it is not optimized for real use.');
             %% Constructs a pseudo spectral time domain simulation object
             %	sample = SampleMedium object
             %   options.wavelength = free space wavelength (same unit as pixel_size, e. g. um)

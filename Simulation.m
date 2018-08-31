@@ -48,7 +48,7 @@ classdef Simulation
         % simulation is stopped when the total energy in this 'Ediff' is
         % lower than a threshold value.
         %
-        energy_threshold = 0.1; % Threshold for terminating the simulation.
+        energy_threshold = 1E-2; % Threshold for terminating the simulation.
                                 % The threshold is specified as a fraction
                                 % of the amount of energy added during the
                                 % first iteration of the algorithm. Therefore
@@ -138,6 +138,9 @@ classdef Simulation
             % source energy outside of the roi, but inside the grid (that
             % is, inside the absorbing boundary).
             %
+            if (~isa(source, 'Source'))
+                error('Expecting a Source object as input parameter');
+            end
             state.source = obj.data_array(source)...
                               .shift(obj.roi(1,:))...
                               .crop([1,1,1,1; obj.N]);

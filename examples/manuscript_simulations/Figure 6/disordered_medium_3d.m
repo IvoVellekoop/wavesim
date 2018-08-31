@@ -6,21 +6,18 @@ addpath('../../../');
 addpath('..');
 rng('default'); %reset random number generator
 
-%% options for grid (gopt) and for simulation (sopt) 
+%% options for grid and simulation 
 PPW=4; %points per wavelength = lambda/h
-sopt.lambda = 1; % wavelength in vacuum (in um)
-sopt.energy_threshold = 1E-16;
-sopt.callback_interval = 25;
-sopt.max_cycles = 1100;
+opt.lambda = 1; % wavelength in vacuum (in um)
+opt.energy_threshold = 0; %limited by max_cycles
+opt.callback_interval = 25;
+opt.max_cycles = 1100;
 
 dt_relative_range = [0,1/(2^3)];
 simulation_run_time = zeros(size(dt_relative_range));
 
-mopt.lambda = sopt.lambda;
-mopt.pixel_size = sopt.lambda/PPW;
-mopt.boundary_widths = [0, 0, 0]; %periodic boundaries
-mopt.boundary_strength = 0.2;
-mopt.boundary_type = 'PML3';
+opt.pixel_size = opt.lambda/PPW;
+opt.boundary_widths = [0, 0, 0]; %periodic boundaries
 N = [32*PPW 32*PPW 32*PPW]; % size of medium (in pixels)
 
 %% Preallocate PSTD data
@@ -47,14 +44,13 @@ n_sample = ifftn(n_fft.*fftshift(window));
 n_sample = max(real(n_sample), 1.0) + 1.0i * max(imag(n_sample), 0.0);
 
 % construct sample object
-sample = SampleMedium(n_sample, mopt); 
+sample = Medium(n_sample, opt); 
 
 %% define a point source at the medium center
-source = zeros(N(1), N(2), N(3));
-source(end/2, end/2, end/2) = 1; % point source
+source = Source(1, [N(1)/2, N(2)/2, N(3)/2]); % point source in the center
 
 %% wavesim simulation
-sim = wavesim(sample, sopt);
+sim = WaveSim(sample, opt);
 iterations_per_wavelength(1) = sim.iterations_per_cycle;
 [E_wavesim, state] = exec(sim, source);
 simulation_run_time(1) = state.time;

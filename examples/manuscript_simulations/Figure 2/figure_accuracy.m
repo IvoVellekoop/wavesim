@@ -6,20 +6,20 @@ clear all;
 addpath('../../../');
 addpath('..');
 
-%% options for grid (gopt) and for simulation (sopt) 
+%% options for grid and simulation 
 PPW=4; %points per wavelength = lambda/h
-sopt.lambda = 1; %wavelength in vacuum (in um)
-sopt.callback_interval = 80;
-sopt.max_iterations = 60000;
-sopt.energy_threshold = 1E-5;
+opt.lambda = 1; %wavelength in vacuum (in um)
+opt.callback_interval = 80;
+opt.max_iterations = 60000;
+opt.energy_threshold = 1E-5;
+opt.single_precision = false;
 
 dt_relative_range = 1./2.^(0:0.5:12.5);
 
-mopt.lambda = sopt.lambda;
-mopt.pixel_size = sopt.lambda/PPW;
-mopt.boundary_widths = [0, 25*PPW];
-mopt.boundary_strength = 0.2;
-mopt.boundary_type = 'PML3';
+opt.pixel_size = opt.lambda/PPW;
+opt.boundary_widths = [0, 25*PPW];
+opt.boundary_strength = 0.2;
+opt.boundary_type = 'PML3'; % PML is deprecated, but we currently don't have anything else for PSTD
 N = [1 round(50*PPW)]; % size of medium (in pixels)
 
 %% reserve space for output data
@@ -28,16 +28,16 @@ iterations_per_wavelength = zeros(1, length(dt_relative_range)+1);
 
 %% define a plane wave source and create homogeneous sample
 source = Source(ones(N(1),1));
-sample = Medium(ones(N), mopt);
+sample = Medium(ones(N), opt);
 
 %% create wavesim object and run the wave propagation simulation
-sim = WaveSim(sample, sopt);
+sim = WaveSim(sample, opt);
 [E, state] = sim.exec(source);
 iterations_per_wavelength(1) = sim.iterations_per_cycle;
 
 %% calculate exact solution analytically
-k0 = 2*pi/sopt.lambda;
-E_theory=homogeneous_medium_analytic_solution(k0, mopt.pixel_size, sim.x_range);
+k0 = 2*pi/opt.lambda;
+E_theory=homogeneous_medium_analytic_solution(k0, opt.pixel_size, sim.x_range);
 
 % compute relative error of wavesim
 difference=E(1,:)-E_theory;
@@ -48,8 +48,8 @@ figure(20);
 %% simulate wave propagation for PSTD with varying values for dt
 for t_i=1:length(dt_relative_range)   
     % create PSTD object and run the simulation
-    sopt.dt_relative = dt_relative_range(t_i);
-    sim = PSTD(sample, sopt);
+    opt.dt_relative = dt_relative_range(t_i);
+    sim = PSTD(sample, opt);
     iterations_per_wavelength(t_i+1) = sim.iterations_per_cycle;
     [E, state] = sim.exec(source);
     

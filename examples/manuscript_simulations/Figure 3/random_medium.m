@@ -5,21 +5,22 @@ clear all; close all;
 addpath('../../../');
 addpath('..');
 
-%% options for grid (gopt) and for simulation (sopt) 
+%% options for grid (gopt) and for simulation (opt) 
 PPW=4; %points per wavelength = lambda/h
-sopt.lambda = 1; % wavelength in vacuum (in um)
-sopt.energy_threshold = 1E-32;
-sopt.callback_interval = 1000;
-sopt.max_iterations = 6000;
+opt.lambda = 1; % wavelength in vacuum (in um)
+opt.energy_threshold = 1E-10;
+opt.callback_interval = 1000;
+opt.max_iterations = 6000;
+opt.single_precision = false;
 
 %dt_relative_range = 1/(2^10.5); dt used in manuscript
 dt_relative_range = 1/(2^1);
 
-mopt.lambda = sopt.lambda;
-mopt.pixel_size = sopt.lambda/PPW;
-mopt.boundary_widths = [0, 0]; %periodic boundaries
-mopt.boundary_strength = 0;
-mopt.boundary_type = 'PML3';
+opt.lambda = opt.lambda;
+opt.pixel_size = opt.lambda/PPW;
+opt.boundary_widths = [0, 0]; %periodic boundaries
+opt.boundary_strength = 0;
+opt.boundary_type = 'PML3';
 N = [64*PPW 64*PPW]; % size of medium (in pixels)
 
 %% Preallocate PSTD data
@@ -43,23 +44,22 @@ window = [zeros(1,N(2)/4), ones(1,N(2)/2), zeros(1,N(2)/4)]' * [zeros(1,N(1)/4),
 n_sample = ifft2(n_fft.*fftshift(window));
 
 % construct sample object
-sample = SampleMedium(n_sample, mopt); 
+sample = Medium(n_sample, opt); 
 
 %% define a point source at the medium center
-source = sparse(N(1), N(2));
-source(end/2,end/2) = 1; % point source
+source = Source(1, [N(1)/2, N(2)/2]); % point source
 
 %% wavesim simulation
-sim = wavesim(sample, sopt);
+sim = WaveSim(sample, opt);
 iterations_per_wavelength(1) = sim.iterations_per_cycle;
-E_wavesim = exec(sim, source);
+E_wavesim = sim.exec(source);
 
 %% PSTD simulation
-sopt.dt_relative = dt_relative_range;
-sim_PSTD = PSTD(sample, sopt);
+opt.dt_relative = dt_relative_range;
+sim_PSTD = PSTD(sample, opt);
 iterations_per_wavelength(2) = sim_PSTD.iterations_per_cycle;
 tic;
-E_PSTD = exec(sim_PSTD, source);
+E_PSTD = sim_PSTD.exec(source);
 toc;
 
 error_PSTD = mean2(abs(E_PSTD - E_wavesim).^2) / mean2(abs(E_wavesim).^2);
