@@ -27,8 +27,11 @@ classdef SimulationGrid
             % periodic = logic vector indicating whether or not to pad the
             % simulation size up to a size that is convenient for fft
 			%% setup coordinates
-            assert(isequal(size(min_size), [1, 3]));
-            assert(isequal(size(periodic), [1,3]));
+            validateattributes(min_size, {'numeric'}, {'positive', 'size', [1,3]}); 
+            validateattributes(dx, {'numeric'}, {'positive', 'scalar'});
+            validateattributes(periodic, {'logical'}, {'size', [1,3]}); 
+            
+            min_size = ceil(min_size); %round up minimum required size to positive integer
             
             N = min_size;
             N(periodic) = SimulationGrid.efficient_size(min_size(periodic)); %increase size to efficient number for fft
