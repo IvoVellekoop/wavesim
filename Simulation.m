@@ -181,12 +181,11 @@ classdef Simulation
         end
         
         %% Continue to the next iteration. Returns false to indicate that the simulation has terminated
-        function state = next(obj, state)
+        function state = next(obj, state, can_terminate)
             %% store energy (relative to total energy in source)
             state.diff_energy(state.it) = state.last_step_energy;
             
             %% check if simulation should terminate
-            can_terminate = mod(state.it, numel(state.source)) == 0;
             if can_terminate && state.diff_energy(state.it) / state.diff_energy(1) < obj.energy_threshold
                 state.has_next = false;
                 state.converged = true;

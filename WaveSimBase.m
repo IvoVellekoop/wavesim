@@ -15,7 +15,14 @@ classdef(Abstract) WaveSimBase < Simulation
         k;       % wave number for g0
         epsilon; % convergence parameter
         mix;     % function handle to function performing the mixing step
-        wiggle = true;  % 'true' indicates that the anti-wraparound algorithm is used
+        wiggle = true; 
+        % 'true' indicates that the anti-wraparound algorithm is used on
+        % all edges with non-zero boundary width. Note: zero-width
+        % boundaries are treated as periodic boundaries, and the
+        % anti-wraparound algorithm is disabled by default for these
+        % boundaries. To override this default behavior, you can explicitly
+        % pass a 1x3 logical vector (e.g. [true false false]) to indicate
+        % which boundaries to 'wiggle'
         %% diagnostics and feedback
         epsilonmin; %minimum value of epsilon for which convergence is guaranteed (equal to epsilon, unless a different value for epsilon was forced)
     
@@ -66,7 +73,18 @@ classdef(Abstract) WaveSimBase < Simulation
             obj.gamma = 1.0i / obj.epsilon * V;
             
             %% calculate wiggle coefficients
-            if obj.wiggle && ~all(obj.grid.periodic)
+            % decide which borders to wiggle
+            if numel(obj.wiggle) == 1
+                if obj.wiggle
+                    w = ~obj.grid.periodic; %'true' -> wiggle all non-periodic boundaries
+                else
+                    w = [false false false]; %'false' -> don't wiggle
+                end
+            else
+                validateattributes(obj.wiggle, {'logical'}, {'size', [1 3]});
+                w = obj.wiggle;
+            end
+            if any(w)
                 %wiggle left/right in the dimensions that are not periodic
                 %for simplicity, we always wiggle in all three dimensions,
                 %but we reduce the wiggle amplitude to 0 in the periodic
@@ -76,7 +94,7 @@ classdef(Abstract) WaveSimBase < Simulation
                      0, 0, 1, 1, 0, 0, 1, 1;...
                      0, 0, 0, 0, 1, 1, 1, 1]/2 - 0.25;
                 % don't wiggle where the boundaries are periodic
-                wiggles = unique(wiggles.' .* ~obj.grid.periodic, 'rows').';
+                wiggles = unique(wiggles.' .* w, 'rows').';
             else
                 wiggles = [0;0;0];
             end
@@ -174,7 +192,7 @@ classdef(Abstract) WaveSimBase < Simulation
             Nwiggle = size(obj.wiggle, 2);
             while state.has_next
                 wigg = obj.wiggle(mod(state.it, Nwiggle) + 1); 
-                if state.it <= size(obj.wiggle, 2)
+                if state.it <= Nwiggle
                     state.Ediff = obj.mix(state.Ediff, obj.propagate(...
                         state.source.add_to(state.Ediff, 1.0i / obj.epsilon / Nwiggle)...
                         , wigg), obj.gamma);
@@ -192,10 +210,8 @@ classdef(Abstract) WaveSimBase < Simulation
                     state.last_step_energy = Simulation.energy(state.Ediff);
                 end
                 
-                state = next(obj, state);
-                if mod(state.it, Nwiggle) ~= 0
-                    state.has_next = true; %only stop after multiple of 8 iterations
-                end
+                can_terminate = mod(state.it, Nwiggle) == 0; %only stop after multiple of Nwiggle iterations
+                state = next(obj, state, can_terminate);                
             end
             state.E = state.E ./ obj.gamma(...
                 obj.output_roi(1,1):obj.output_roi(2,1),...

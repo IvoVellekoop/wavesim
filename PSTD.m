@@ -104,14 +104,12 @@ classdef PSTD < Simulation
                 if state.calculate_energy
                     phase_shift = exp(1.0i*(angle(A)-angle(A_prev))); %expected phase shift for single step (only works for CW source!!)
                     state.last_step_energy = Simulation.energy(E_next - state.E * phase_shift, obj.roi) / abs(A)^2;
-                    %if (A<0.5) %workaround: don't terminate when source is still spinning up
-                    %    state.last_step_energy = max(state.last_step_energy, obj.energy_threshold*2/state.source_energy);
-                    %end
                 end
                 %% update fields
                 E_prev = state.E;
                 state.E = E_next;
-                state = next(obj, state);
+                can_terminate = A > 0.9; %don't terminate when source is still spinning up
+                state = next(obj, state, can_terminate);
             end
             
             %finally, crop to output_roi and compensate for phase of source
