@@ -292,7 +292,7 @@ classdef Simulation
             subplot(2,1,2);
             plot(1:length(sig), squeeze(sig), sroi(1)*ones(1,2), [min(sig),max(sig)], sroi(end)*ones(1,2), [min(sig),max(sig)]);
             title('midline cross-section')
-            xlabel('y (\lambda / 4)'); ylabel('real(E_x)');
+            xlabel('y (\lambda / 4)'); ylabel('log(|E_x|)');
             
             %disp(['Added energy ', num2str(energy(end))]);
             drawnow;
