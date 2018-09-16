@@ -40,7 +40,9 @@ classdef Medium
             % (pre-factor may change in the future)
             %
             %% Set default values and check validity of inputs
-            assert(numel(options.boundary_widths) == ndims(refractive_index));
+            assert(numel(refractive_index) >= 1);
+            assert(numel(options.boundary_widths) >= ndims(refractive_index));
+            assert(numel(options.boundary_widths) <= 3);
             if ~isfield(options, 'boundary_type')
                 options.boundary_type = 'window'; %new default boundary type!
             end
