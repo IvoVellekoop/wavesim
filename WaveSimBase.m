@@ -170,15 +170,10 @@ classdef(Abstract) WaveSimBase < Simulation
             %   substitute V = -1.0i \epsilon \gamma
             %   Ediff_{k+1} = M Ediff_{k} = (1 - \gamma) E_diff_{k} - 1.0i \epsilon \gamma G \gamma E_diff_{k}
             %
-            %   substitute G' = G epsilon  and Ediff' = \gamma Ediff
-            %   (in the end we have to divide E' by \gamma to get E)
-            %   Ediff'_{0}   = 0
-            %   Ediff'_{k+1} = (1 - \gamma) E_diff'_{k} - 1.0i \gamma^2 G' E'_diff_{k}
-            %
             %   These iterations are implemented as:
-            %   1. a propagation step:   Eprop   = (G' E'_diff + 1.0i/epsilon S {only in 1st iteration})
-            %   2. a mixing step:        E_diff' => (1-\gamma) E_diff' - 1.0i \gamma^2 Eprop  
-            %   3. an accumulation step: E'      => E' + E_diff'
+            %   1. a propagation step:   Eprop   = G' \gamma (E_diff + 1.0i/epsilon S) {only add S in 1st iteration}
+            %   2. a mixing step:        E_diff  => (1-\gamma) E_diff - 1.0i \gamma Eprop  
+            %   3. an accumulation step: E       => E + E_diff
             %
             %   With finally a correction step: E    = E' / \gamma
             
@@ -193,12 +188,12 @@ classdef(Abstract) WaveSimBase < Simulation
             while state.has_next
                 wigg = obj.wiggle(mod(state.it, Nwiggle) + 1); 
                 if state.it <= Nwiggle
-                    state.Ediff = obj.mix(state.Ediff, obj.propagate(...
-                        state.source.add_to(state.Ediff, 1.0i / obj.epsilon / Nwiggle)...
-                        , wigg), obj.gamma);
+                    Etmp = state.source.add_to(state.Ediff, 1.0i / obj.epsilon / Nwiggle);
                 else
-                    state.Ediff = obj.mix(state.Ediff, obj.propagate(state.Ediff, wigg), obj.gamma);
+                    Etmp = state.Ediff;
                 end
+                Etmp = obj.propagate(obj.gamma .* Etmp, wigg);
+                state.Ediff = obj.mix(state.Ediff, Etmp, obj.gamma);
                 
                 state.E = state.E + state.Ediff(...
                     obj.output_roi(1,1):obj.output_roi(2,1),...
@@ -213,11 +208,6 @@ classdef(Abstract) WaveSimBase < Simulation
                 can_terminate = mod(state.it, Nwiggle) == 0; %only stop after multiple of Nwiggle iterations
                 state = next(obj, state, can_terminate);                
             end
-            state.E = state.E ./ obj.gamma(...
-                obj.output_roi(1,1):obj.output_roi(2,1),...
-                    obj.output_roi(1,2):obj.output_roi(2,2),...
-                    obj.output_roi(1,3):obj.output_roi(2,3),...
-                    obj.output_roi(1,4):obj.output_roi(2,4));
         end
     end
 end
