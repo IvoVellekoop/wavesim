@@ -171,11 +171,9 @@ classdef(Abstract) WaveSimBase < Simulation
             %   Ediff_{k+1} = M Ediff_{k} = (1 - \gamma) E_diff_{k} - 1.0i \epsilon \gamma G \gamma E_diff_{k}
             %
             %   These iterations are implemented as:
-            %   1. a propagation step:   Eprop   = G' \gamma (E_diff + 1.0i/epsilon S) {only add S in 1st iteration}
+            %   1. a propagation step:   Eprop   = G \gamma (E_diff + 1.0i/epsilon S) {only add S in 1st iteration}
             %   2. a mixing step:        E_diff  => (1-\gamma) E_diff - 1.0i \gamma Eprop  
             %   3. an accumulation step: E       => E + E_diff
-            %
-            %   With finally a correction step: E    = E' / \gamma
             
             %% Allocate memory for calculations
             % start iteration with the source term (pre-multiplied by 1.0i/obj.epsilon. epsilon to compensate for pre-multiplication of G):
@@ -186,15 +184,17 @@ classdef(Abstract) WaveSimBase < Simulation
             %% simulation iterations
             Nwiggle = size(obj.wiggle, 2);
             while state.has_next
-                wigg = obj.wiggle(mod(state.it, Nwiggle) + 1); 
-                if state.it <= Nwiggle
+                if state.it <= Nwiggle % During the first few iterations: add source term
                     Etmp = state.source.add_to(state.Ediff, 1.0i / obj.epsilon / Nwiggle);
                 else
                     Etmp = state.Ediff;
                 end
+                wigg = obj.wiggle(mod(state.it, Nwiggle) + 1); 
                 Etmp = obj.propagate(obj.gamma .* Etmp, wigg);
                 state.Ediff = obj.mix(state.Ediff, Etmp, obj.gamma);
                 
+                % todo: test if it is faster to accumulate the full Ediff
+                % and take the roi later.
                 state.E = state.E + state.Ediff(...
                     obj.output_roi(1,1):obj.output_roi(2,1),...
                     obj.output_roi(1,2):obj.output_roi(2,2),...
