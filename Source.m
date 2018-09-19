@@ -15,8 +15,9 @@ classdef Source
     %
     % Ivo M. Vellekoop 2018
     properties
-        positions %don't access directly, implementation may change!
-        values
+        %don't access directly, implementation may change!
+        positions % top-left-front corner of sources
+        values    % complex amplitude of sources (3-D arrays, dimensions can be 1)
     end
     
     methods
@@ -36,9 +37,7 @@ classdef Source
                 if nargin < 2
                     position = [1,1,1,1];
                 end
-                obj.positions = cell(1,1);
                 obj.positions{1} = Source.make4(position);
-                obj.values = cell(1,1);
                 obj.values{1} = value;
             else
                 obj.positions = cell(1,0);
@@ -143,6 +142,7 @@ classdef Source
                     pos = obj(s).positions{c};
                     val = obj(s).values{c};
                     sz  = Source.make4(size(val));
+                    
                     %Note: the code below is relatively slow for small array on a gpu
                     % this is because of the the indexing. Fortunately we don't call it often in 
                     % wavesim, but for PSTD it is _the_ bottleneck

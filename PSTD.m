@@ -97,7 +97,7 @@ classdef PSTD < Simulation
                 % isolate E_next:
                 % E_next = (nabla^2 E + source) * dt^2/e_r + 2*E - E_prev
                 Etmp = ifftn(obj.koperator.*fftn(state.E));
-                Etmp = state.source.add_to(Etmp, A); 
+                Etmp = state.source.add_to(Etmp, A, 1); 
                 %simulation.add_at(ifftn(obj.koperator.*fftn(state.E)), A * state.source, state.source_pos);
                 E_next = obj.c2.*state.E + obj.c1.*E_prev + obj.c3 .* Etmp;
                 
