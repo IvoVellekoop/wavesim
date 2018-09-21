@@ -266,6 +266,10 @@ classdef Simulation
             drawnow;
         end
         
+        %skip the callback function, for benchmarking speed
+        function no_callback(obj, state)
+        end
+        
         %default callback function. Shows real value of field, and total energy evolution
         function default_callback(obj, state)
             figure(1);
