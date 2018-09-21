@@ -52,8 +52,19 @@ classdef(Abstract) WaveSimBase < Simulation
             
             % First construct V without epsilon
             V = sample.e_r*k00^2-obj.k^2;
-            obj.epsilonmin = max(abs(V(:)));
-            obj.epsilonmin = max(obj.epsilonmin, 3); %%minimum value to avoid divergence when simulating empty medium
+            absorption_minmax = minmax(imag(V(:)));
+            if absorption_minmax(1) < 0
+                error('Medium cannot have gain, imaginary part of refractive index should be negative');
+            end
+            [Vabs_max, max_index] = max(abs(V(:)));
+            % if Vabs_max corresponds to a point with only absorption
+            % and we use epsilon = Vabs_ max, then at that point V will be
+            % 0, and the method does not work. In this special case, add
+            % a small offset to epsilon
+            if real(V(max_index)) < 0.05 * Vabs_max
+                Vabs_max = Vabs_max * 1.05;
+            end
+            obj.epsilonmin = max(Vabs_max, 3); %%minimum value to avoid divergence when simulating empty medium
             if isfield(options, 'epsilon')
                 obj.epsilon = options.epsilon; %explicitly setting epsilon forces a specific value, may not converge
             else
