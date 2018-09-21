@@ -28,9 +28,6 @@ classdef(Abstract) WaveSimBase < Simulation
         epsilonmin; %minimum value of epsilon for which convergence is guaranteed (equal to epsilon, unless a different value for epsilon was forced)
     
         % precomputed vectors and constants (pre-divided by sqrt epsilon)
-        %pxe;
-        %pye;
-        %pze;
         k02e;
     end
     methods(Abstract)
@@ -108,34 +105,39 @@ classdef(Abstract) WaveSimBase < Simulation
             %   E_{0}   = 0
             %   E_{k+1} = M E_k + \gamma G S
             %   M = \gamma G V - \gamma + 1
-            %   \gamma = i/epsilon V
             %
             % Now instead accumulate all in one buffer. dE_{k} are the terms in the Born series:
+            %   dE_{k} = M^k \gamma G S
+            % 
+            % or, recursively:
             %   dE_{1} = \gamma G S
             %   dE_{k} = M dE_{k-1}
+            %
+            % and we accumulate all in one buffer to find E
             %   E = dE_{1} + dE_{2} + ...
             %
-            %   substitute V = -1.0i \epsilon \gamma
-            %   and G = G' / (-1.0i \epsilon)
+            % we now substitute V = \epsilon/i \gamma and define
+            % G' = \epsilon G
+            % so that M = -i \gamma G' \gamma - \gamma + 1
             %
             %   dE_{1} = \gamma G' i/\epsilon S
-            %   dE_{k} = (\gamma G' \gamma - \gamma + 1) dE_{k-1}
+            %   dE_{k} = (-i \gamma G' \gamma - \gamma + 1) dE_{k-1}
             %
-            % A small optimization can be done by replacing dE = dE' / \gamma
+            % A further optimization can be done by replacing dE = dE' / \gamma
             %
             %   dE'_{1} = \gamma^2 G' i/\epsilon S
-            %   dE'_{k} = (\gamma^2 G' - \gamma + 1) dE'_{k-1}
-            %           = \gamma^2 G' dE'_{k-1}  + (1-\gamma) dE'_{k-1}
+            %   dE'_{k} = (-i \gamma^2 G' - \gamma + 1) dE'_{k-1}
+            %           = -i \gamma^2 G' dE'_{k-1}  + (1-\gamma) dE'_{k-1}
             %
             % Which simplifies to
             %
             %   dE'_{0} = 0
-            %   dE'_{1} = \gamma^2 G' [dE'_{k-1} + i/\epsilon S]  + (1-\gamma) dE'_{k-1}
-            %   dE'_{k} = \gamma^2 G'  dE'_{k-1}                  + (1-\gamma) dE'_{k-1}
+            %   dE'_{1} = -i\gamma^2 G' [dE'_{k-1} + i/\epsilon S]  + (1-\gamma) dE'_{k-1}
+            %   dE'_{k} = -i\gamma^2 G'  dE'_{k-1}                  + (1-\gamma) dE'_{k-1}
             
             %   These iterations are implemented as:
-            %   1. a propagation step:   Eprop   = G' \gamma (E_diff + 1.0i/epsilon S) {only add S in 1st iteration}
-            %   2. a mixing step:        E_diff  => (1-\gamma) E_diff - 1.0i \gamma^2 Eprop  
+            %   1. a propagation step:   Eprop   =  G' [E_diff + i/\epsilon S] {only add S in 1st iteration}
+            %   2. a mixing step:        E_diff  => (1-\gamma) E_diff - i \gamma^2 Eprop  
             %   3. an accumulation step: E       => E + E_diff
             %   
             %   And, after all iterations:
