@@ -2,9 +2,9 @@
 % with n=1
 % Analyzes the accuracy of wavesim and PSTD (with varying time steps)
 
-clear all;
-addpath('../../../');
-addpath('..');
+clear all; close all;
+WaveSim.use('utilities'); % for analytic solution
+
 
 %% options for grid and simulation 
 PPW=4; %points per wavelength = lambda/h

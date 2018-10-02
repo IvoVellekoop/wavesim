@@ -1,7 +1,6 @@
 %%% Script used to plot the accuracy of PSTD and wavesim in homogeneous
 %%% medium
 %Note: uncomment print commands to save figures in eps format
-addpath('..');
 close all;
 %% load figure_accuracy simulation results
 load('figure_accuracy.mat');

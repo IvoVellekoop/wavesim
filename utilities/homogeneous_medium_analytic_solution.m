@@ -23,11 +23,15 @@ function [ sol ] = homogeneous_medium_analytic_solution( k, h, x )
 % note: h*k/pi = 2*h/lambda  ==> Sampling rate with respect to Nyquist
 % note: the Ei part (sol-plane wave component) is real and rapidly
 % oscillating
-phi = k * x;
-x(abs(x)<1E-100) = 1E-100; %dirty way to avoid nan
-sol = 1.0i*h/(2*k)*exp(1.0i * phi)... %<--propagating plane wave.
-    -h/(4*pi*k) * (...
-    exp(1.0i * phi) .* (  expint(1.0i * (k-pi/h) * x) - expint(1.0i * (k+pi/h) * x)) -...
-    exp(-1.0i * phi) .* ( -expint(-1.0i * (k-pi/h)* x)  + expint(-1.0i* (k+pi/h) * x)));
+    x = abs(x);
+    phi = k * x;
+    sol = 1.0i*h/(2*k)*exp(1.0i * phi)... %<--propagating plane wave.
+        -h/(4*pi*k) * (...
+        exp(1.0i * phi) .* (  expint(1.0i * (k-pi/h) * x) - expint(1.0i * (k+pi/h) * x)) -...
+        exp(-1.0i * phi) .* ( -expint(-1.0i * (k-pi/h)* x)  + expint(-1.0i* (k+pi/h) * x)));
+
+    % special case for values close to 0
+    small = abs(k*x)<1E-10;
+    sol(small) = 1.0i * h/(2*k) * (1+2i*atanh(h*k/pi)/pi); %exact value at 0.
 end
 

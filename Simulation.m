@@ -301,5 +301,11 @@ classdef Simulation
             %disp(['Added energy ', num2str(energy(end))]);
             drawnow;
         end
+        
+        % e.g. call Simulation.use('utilities') to add the 'utilities' folder
+        % to the MATLAB path
+        function use(subpath)
+            addpath([fileparts(mfilename('fullpath')) '\' subpath]); %todo: put in more sensible location
+        end
     end
 end
