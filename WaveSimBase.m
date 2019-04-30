@@ -1,8 +1,8 @@
 classdef(Abstract) WaveSimBase < Simulation
     % Base class for the simulation of 2-D or 3-D wave equations using
     % the modified Born series approach
-    % This class is overridden by wavesim (for scalar simulations)
-    % and wavesimv (for vector simulations).
+    % This class is overridden by WaveSim (for scalar simulations)
+    % and WaveSimVector (for vector simulations).
     %
     % The actual simulation is performed by calling the functions
     % 'mix' and 'propagate'. Only the 'propagate' function is different
@@ -169,28 +169,24 @@ classdef(Abstract) WaveSimBase < Simulation
                 end
                 Etmp = obj.propagate(Etmp, wigg);
                 state.Ediff = obj.mix(state.Ediff, Etmp, obj.gamma);
-                
-                % todo: test if it is faster to accumulate the full Ediff
-                % and take the roi later.
-                state.E = state.E + state.Ediff(...
-                    obj.output_roi(1,1):obj.output_roi(2,1),...
-                    obj.output_roi(1,2):obj.output_roi(2,2),...
-                    obj.output_roi(1,3):obj.output_roi(2,3),...
-                    obj.output_roi(1,4):obj.output_roi(2,4));
+                state.E = state.E + state.Ediff;
                 
                 if state.calculate_energy
-                    state.last_step_energy = Simulation.energy(state.Ediff);
+                    state.last_step_energy = Simulation.energy(state.Ediff);                  
                 end
                 
                 can_terminate = mod(state.it, Nwiggle) == 0; %only stop after multiple of Nwiggle iterations
                 state = next(obj, state, can_terminate);                
             end
             
-            state.E = state.E ./ obj.gamma(...
-                    obj.output_roi(1,1):obj.output_roi(2,1),...
-                    obj.output_roi(1,2):obj.output_roi(2,2),...
-                    obj.output_roi(1,3):obj.output_roi(2,3),...
-                    obj.output_roi(1,4):obj.output_roi(2,4));
+            state.E = state.E ./ obj.gamma;
+            state.rel_error = obj.calculate_rel_error(state);
+            
+            % crop field to remove boundary layers
+            state.E = state.E(obj.output_roi(1,1):obj.output_roi(2,1),...
+                              obj.output_roi(1,2):obj.output_roi(2,2),...
+                              obj.output_roi(1,3):obj.output_roi(2,3),...
+                              obj.output_roi(1,4):obj.output_roi(2,4));
         end
     end
     methods(Access=private)
@@ -244,6 +240,20 @@ classdef(Abstract) WaveSimBase < Simulation
             wd.gx = obj.data_array(exp(2.0i * pi * dir(2) * obj.grid.x_range / obj.grid.dx / length(obj.grid.x_range)));% - floor(obj.grid.N(2)/2));
             wd.gy = obj.data_array(exp(2.0i * pi * dir(1) * obj.grid.y_range / obj.grid.dx / length(obj.grid.y_range)));%
             wd.gz = obj.data_array(exp(2.0i * pi * dir(3) * obj.grid.z_range / obj.grid.dx / length(obj.grid.z_range)));%
+        end
+        
+        function rel_error = calculate_rel_error(obj, state)
+            % Calculates relative error in final field by computing the
+            % residual field: E - (GVE + GS).  dE_1 = GS, dE_k = GVdE_(k-1)
+            % notes: 
+            % no wiggle applied here so added errors are expected near boundaries. 
+            % what to do with close zero-valued pixels?
+            % todo: thoroughly test function 
+            Etmp = -1.0i*obj.epsilon*obj.gamma.*state.E;        % E = VE
+            Etmp = obj.propagate(Etmp,obj.no_wiggle)/obj.epsilon;% E = G'E/eps
+            Etmp = state.source.add_to(Etmp,1.0i / obj.epsilon);% E = E + GS
+                        
+            rel_error = mean(abs(state.E(:) - Etmp(:)).^2./(abs(state.E(:)).^2));
         end
     end
 end

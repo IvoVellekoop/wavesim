@@ -4,10 +4,10 @@
 clear all; close all;
 addpath('..');
 
-%% simulations options
+%% simulation options
 PPW=4;                          % points per wavelength
 opt.lambda = 1;                 % wavelength in vacuum (in um)
-opt.energy_threshold = 1E-8;    % simulation has converged when total added energy is lower than threshold 
+opt.energy_threshold = 1E-10;    % simulation has converged when total added energy is lower than threshold 
 opt.pixel_size = opt.lambda/PPW;% grid pixel size (in um)
 opt.boundary_widths = [0,0];    % periodic boundaries
 
@@ -39,7 +39,7 @@ sim = WaveSim(sample, opt);
 source = Source(1,[N(1)/2,N(2)/2]);
 
 %% wavesim simulation
-E = exec(sim, source);
+[E,state] = exec(sim, source);
 
 %% plot resulting field amplitude
 figure(1); clf;

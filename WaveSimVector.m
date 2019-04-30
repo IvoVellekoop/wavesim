@@ -16,6 +16,7 @@ classdef WaveSimVector < WaveSimBase
         end
         function E = propagate(obj, E, wiggle)
             % calculate (I - p p^T / (k_0^2+i epsilon)
+            % TODO: replace fEx with E directly to save memory
             if obj.gpu_enabled
                 E = arrayfun(@f_wiggle, E, wiggle.gx, wiggle.gy, wiggle.gz);
             else
