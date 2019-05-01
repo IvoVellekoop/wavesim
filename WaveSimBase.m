@@ -180,7 +180,7 @@ classdef(Abstract) WaveSimBase < Simulation
             end
             
             state.E = state.E ./ obj.gamma;
-            state.rel_error = obj.calculate_rel_error(state);
+%             state.rel_error = obj.calculate_rel_error(state);
             
             % crop field to remove boundary layers
             state.E = state.E(obj.output_roi(1,1):obj.output_roi(2,1),...
@@ -249,11 +249,12 @@ classdef(Abstract) WaveSimBase < Simulation
             % no wiggle applied here so added errors are expected near boundaries. 
             % what to do with close zero-valued pixels?
             % todo: thoroughly test function 
-            Etmp = -1.0i*obj.epsilon*obj.gamma.*state.E;        % E = VE
+            Etmp = -1.0i*obj.epsilon*obj.gamma.*state.E;         % E = VE
             Etmp = obj.propagate(Etmp,obj.no_wiggle)/obj.epsilon;% E = G'E/eps
-            Etmp = state.source.add_to(Etmp,1.0i / obj.epsilon);% E = E + GS
+            Etmp = state.source.add_to(Etmp,1.0i / obj.epsilon); % E = E + GS
                         
             rel_error = mean(abs(state.E(:) - Etmp(:)).^2./(abs(state.E(:)).^2));
+            rel_error = gather(rel_error);
         end
     end
 end
