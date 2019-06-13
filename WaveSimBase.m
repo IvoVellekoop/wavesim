@@ -180,7 +180,7 @@ classdef(Abstract) WaveSimBase < Simulation
             end
             
             state.E = state.E ./ obj.gamma;
-%             state.rel_error = obj.calculate_rel_error(state);
+            state.rel_error = obj.calculate_rel_error(state);
             
             % crop field to remove boundary layers
             state.E = obj.crop_field(state.E);
@@ -259,7 +259,7 @@ classdef(Abstract) WaveSimBase < Simulation
             Etmp = obj.propagate(Etmp,obj.no_wiggle)/obj.epsilon;% E = G'E/eps
             Etmp = state.source.add_to(Etmp,1.0i / obj.epsilon); % E = E + GS
                         
-            rel_error = mean(abs(state.E(:) - Etmp(:)).^2./(abs(state.E(:)).^2));
+            rel_error = mean(abs(state.E(:) - Etmp(:)).^2)./mean(abs(state.E(:)).^2);
             rel_error = gather(rel_error);
         end
     end
