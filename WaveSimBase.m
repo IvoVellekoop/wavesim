@@ -172,7 +172,7 @@ classdef(Abstract) WaveSimBase < Simulation
                 state.E = state.E + state.Ediff;
                 
                 if state.calculate_energy
-                    state.last_step_energy = Simulation.energy(state.Ediff);                  
+                    state.last_step_energy = Simulation.energy( obj.crop_field(state.Ediff) );                  
                 end
                 
                 can_terminate = mod(state.it, Nwiggle) == 0; %only stop after multiple of Nwiggle iterations
@@ -183,10 +183,7 @@ classdef(Abstract) WaveSimBase < Simulation
 %             state.rel_error = obj.calculate_rel_error(state);
             
             % crop field to remove boundary layers
-            state.E = state.E(obj.output_roi(1,1):obj.output_roi(2,1),...
-                              obj.output_roi(1,2):obj.output_roi(2,2),...
-                              obj.output_roi(1,3):obj.output_roi(2,3),...
-                              obj.output_roi(1,4):obj.output_roi(2,4));
+            state.E = obj.crop_field(state.E);
         end
     end
     methods(Access=private)
@@ -240,6 +237,15 @@ classdef(Abstract) WaveSimBase < Simulation
             wd.gx = obj.data_array(exp(2.0i * pi * dir(2) * obj.grid.x_range / obj.grid.dx / length(obj.grid.x_range)));% - floor(obj.grid.N(2)/2));
             wd.gy = obj.data_array(exp(2.0i * pi * dir(1) * obj.grid.y_range / obj.grid.dx / length(obj.grid.y_range)));%
             wd.gz = obj.data_array(exp(2.0i * pi * dir(3) * obj.grid.z_range / obj.grid.dx / length(obj.grid.z_range)));%
+        end
+        
+        function Ecrop = crop_field(obj,E)
+            % Removes the boundary layer from the simulated field by
+            % cropping field dataset
+            Ecrop = E(obj.output_roi(1,1):obj.output_roi(2,1),...
+                      obj.output_roi(1,2):obj.output_roi(2,2),...
+                      obj.output_roi(1,3):obj.output_roi(2,3),...
+                      obj.output_roi(1,4):obj.output_roi(2,4));
         end
         
         function rel_error = calculate_rel_error(obj, state)
