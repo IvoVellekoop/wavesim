@@ -266,6 +266,18 @@ classdef Simulation
             drawnow;
         end
         
+        function abs_crossimage_callback(obj, state)
+            % callback function that displays the intensity along the
+            % propagation direction
+            %
+            figure(1);
+            Eprop = abs(squeeze(state.E(ceil(end/2),:,:,1)));
+            imagesc(Eprop);
+            axis image;
+            title(['Differential energy ' num2str(state.diff_energy(state.it)/state.diff_energy(1))]);
+            drawnow;
+        end
+        
         %skip the callback function, for benchmarking speed
         function no_callback(obj, state)
         end
