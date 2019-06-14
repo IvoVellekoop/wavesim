@@ -155,7 +155,7 @@ classdef(Abstract) WaveSimBase < Simulation
             %       E       => E / \gamma
             
             %% Allocate memory for calculations
-            state.E = 0;
+            state.E = obj.data_array([], obj.N);
             state.Ediff = obj.data_array([], obj.N);
             
             %% simulation iterations
