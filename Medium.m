@@ -11,6 +11,7 @@ classdef Medium
         grid %  simgrid object, with x and k ranges
         filters = []% profiles for windowed absorbing boundaries
         leakage = 0
+        n_media = 1; % number of potential maps stored in memory for anti-aliasing wiggle
     end
     methods
         function obj = Medium(refractive_index, options)
@@ -39,6 +40,12 @@ classdef Medium
             % default fraction of the boundary width will be used
             % (pre-factor may change in the future)
             %
+            % New feature: 
+            % options.medium_wiggle (3x1 boolean array, corresponding with 
+            % dimensions y,x,z).
+            % when enabled the medium will be subdivided into multiple sub
+            % media for anti-aliasing
+            
             %% Set default values and check validity of inputs
             assert(numel(refractive_index) >= 1);
             assert(numel(options.boundary_widths) >= ndims(refractive_index));
@@ -49,12 +56,24 @@ classdef Medium
             if ~isfield(options, 'ar_width')
                 options.ar_width = options.boundary_widths; %this is assuming that we have wiggle turned on. Use a lower width fraction if wiggle is not used.
             end
+            if ~isfield(options, 'medium_wiggle')
+                options.medium_wiggle = false(1,3); % by default medium wiggle is disabled in all dimensions
+            end
             
             %% calculate e_r and min/max values
-            obj.e_r = refractive_index.^2;
-            obj.e_r_min = min(real(obj.e_r(:)));
-            obj.e_r_max = max(real(obj.e_r(:)));
+            e_r = refractive_index.^2;
+            obj.e_r_min = min(real(e_r(:)));
+            obj.e_r_max = max(real(e_r(:)));
             obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;
+            
+            % subsample medium into smaller media when medium wiggle is
+            % enabled in one or more dimensions
+            obj.n_media = 2^sum(options.medium_wiggle);
+            if obj.n_media > 1
+                obj.e_r = Medium.subsample(e_r,options.medium_wiggle);
+            else
+                obj.e_r = e_r;
+            end
             
             % construct coordinate set. 
             % padds to next efficient size for fft in each dimension, and makes sure to
@@ -68,6 +87,12 @@ classdef Medium
             [obj.e_r, obj.roi, Bl, Br] = Medium.extrapolate(obj.e_r, obj.grid.N);
             [obj.e_r, obj.leakage] = Medium.add_absorbing_boundaries(obj.e_r, Bl, Br, options); 
             obj.filters = Medium.edge_filters(obj.grid.N, Bl, Br, options);
+        end
+        function gamma = get_gamma(obj, it)
+            % function returning the correct potential map gamma based on
+            % iteration number and number of wiggles
+            i_medium = mod(it,obj.n_media)+1;
+            gamma = obj.gamma_set{i_medium}; 
         end
     end
     methods (Static)
@@ -174,6 +199,27 @@ classdef Medium
                     filters{dim} = reshape(filt, circshift([1, 1, length(filt)], [0,dim]));
                 end
             end
+        end
+        
+        function e_r_set = subsample(e_r, medium_wiggle)
+           % function used to subsample medium into smaller submedia for
+           % anti-aliasing. Odd indices represent grid points on a
+           % right-shifted grid and even indices represent grid points on a
+           % left-shift grid. If medium 
+           n_media = 2^(sum(medium_wiggle));
+           e_r_set = cell(n_media,1);
+           
+           wiggles = [0, 1, 0, 1, 0, 1, 0, 1;...
+                      0, 0, 1, 1, 0, 0, 1, 1;...
+                      0, 0, 0, 0, 1, 1, 1, 1];
+           wshift_set = unique(wiggles.' .* medium_wiggle, 'rows').';
+           
+           for i_medium = 1:n_media
+               wshift = wshift_set(:,i_medium);
+               e_r_set{i_medium} = e_r(1+wshift(1):1+medium_wiggle(1):end,...
+                                       1+wshift(2):1+medium_wiggle(2):end,...
+                                       1+wshift(3):1+medium_wiggle(3):end);
+           end
         end
     end
 end
