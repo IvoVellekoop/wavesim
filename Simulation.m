@@ -1,5 +1,5 @@
 classdef Simulation
-    %Base class for a 2-D wave simulation
+    %Base class for a 2-D or 3D wave simulation
     % Ivo M. Vellekoop 2015-2018
     %
     % Data storage:
@@ -17,25 +17,25 @@ classdef Simulation
     %
     properties
         %options:
-        output_roi = []; % Part of the simulated field that is returned as output, 
-                         % Defaults to the full medium. To save memory, a smaller
-                         % output_roi can be specified. [experimental]
+        output_roi = []; % Part of the simulated field that is returned as output,
+        % Defaults to the full medium. To save memory, a smaller
+        % output_roi can be specified. [experimental]
         
-        lambda = 1;      % Wavelength (in micrometers)      
+        lambda = 1;      % Wavelength (in micrometers)
         
         gpu_enabled = gpuDeviceCount > 0; % flag to determine if simulation are run
-                                          % on the GPU (default: run on GPU if we have one)
+        % on the GPU (default: run on GPU if we have one)
         
-        single_precision = true; % flag to determine if single precision or 
-                                 % double precision calculations are used.
-                                 % Note that on a typical GPU, double
-                                 % precision calculations are about 10
-                                 % times as slow as single precision.
-                                 
+        single_precision = true; % flag to determine if single precision or
+        % double precision calculations are used.
+        % Note that on a typical GPU, double
+        % precision calculations are about 10
+        % times as slow as single precision.
+        
         % Callback function options
         % The simulation code calls a callback function every few
         % iteratations. There are two callbacks already implemented:
-        % default_callback and abs_image_callback. 
+        % default_callback and abs_image_callback.
         % you can choose which one to use to set the 'callback' option
         % note that you can also specify your own custom callback function
         callback = @Simulation.default_callback; % callback function that is called for showing the progress of the simulation. Default shows image of the absolute value of the field.
@@ -49,19 +49,19 @@ classdef Simulation
         % lower than a threshold value.
         %
         energy_threshold = 1E-2; % Threshold for terminating the simulation.
-                                % The threshold is specified as a fraction
-                                % of the amount of energy added during the
-                                % first iteration of the algorithm. Therefore
-                                % it is compensates for the
-                                % amplitude of the source terms.
+        % The threshold is specified as a fraction
+        % of the amount of energy added during the
+        % first iteration of the algorithm. Therefore
+        % it is compensates for the
+        % amplitude of the source terms.
         
         energy_calculation_interval = 8; % only calculate energy difference every N steps (to reduce overhead)
         max_cycles = inf; % Maximum number of wave periods to run the simulation.
-                          % Note that the number of actual iterations per optical cycle
-                          % depends on the algorithm and its parameters
-                          % (notably the refractive index contrast).
-                          % Therefore, it is not recommended to specify
-                          % max_cycles explicitly.
+        % Note that the number of actual iterations per optical cycle
+        % depends on the algorithm and its parameters
+        % (notably the refractive index contrast).
+        % Therefore, it is not recommended to specify
+        % max_cycles explicitly.
         
         %internal:
         grid; % simgrid object
@@ -82,12 +82,12 @@ classdef Simulation
         function obj = Simulation(sample, options)
             %% Constructs a simulation object
             %	sample = SampleMedium object
-            %   options = simulation options. 
+            %   options = simulation options.
             %   options.max_cycles = maximum number of optical cycles for
             %   which to run the simulation. Note that the number of
             %   required iterations per cycle depends on the algorithm and
             %   its parameters
-
+            
             %copy values from 'options' to 'obj' (only if the field is present in obj)
             fs = intersect(fields(obj), fields(options));
             for f=1:length(fs)
@@ -105,7 +105,7 @@ classdef Simulation
             end
             
             obj.energy_calculation_interval = min(obj.energy_calculation_interval, obj.callback_interval); %update the energy at least every callback
-                
+            
             obj.N    = [obj.grid.N, 1]; %vector simulations set last parameter to 3
             obj.x_range = sample.grid.x_range(obj.roi(1,2):obj.roi(2,2));
             obj.x_range = obj.x_range - obj.x_range(1);
@@ -126,9 +126,9 @@ classdef Simulation
         end
         
         function [E, state] = exec(obj, source)
-% EXEC Executes the simulation with the given source
-% source    is a 'source' object (see documentation for source)
-%
+            % EXEC Executes the simulation with the given source
+            % source    is a 'source' object (see documentation for source)
+            %
             tic;
             % convert the source to the correct data type (single, double,
             % gpuarray or not).
@@ -150,7 +150,7 @@ classdef Simulation
                 return;
             end
             
-            %%% prepare state (contains all data that is unique to a single 
+            %%% prepare state (contains all data that is unique to a single
             % run of the simulation)
             %
             state.it = 1; %iteration
@@ -159,7 +159,7 @@ classdef Simulation
             state.last_step_energy = inf;
             state.calculate_energy = true;
             state.has_next = true;
-          
+            
             %%% Execute simulation
             % the run_algorithm function should:
             % - update state.last_step_energy when required
@@ -226,7 +226,7 @@ classdef Simulation
             %obj.N
             if isempty(data) %no data is specified, generate empty array of specified size
                 if obj.gpu_enabled
-                    d = zeros(N, p, 'gpuArray');  
+                    d = zeros(N, p, 'gpuArray');
                 else
                     d = zeros(N, p);
                 end

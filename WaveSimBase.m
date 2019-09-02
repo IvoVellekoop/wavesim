@@ -25,7 +25,7 @@ classdef(Abstract) WaveSimBase < Simulation
         % pass a 1x3 logical vector (e.g. [true false false]) to indicate
         % which boundaries to 'wiggle'
         %% diagnostics and feedback
-        epsilonmin; %minimum value of epsilon for which convergence is guaranteed (equal to epsilon, unless a different value for epsilon was forced)
+        epsilonmin = 3; %%minimum value 3 to avoid divergence when simulating empty medium
     
         % precomputed vectors and constants (pre-divided by sqrt epsilon)
         k02e;
@@ -46,42 +46,22 @@ classdef(Abstract) WaveSimBase < Simulation
             % for now, we only vary the real part of k_0 and choose its
             % imaginary part as 0. Therefore, the optimal k_0
             % follows is given by n_center (see SampleMedium)
-            %% Determine epsilon
             k00 = 2*pi/options.lambda;
             obj.k = sqrt(sample.e_r_center) * k00;
             
-            % First construct V without epsilon
+            %% Determine epsilon and gamma
+            % Construct potential map V (first assuming epsilon = 0)
             V = sample.e_r*k00^2-obj.k^2;
-            absorption_minmax = minmax(imag(V(:)));
-            if absorption_minmax(1) < 0
-                error('Medium cannot have gain, imaginary part of refractive index should be negative');
-            end
-            [Vabs_max, max_index] = max(abs(V(:)));
-            % if Vabs_max corresponds to a point with only absorption
-            % and we use epsilon = Vabs_ max, then at that point V will be
-            % 0, and the method does not work. In this special case, add
-            % a small offset to epsilon
-            if real(V(max_index)) < 0.05 * Vabs_max
-                Vabs_max = Vabs_max * 1.05;
-            end
-            obj.epsilonmin = max(Vabs_max, 3); %%minimum value to avoid divergence when simulating empty medium
-            if isfield(options, 'epsilon')
-                obj.epsilon = options.epsilon; %explicitly setting epsilon forces a specific value, may not converge
-            else
-                obj.epsilon = obj.epsilonmin; %guaranteed convergence
-            end
-            obj.iterations_per_cycle = obj.lambda /(2*obj.k/obj.epsilon); %divide wavelength by pseudo-propagation length
             
-            %% Potential map (V==k^2-k_0^2-1i*epsilon)
-            % todo: move to Medium object
-            V = V - 1.0i*obj.epsilon;
-            for d=1:3
-                if ~isempty(sample.filters{d})
-                    V = V .* sample.filters{d};
-                end
+            % determine optimal epsilon (if value is not given in options) 
+            if ~isfield(options, 'epsilon') % setting epsilon in options forces a specific value, may not converge
+               obj.epsilon = obj.calculate_epsilon(V);
             end
+            
+            % apply sample filters to potential map (V -> V-i*epsilon) and calculate gamma 
+            V = sample.apply_filters(V - 1.0i*obj.epsilon);
             obj.gamma = 1.0i / obj.epsilon * V;
-            
+                       
             %% calculate wiggle coefficients
             [obj.wiggle, obj.no_wiggle] = obj.compute_wiggles(obj.wiggle);
             
@@ -91,7 +71,7 @@ classdef(Abstract) WaveSimBase < Simulation
             obj.gamma = obj.data_array(obj.gamma);
             obj.epsilon = obj.data_array(obj.epsilon);
 
-            %%define function for the mixing step:
+            %% define function for the mixing step:
             % Ediff = (1-gamma) Ediff + gamma^2 [G Ediff]
             % (where [G Ediff] is the propagated field)
             %
@@ -107,6 +87,9 @@ classdef(Abstract) WaveSimBase < Simulation
             else
                 obj.mix = mix;
             end
+            
+            %% propagation speed
+            obj.iterations_per_cycle = obj.lambda /(2*obj.k/obj.epsilon); %divide wavelength by pseudo-propagation length            
         end
         
         function state = run_algorithm(obj, state)
@@ -187,6 +170,22 @@ classdef(Abstract) WaveSimBase < Simulation
         end
     end
     methods(Access=private)
+        function epsilon = calculate_epsilon(obj,V)
+            % function used to calculate the optimal convergence parameter 
+            % epsilon used by wavesim based on maximum real value of 
+            % potential map   
+            
+            [Vabs_max, max_index] = max(abs(V(:)));
+            % if Vabs_max corresponds to a point with only absorption
+            % and we use epsilon = Vabs_ max, then at that point V will be
+            % 0, and the method does not work. In this special case, add
+            % a small offset to epsilon
+            if real(V(max_index)) < 0.05 * Vabs_max
+                Vabs_max = Vabs_max * 1.05;
+            end
+            epsilon = max(Vabs_max, obj.epsilonmin);       
+        end
+        
         function [wiggle_descriptors, no_wiggle] = compute_wiggles(obj, wiggle_option) 
             %% Decides which borders to wiggle and returns wiggled coordinates
             % for those borders

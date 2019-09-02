@@ -3,15 +3,15 @@ classdef Medium
 % simulations (wavesim, PSTD)
 % Ivo Vellekoop 2017
     properties
-        e_r % relative dielectric constand map with boundaries appended
-        e_r_max % maximum real part of obj.e_r
-        e_r_min % minimum real part of obj.e_r
-        e_r_center % (e_r_max+e_r_min)/2
-        roi % size of the original refractive index map without padding
-        grid %  simgrid object, with x and k ranges
+        e_r         % relative dielectric constand map with boundaries appended
+        e_r_max     % maximum real part of obj.e_r
+        e_r_min     % minimum real part of obj.e_r
+        e_r_center  % (e_r_max+e_r_min)/2
+        roi         % size of the original refractive index map without padding
+        grid        %  simgrid object, with x and k ranges
         filters = []% profiles for windowed absorbing boundaries
         leakage = 0
-        n_media = 1; % number of potential maps stored in memory for anti-aliasing wiggle
+        n_media = 1;% number of potential maps stored in memory for anti-aliasing wiggle
     end
     methods
         function obj = Medium(refractive_index, options)
@@ -27,7 +27,6 @@ classdef Medium
             %                      be square. Can be 2-D or 3-D.
             % options.pixel_size = size of a grid pixel in any desired unit (e.g.
             % microns)
-            % options.lambda     = wavelength (in same units as pixel_size)
             % options.boundary_widths = vector with widths of the absorbing
             %                          boundary (in pixels) for each dimension. Set element
             %                          to 0 for periodic boundary.
@@ -45,6 +44,11 @@ classdef Medium
             % dimensions y,x,z).
             % when enabled the medium will be subdivided into multiple sub
             % media for anti-aliasing
+            
+            %% check validity of input sample
+            if min(imag(refractive_index(:))) < 0
+                error('Medium cannot have gain, imaginary part of refractive index should be negative');
+            end
             
             %% Set default values and check validity of inputs
             assert(numel(refractive_index) >= 1);
@@ -64,7 +68,7 @@ classdef Medium
             e_r = refractive_index.^2;
             obj.e_r_min = min(real(e_r(:)));
             obj.e_r_max = max(real(e_r(:)));
-            obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;
+            obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;           
             
             % subsample medium into smaller media when medium wiggle is
             % enabled in one or more dimensions
@@ -88,11 +92,14 @@ classdef Medium
             [obj.e_r, obj.leakage] = Medium.add_absorbing_boundaries(obj.e_r, Bl, Br, options); 
             obj.filters = Medium.edge_filters(obj.grid.N, Bl, Br, options);
         end
-        function gamma = get_gamma(obj, it)
-            % function returning the correct potential map gamma based on
-            % iteration number and number of wiggles
-            i_medium = mod(it,obj.n_media)+1;
-            gamma = obj.gamma_set{i_medium}; 
+        function V = apply_filters(obj,V)
+            % filters the edges of the potential map V to reduce
+            % reflections at the boundaries
+            for d=1:3
+                if ~isempty(obj.filters{d})
+                    V = V .* obj.filters{d};
+                end
+            end
         end
     end
     methods (Static)
