@@ -1,7 +1,7 @@
 classdef Medium
-% Medium - Generates a sample object for use in wave
-% simulations (wavesim, PSTD)
-% Ivo Vellekoop 2017
+    % Medium - Generates a sample object for use in wave
+    % simulations (wavesim, PSTD)
+    % Ivo Vellekoop 2017
     properties
         e_r         % relative dielectric constand map with boundaries appended
         e_r_max     % maximum real part of obj.e_r
@@ -17,7 +17,7 @@ classdef Medium
         function obj = Medium(refractive_index, options)
             % Medium - Generates a sample object for use in wave
             % simulations (wavesim, PSTD, FDTD)
-            % 
+            %
             % internally, the object stores a map of the relative dielectric
             % constant (e_r), which is the refractive index squared. The e_r map
             % is padded with absorbing boundaries, and then expanded to the next
@@ -39,8 +39,8 @@ classdef Medium
             % default fraction of the boundary width will be used
             % (pre-factor may change in the future)
             %
-            % New feature: 
-            % options.medium_wiggle (3x1 boolean array, corresponding with 
+            % New feature:
+            % options.medium_wiggle (3x1 boolean array, corresponding with
             % dimensions y,x,z).
             % when enabled the medium will be subdivided into multiple sub
             % media for anti-aliasing
@@ -68,7 +68,7 @@ classdef Medium
             e_r = refractive_index.^2;
             obj.e_r_min = min(real(e_r(:)));
             obj.e_r_max = max(real(e_r(:)));
-            obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;           
+            obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;
             
             % subsample medium into smaller media when medium wiggle is
             % enabled
@@ -83,14 +83,14 @@ classdef Medium
             
             % calculate effective boundary width (absorbing boundaries + padding)
             % on left and right hand side, respectively.
-            Bl = ceil((obj.grid.N - sz) / 2); 
+            Bl = ceil((obj.grid.N - sz) / 2);
             Br = floor((obj.grid.N - sz) / 2);
             obj.roi = [Bl + 1; Bl+sz];
             
             %% apply padding to every permitivity map and add boundary,
             for i_medium = 1:obj.n_media
                 obj.e_r{i_medium} = Medium.extrapolate(obj.e_r{i_medium}, Bl, Br);
-                [obj.e_r, obj.leakage] = Medium.add_absorbing_boundaries(obj.e_r, Bl, Br, options);               
+                [obj.e_r, obj.leakage] = Medium.add_absorbing_boundaries(obj.e_r, Bl, Br, options);
             end
             
             %% calculate edge filters for window boundary
@@ -110,26 +110,26 @@ classdef Medium
         end
         
         function e_r = extrapolate(e_r, Bl, Br)
-            % pads the permittivity map e_r to total boundary widths Bl and 
-            % Br. the new pixels will be filled with repeated edge pixels          
-            % the boundaries are added to both sides.          
+            % pads the permittivity map e_r to total boundary widths Bl and
+            % Br. the new pixels will be filled with repeated edge pixels
+            % the boundaries are added to both sides.
             e_r = padarray(e_r, Bl, 'replicate', 'pre');
             e_r = padarray(e_r, Br, 'replicate', 'post');
         end
         
         function [e_r, leakage] = add_absorbing_boundaries(e_r, Bl, Br, options)
             %only for (now deprecated) PML boundary conditions:
-            %Adds absorption in such a way to minimize reflection of a 
+            %Adds absorption in such a way to minimize reflection of a
             %normally incident beam
             %
-            if (~strcmp(options.boundary_type(1:3), 'PML') || all(Bl==0)) 
+            if (~strcmp(options.boundary_type(1:3), 'PML') || all(Bl==0))
                 leakage = [];
                 return;
             end
             warning('PML boundary conditions are deprecated and may be removed in the future: use window');
             %the shape of the boundary is determined by f_boundary_curve, a function
             %that takes a position (in pixels, 0=start of boundary) and returns
-            %Delta e_r for the boundary. 
+            %Delta e_r for the boundary.
             Bmax = max(Br); %used to calculate expected amount of leakage through boundary
             %todo: e_0 per row/column? or per side?
             e_0 = mean(e_r(:));
@@ -173,10 +173,10 @@ classdef Medium
         
         function filters = edge_filters(full_size, Bl, Br, options)
             % Note: currently experimental, may be removed.
-            % construct filters that simply nullify the potential map 
+            % construct filters that simply nullify the potential map
             % outside the roi (but utilize a smooth transition function)
             filters = cell(3,1);
-            if (~strcmp(options.boundary_type, 'window') || all(Bl==0)) 
+            if (~strcmp(options.boundary_type, 'window') || all(Bl==0))
                 return;
             end
             
@@ -186,7 +186,7 @@ classdef Medium
                 roi_size = full_size(dim) - bl - br;
                 if bl > 0
                     L = options.ar_width(dim); % width of window
-                   % window = parzenwin(L);
+                    % window = parzenwin(L);
                     window = nuttallwin(L);
                     smoothstep = cumsum(window)/sum(window); % integrate window to get step function
                     filt = [zeros(bl-L, 1); smoothstep; ones(roi_size, 1); flipud(smoothstep); zeros(br-L, 1)];
@@ -207,24 +207,104 @@ classdef Medium
         
         
         function [e_r_set,n_media] = subsample(e_r, medium_wiggle)
-           % function used to subsample medium into smaller submedia for
-           % anti-aliasing. Odd indices represent grid points on a
-           % right-shifted grid and even indices represent grid points on a
-           % left-shift grid. If medium 
-           n_media = 2^(sum(medium_wiggle));
-           e_r_set = cell(n_media,1);
-           
-           wiggles = [0, 1, 0, 1, 0, 1, 0, 1;...
-                      0, 0, 1, 1, 0, 0, 1, 1;...
-                      0, 0, 0, 0, 1, 1, 1, 1];
-           wshift_set = unique(wiggles.' .* medium_wiggle, 'rows').';
-           
-           for i_medium = 1:n_media
-               wshift = wshift_set(:,i_medium);
-               e_r_set{i_medium} = e_r(1+wshift(1):1+medium_wiggle(1):end,...
-                                       1+wshift(2):1+medium_wiggle(2):end,...
-                                       1+wshift(3):1+medium_wiggle(3):end);
-           end
+            % function used to subsample medium into smaller submedia for
+            % anti-aliasing. Odd indices represent grid points on a
+            % right-shifted grid and even indices represent grid points on a
+            % left-shift grid. If medium
+            
+            % check if size of total medium is even in every direction  
+            if ~isequal(mod(size(e_r),2),[0,0,0]) && any(medium_wiggle)
+                warning('medium wiggle disabled. Not supported for media with uneven number of grid points');
+                medium_wiggle = false(1,3);
+            end
+
+            % determine wiggle directions [y;x;z]
+            wiggles = [0, 1, 0, 0, 1, 1, 0, 1;...
+                       0, 0, 1, 0, 1, 0, 1, 1;...
+                       0, 0, 0, 1, 0, 1, 1, 1];
+            [~,idx] = unique(wiggles.' .* medium_wiggle, 'rows');
+            wshift_set = wiggles(:,sort(idx));
+            
+            % generate wiggled submedia 
+            n_media = 2^(sum(medium_wiggle));
+            e_r_set = cell(n_media,1);
+            for i_medium = 1:n_media
+                wshift = wshift_set(:,i_medium);
+                e_r_set{i_medium} = e_r(1+wshift(1):1+medium_wiggle(1):end,...
+                    1+wshift(2):1+medium_wiggle(2):end,...
+                    1+wshift(3):1+medium_wiggle(3):end);
+            end
+        end
+        
+        %%% testing methods
+        function test_subsample()
+            % unit test for Medium.subsample method
+            A = 1+rand(10,10,10);
+            
+            % test 1
+            disp('test 1: no medium wiggle enabled...');
+            [B,n_media] = Medium.subsample(A,[0,0,0]);
+            B_expected{1} = A;
+            if isequal(B{1},B_expected{1}) && n_media == 1
+                disp('passed');
+            else
+                disp('failed');
+            end
+            
+            % test 2
+            disp('test 2: single medium wiggle...');
+            [B,n_media] = Medium.subsample(A,[1,0,0]);
+            B_expected{1} = A(1:2:end,:,:);
+            B_expected{2} = A(2:2:end,:,:);
+            
+            for i_medium = 1:numel(B)
+                if ~isequal(B{i_medium},B_expected{i_medium})
+                    disp('failed');
+                    break;
+                end
+                if i_medium == numel(B) && n_media == 2
+                    disp('passed');
+                end
+            end
+            
+            % test 3:
+            disp('test 3: medium wiggle in 2D...');
+            [B,n_media] = Medium.subsample(A,[1,0,1]);
+            B_expected{1} = A(1:2:end,:,1:2:end);
+            B_expected{2} = A(2:2:end,:,1:2:end);
+            B_expected{3} = A(1:2:end,:,2:2:end);
+            B_expected{4} = A(2:2:end,:,2:2:end);
+
+            for i_medium = 1:numel(B)
+                if ~isequal(B{i_medium},B_expected{i_medium}) 
+                    disp('failed');
+                    break;
+                end
+                if i_medium == numel(B) && n_media == 4
+                    disp('passed');
+                end
+            end
+            
+            % test 4:
+            disp('test 4: medium wiggle in 3D...');
+            [B,n_media] = Medium.subsample(A,[1,1,1]);
+            B_expected{1} = A(1:2:end,1:2:end,1:2:end);
+            B_expected{2} = A(2:2:end,1:2:end,1:2:end);
+            B_expected{3} = A(1:2:end,2:2:end,1:2:end);
+            B_expected{4} = A(1:2:end,1:2:end,2:2:end);
+            B_expected{5} = A(2:2:end,2:2:end,1:2:end);
+            B_expected{6} = A(2:2:end,1:2:end,2:2:end);
+            B_expected{7} = A(1:2:end,2:2:end,2:2:end);
+            B_expected{8} = A(2:2:end,2:2:end,2:2:end);
+            for i_medium = 1:numel(B)
+                if ~isequal(B{i_medium},B_expected{i_medium}) 
+                    disp('failed');
+                    break;
+                end
+                if i_medium == numel(B) && n_media == 8
+                    disp('passed');
+                end
+            end
         end
     end
 end
