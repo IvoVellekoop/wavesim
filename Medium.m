@@ -71,35 +71,30 @@ classdef Medium
             obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;           
             
             % subsample medium into smaller media when medium wiggle is
-            % enabled in one or more dimensions
-            obj.n_media = 2^sum(options.medium_wiggle);
-            if obj.n_media > 1
-                obj.e_r = Medium.subsample(e_r,options.medium_wiggle);
-            else
-                obj.e_r = e_r;
-            end
+            % enabled
+            [obj.e_r,obj.n_media] = Medium.subsample(e_r,options.medium_wiggle);
             
-            % construct coordinate set. 
+            %% construct coordinate set and calculate padding width
             % padds to next efficient size for fft in each dimension, and makes sure to
             % append at least 'boundary_widths' pixels on both sides.
-            sz = Medium.make3(size(obj.e_r), 1);
+            sz = Medium.make3(size(obj.e_r{1}), 1);
             bw = Medium.make3(options.boundary_widths * 2, 0);
             obj.grid = SimulationGrid(sz + bw, options.pixel_size, bw==0);
-
-            % applies the padding, extrapolating the refractive index map to
-            % into the added regions
-            [obj.e_r, obj.roi, Bl, Br] = Medium.extrapolate(obj.e_r, obj.grid.N);
-            [obj.e_r, obj.leakage] = Medium.add_absorbing_boundaries(obj.e_r, Bl, Br, options); 
-            obj.filters = Medium.edge_filters(obj.grid.N, Bl, Br, options);
-        end
-        function V = apply_filters(obj,V)
-            % filters the edges of the potential map V to reduce
-            % reflections at the boundaries
-            for d=1:3
-                if ~isempty(obj.filters{d})
-                    V = V .* obj.filters{d};
-                end
+            
+            % calculate effective boundary width (absorbing boundaries + padding)
+            % on left and right hand side, respectively.
+            Bl = ceil((obj.grid.N - sz) / 2); 
+            Br = floor((obj.grid.N - sz) / 2);
+            obj.roi = [Bl + 1; Bl+sz];
+            
+            %% apply padding to every permitivity map and add boundary,
+            for i_medium = 1:obj.n_media
+                obj.e_r{i_medium} = Medium.extrapolate(obj.e_r{i_medium}, Bl, Br);
+                [obj.e_r, obj.leakage] = Medium.add_absorbing_boundaries(obj.e_r, Bl, Br, options);               
             end
+            
+            %% calculate edge filters for window boundary
+            obj.filters = Medium.edge_filters(obj.grid.N, Bl, Br, options);
         end
     end
     methods (Static)
@@ -114,18 +109,10 @@ classdef Medium
             end
         end
         
-        function [e_r, roi, Bl, Br] = extrapolate(e_r, new_size)
-            %% Expands the permittivity map to 'new_size'
-            % The new pixels will be filled with repeated edge pixels
-            
-            % Calculate effective boundary width (absorbing boundaries + padding)
-            % on left and right hand side, respectively.
-            roi_size = Medium.make3(size(e_r), 1);
-            Bl = ceil((new_size - roi_size) / 2); 
-            Br = floor((new_size - roi_size) / 2); %effective boundary width (absorbing boundaries + padding)
-            
-            % the boundaries are added to both sides. Remember where is the region of interest
-            roi = [Bl + 1; Bl+roi_size];
+        function e_r = extrapolate(e_r, Bl, Br)
+            % pads the permittivity map e_r to total boundary widths Bl and 
+            % Br. the new pixels will be filled with repeated edge pixels          
+            % the boundaries are added to both sides.          
             e_r = padarray(e_r, Bl, 'replicate', 'pre');
             e_r = padarray(e_r, Br, 'replicate', 'post');
         end
@@ -186,8 +173,8 @@ classdef Medium
         
         function filters = edge_filters(full_size, Bl, Br, options)
             % Note: currently experimental, may be removed.
-            % construct filters that simply nullify the field outside the roi
-            % (but utilize a smooth transition function)
+            % construct filters that simply nullify the potential map 
+            % outside the roi (but utilize a smooth transition function)
             filters = cell(3,1);
             if (~strcmp(options.boundary_type, 'window') || all(Bl==0)) 
                 return;
@@ -208,7 +195,18 @@ classdef Medium
             end
         end
         
-        function e_r_set = subsample(e_r, medium_wiggle)
+        function V = apply_filters(V,filters)
+            % filters the edges of the potential map V to reduce
+            % reflections at the boundaries
+            for d=1:3
+                if ~isempty(filters{d})
+                    V = V .* filters{d};
+                end
+            end
+        end
+        
+        
+        function [e_r_set,n_media] = subsample(e_r, medium_wiggle)
            % function used to subsample medium into smaller submedia for
            % anti-aliasing. Odd indices represent grid points on a
            % right-shifted grid and even indices represent grid points on a

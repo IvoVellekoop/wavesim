@@ -12,8 +12,8 @@ classdef(Abstract) WaveSimBase < Simulation
     
     properties
         gamma;   % potential array used in simulation
-        k;       % wave number for g0
         epsilon; % convergence parameter
+        k02e;    % precomputed constants (pre-divided by sqrt epsilon)
         mix;     % function handle to function performing the mixing step
         wiggle = true; 
         no_wiggle; %holds coordinates for non-wiggled case
@@ -25,10 +25,7 @@ classdef(Abstract) WaveSimBase < Simulation
         % pass a 1x3 logical vector (e.g. [true false false]) to indicate
         % which boundaries to 'wiggle'
         %% diagnostics and feedback
-        epsilonmin = 3; %%minimum value 3 to avoid divergence when simulating empty medium
-    
-        % precomputed vectors and constants (pre-divided by sqrt epsilon)
-        k02e;
+        epsilonmin = 3; % minimum value to avoid divergence when simulating empty medium   
     end
     methods(Abstract)
         propagate(obj); % function performing the propagation step        
@@ -42,34 +39,31 @@ classdef(Abstract) WaveSimBase < Simulation
             obj@Simulation(sample, options);
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             
-            %% Determine k_0 to minimize epsilon
-            % for now, we only vary the real part of k_0 and choose its
-            % imaginary part as 0. Therefore, the optimal k_0
-            % follows is given by n_center (see SampleMedium)
-            k00 = 2*pi/options.lambda;
-            obj.k = sqrt(sample.e_r_center) * k00;
+            %% determine wavenumbers
+            % the optimal k_0 follows is given by n_center (see Medium)
+            k0 = 2*pi/obj.lambda;                   % wavenumber in empty medium
+            k0c = sqrt(sample.e_r_center) * k0; % wavenumber for center value refractive index
             
-            %% Determine epsilon and gamma
-            % Construct potential map V (first assuming epsilon = 0)
-            V = sample.e_r*k00^2-obj.k^2;
-            
+            %% Determine epsilon and gamma    
             % determine optimal epsilon (if value is not given in options) 
             if ~isfield(options, 'epsilon') % setting epsilon in options forces a specific value, may not converge
-               obj.epsilon = obj.calculate_epsilon(V);
+                obj.epsilon = obj.calculate_epsilon(sample.e_r,k0,k0c);
             end
+            obj.iterations_per_cycle = obj.lambda /(2*k0c/obj.epsilon); %divide wavelength by pseudo-propagation length    
             
-            % apply sample filters to potential map (V -> V-i*epsilon) and calculate gamma 
-            V = sample.apply_filters(V - 1.0i*obj.epsilon);
-            obj.gamma = 1.0i / obj.epsilon * V;
-                       
-            %% calculate wiggle coefficients
-            [obj.wiggle, obj.no_wiggle] = obj.compute_wiggles(obj.wiggle);
+            % calculate gamma for all submedia
+            obj.gamma = cell(sample.n_media,1);
+            for i_medium = 1:sample.n_media                
+                V = sample.e_r{i_medium}*k0^2-k0c^2 - 1.0i*obj.epsilon; % calculate potential map                   
+                V = Medium.apply_filters(V,sample.filters); % apply sample filters to edge of potential map
+                obj.gamma{i_medium} = obj.data_array(1.0i / obj.epsilon * V); % calculate gamma and convert to desired data type
+            end
+            obj.gamma = obj.gamma{1};
             
             %% convert to single or double precision, and put on gpu if
             % needed. 
-            obj.k02e = obj.data_array(obj.k^2/obj.epsilon + 1.0i);
-            obj.gamma = obj.data_array(obj.gamma);
-            obj.epsilon = obj.data_array(obj.epsilon);
+            obj.k02e = obj.data_array(k0c^2/obj.epsilon + 1.0i);
+            obj.epsilon = obj.data_array(obj.epsilon);      
 
             %% define function for the mixing step:
             % Ediff = (1-gamma) Ediff + gamma^2 [G Ediff]
@@ -88,8 +82,8 @@ classdef(Abstract) WaveSimBase < Simulation
                 obj.mix = mix;
             end
             
-            %% propagation speed
-            obj.iterations_per_cycle = obj.lambda /(2*obj.k/obj.epsilon); %divide wavelength by pseudo-propagation length            
+            %% calculate wiggle coefficients
+            [obj.wiggle, obj.no_wiggle] = obj.compute_wiggles(obj.wiggle);    
         end
         
         function state = run_algorithm(obj, state)
@@ -170,20 +164,24 @@ classdef(Abstract) WaveSimBase < Simulation
         end
     end
     methods(Access=private)
-        function epsilon = calculate_epsilon(obj,V)
+        function epsilon = calculate_epsilon(obj, e_r, k0, k0c)
             % function used to calculate the optimal convergence parameter 
             % epsilon used by wavesim based on maximum real value of 
             % potential map   
             
-            [Vabs_max, max_index] = max(abs(V(:)));
+            % determine largest absolute potential fluctuation of all submedia 
+            % to guarantee convergence
+            V_tot = cell2mat(e_r)*k0^2-k0c^2;
+            [Vabs_max, max_index] = max(abs(V_tot(:)));
+            
             % if Vabs_max corresponds to a point with only absorption
-            % and we use epsilon = Vabs_ max, then at that point V will be
+            % and we use epsilon = Vabs_max, then at that point V will be
             % 0, and the method does not work. In this special case, add
             % a small offset to epsilon
-            if real(V(max_index)) < 0.05 * Vabs_max
+            if real(V_tot(max_index)) < 0.05 * Vabs_max
                 Vabs_max = Vabs_max * 1.05;
             end
-            epsilon = max(Vabs_max, obj.epsilonmin);       
+            epsilon = max(Vabs_max, obj.epsilonmin); % minimum value epsilonmin to avoid divergence when simulating empty medium
         end
         
         function [wiggle_descriptors, no_wiggle] = compute_wiggles(obj, wiggle_option) 
@@ -227,7 +225,7 @@ classdef(Abstract) WaveSimBase < Simulation
             % propagation functions a bit
             %
             wd = struct;
-            % construct coordinates, shift half a pixel when wiggling
+            % construct coordinates, shift quarter of a pixel when wiggling
             wd.pxe = obj.data_array((obj.grid.px_range - obj.grid.dpx * dir(2))/sqrt(obj.epsilon));
             wd.pye = obj.data_array((obj.grid.py_range - obj.grid.dpy * dir(1))/sqrt(obj.epsilon));
             wd.pze = obj.data_array((obj.grid.pz_range - obj.grid.dpz * dir(3))/sqrt(obj.epsilon));

@@ -21,10 +21,15 @@ classdef PSTD < Simulation
         function obj = PSTD(sample, options)
             warning('The PSTD code is only provided for comparison with wavesim, it is not optimized for real use.');
             %% Constructs a pseudo spectral time domain simulation object
-            %	sample = SampleMedium object
+            %	sample = Medium object
             %   options.wavelength = free space wavelength (same unit as pixel_size, e. g. um)
             %   options.dt         = time step (leave empty unless forcing a specific value)
             %   options.time_duration = time duration of whole simulation
+            
+            % only use first submedium (medium_wiggle not implemented for
+            % PSTD)
+            sample.e_r = sample.e_r{1};
+            
             obj@Simulation(sample, options);
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             
@@ -38,14 +43,14 @@ classdef PSTD < Simulation
             else
                 dimensions = 3;
             end
-
+            
             obj.dtmax = 2/sqrt(dimensions)/pi*sample.grid.dx*sqrt(sample.e_r_min); %Stability condition (ref needed)
             obj.dt = obj.dt_relative * obj.dtmax;
             obj.iterations_per_cycle = obj.lambda / obj.dt; %lambda[distance] / dt[time] / c[distance/time]
             
             %% Initialize coefficients (could be optimized);
             obj.omega = 2*pi/obj.lambda; %wave speed c_0 = 1 distance unit / time unit by definition, so omega=k00
-            c2dt = obj.dt^2./real(sample.e_r); %(relative wave speed * dt) ^2
+            c2dt = obj.dt^2./real(sample.e_r{1}); %(relative wave speed * dt) ^2
             sdt  = obj.dt*obj.omega*imag(sample.e_r)./real(sample.e_r); %sigma dt
             
             obj.c1 = (sdt-2)./(sdt+2);
