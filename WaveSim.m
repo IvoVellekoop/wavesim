@@ -15,7 +15,7 @@ classdef WaveSim < WaveSimBase
         function E = propagate(obj, E, wiggle)
             % calculate (I - p p^T / (k_0^2+i epsilon)
             
-            % prepare coordinate vectors (shifted by half a pixel if
+            % prepare coordinate vectors (shifted by quarter of a pixel if
             % wiggling)
             px2 = wiggle.pxe.^2;
             py2 = wiggle.pye.^2;

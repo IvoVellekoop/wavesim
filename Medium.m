@@ -90,7 +90,7 @@ classdef Medium
             %% apply padding to every permitivity map and add boundary,
             for i_medium = 1:obj.n_media
                 obj.e_r{i_medium} = Medium.extrapolate(obj.e_r{i_medium}, Bl, Br);
-                [obj.e_r, obj.leakage] = Medium.add_absorbing_boundaries(obj.e_r, Bl, Br, options);
+                [obj.e_r{i_medium}, obj.leakage] = Medium.add_absorbing_boundaries(obj.e_r{i_medium}, Bl, Br, options);
             end
             
             %% calculate edge filters for window boundary

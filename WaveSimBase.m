@@ -11,12 +11,12 @@ classdef(Abstract) WaveSimBase < Simulation
     % Ivo M. Vellekoop 2014-2018
     
     properties
-        gamma;   % potential array used in simulation
-        epsilon; % convergence parameter
-        k02e;    % precomputed constants (pre-divided by sqrt epsilon)
-        mix;     % function handle to function performing the mixing step
-        wiggle = true; 
-        no_wiggle; %holds coordinates for non-wiggled case
+        gamma;     % potential array used in simulation
+        epsilon;   % convergence parameter
+        k02e;      % precomputed constants (pre-divided by sqrt epsilon)
+        mix;       % function handle to function performing the mixing step
+        no_wiggle; % holds coordinates for non-wiggled case
+        wiggle = true;         
         % 'true' indicates that the anti-wraparound algorithm is used on
         % all edges with non-zero boundary width. Note: zero-width
         % boundaries are treated as periodic boundaries, and the
@@ -207,9 +207,9 @@ classdef(Abstract) WaveSimBase < Simulation
             
             %determine wiggle directions
             wiggles = ...
-                [0, 1, 0, 1, 0, 1, 0, 1;...
-                 0, 0, 1, 1, 0, 0, 1, 1;...
-                 0, 0, 0, 0, 1, 1, 1, 1]/2 - 0.25;
+                [0, 1, 0, 0, 1, 1, 0, 1;...
+                 0, 0, 1, 0, 1, 0, 1, 1;...
+                 0, 0, 0, 1, 0, 1, 1, 1]/2 - 0.25;
             wiggles = unique(wiggles.' .* wiggle_option, 'rows').';
             N_wiggles = size(wiggles, 2);
             wiggle_descriptors(N_wiggles) = no_wiggle; % pre-allocate memory
