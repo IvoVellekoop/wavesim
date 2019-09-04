@@ -274,7 +274,7 @@ classdef(Abstract) WaveSimBase < Simulation
             % pixel shift in real space (required for medium_wiggle)
             wd.gpx = obj.data_array(exp(1.0i * pi/2 * m_wigg(2) * obj.grid.px_range / obj.grid.dpx / length(obj.grid.px_range)));
             wd.gpy = obj.data_array(exp(1.0i * pi/2 * m_wigg(1) * obj.grid.py_range / obj.grid.dpy / length(obj.grid.py_range)));
-            wd.gpz = obj.data_array(exp(1.0i * pi/2 * m_wigg(3) * obj.grid.pz_range / obj.grid.dpz / length(obj.grid.py_range)));      
+            wd.gpz = obj.data_array(exp(1.0i * pi/2 * m_wigg(3) * obj.grid.pz_range / obj.grid.dpz / length(obj.grid.pz_range)));      
         end
     end
 end
