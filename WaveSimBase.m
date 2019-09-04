@@ -230,13 +230,13 @@ classdef(Abstract) WaveSimBase < Simulation
                             
             % generate matrix with all posible wiggle combinations (combine 
             % boundary_wiggle and medium_wiggle)
-            wiggles_3D = [-1,  1, -1, -1,  1,  1, -1, 1;...
-                          -1, -1,  1, -1,  1, -1,  1, 1;...
-                          -1, -1, -1,  1, -1,  1,  1, 1]; % all possible permutations in 3D
-            all_wiggles = zeros(6,2^6); % [y;x;z;ky;kx;kz] in all 64 different permutations 
-            for w = 1:8
-                all_wiggles(:,(w-1)*8+(1:8)) = [wiggles_3D; repmat(wiggles_3D(:,w),1,8)];
-            end
+
+            % Powers of minus one generate rows of alternating ones and minus ones.
+            % The alternation period is two on the first row, four on the second, 
+            % eight on the third, etc. This generates all possible wiggle permuta-
+            % tions where every column is a unique permutation.
+            n_directions = 6;
+            all_wiggles = (-1).^(ceil([1:2^n_directions]./2.^([1:n_directions]' - 1)) + 1); 
              
             % determine wiggle directions
             wiggles_combined = [boundary_wiggle;medium_wiggle]';
