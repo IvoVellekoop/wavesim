@@ -15,15 +15,26 @@ classdef(Abstract) WaveSimBase < Simulation
         epsilon;   % convergence parameter
         k02e;      % precomputed constants (pre-divided by sqrt epsilon)
         mix;       % function handle to function performing the mixing step
-        no_wiggle; % holds coordinates for non-wiggled case
-        wiggle = true;         
+        %% wiggle properties (might be moved to separate class?)
+        wiggles;
+        % cell array containing all the instructions for the
+        % anti-wraparound and anti-aliasing algorithm (the wiggle algorithms)
+        boundary_wiggle = true;         
         % 'true' indicates that the anti-wraparound algorithm is used on
         % all edges with non-zero boundary width. Note: zero-width
         % boundaries are treated as periodic boundaries, and the
         % anti-wraparound algorithm is disabled by default for these
         % boundaries. To override this default behavior, you can explicitly
-        % pass a 1x3 logical vector (e.g. [true false false]) to indicate
+        % pass a 3x1 logical vector (e.g. [true false false]) to indicate
         % which boundaries to 'wiggle'
+        medium_wiggle = false; 
+        % true indicates that the anti-aliasing algorithm is used in all 
+        % dimensions. Algorithm can also exclusively enabled in a single or 
+        % two dimensions by passing a 3x1 logical vector. 
+        Nwiggles; 
+        % number of wiggles performed (all combination of boundary_wiggle 
+        % and medium_wiggle)
+        
         %% diagnostics and feedback
         epsilonmin = 3; % minimum value to avoid divergence when simulating empty medium   
     end
@@ -35,7 +46,8 @@ classdef(Abstract) WaveSimBase < Simulation
             %% Constructs a wave simulation object
             %	sample = SampleMedium object
             %   options.lambda = free space wavelength (same unit as pixel_size, e. g. um)
-            %   options.epsilon = convergence parameter (leave empty unless forcing a specific value)
+            %   options.epsilon = convergence parameter (leave empty unless forcing a specific value)            
+            options.boundary_wiggle = options.wiggle; % temporarily fix for change in syntax
             obj@Simulation(sample, options);
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             
@@ -58,7 +70,7 @@ classdef(Abstract) WaveSimBase < Simulation
                 V = Medium.apply_filters(V,sample.filters); % apply sample filters to edge of potential map
                 obj.gamma{i_medium} = obj.data_array(1.0i / obj.epsilon * V); % calculate gamma and convert to desired data type
             end
-            obj.gamma = obj.gamma{1};
+            obj.gamma = obj.gamma{1};           % medium_wiggle currently still disabled (still under development)
             
             %% convert to single or double precision, and put on gpu if
             % needed. 
@@ -82,8 +94,8 @@ classdef(Abstract) WaveSimBase < Simulation
                 obj.mix = mix;
             end
             
-            %% calculate wiggle coefficients
-            [obj.wiggle, obj.no_wiggle] = obj.compute_wiggles(obj.wiggle);    
+            %% calculate wiggle descriptors
+            [obj.wiggles, obj.boundary_wiggle, obj.medium_wiggle, obj.Nwiggles] = obj.compute_wiggles();    
         end
         
         function state = run_algorithm(obj, state)
@@ -136,15 +148,15 @@ classdef(Abstract) WaveSimBase < Simulation
             state.Ediff = obj.data_array([], obj.N);
             
             %% simulation iterations
-            Nwiggle = size(obj.wiggle, 2);
             while state.has_next
-                wigg = obj.wiggle(mod(state.it, Nwiggle) + 1); 
-                if state.it <= Nwiggle % During the first few iterations: add source term
-                    Etmp = state.source.add_to(state.Ediff, 1.0i / obj.epsilon / Nwiggle);
+                wiggle = obj.wiggles{mod(state.it, obj.Nwiggles) + 1}; 
+                if state.it <= obj.Nwiggles % During the first few iterations: add source term
+                    Etmp = state.source.add_to(state.Ediff, 1.0i / obj.epsilon / obj.Nwiggles);
                 else
                     Etmp = state.Ediff;
                 end
-                Etmp = obj.propagate(Etmp, wigg);
+                
+                Etmp = obj.propagate(Etmp, wiggle);
                 state.Ediff = obj.mix(state.Ediff, Etmp, obj.gamma);
                 state.E = state.E + state.Ediff;
                 
@@ -152,14 +164,13 @@ classdef(Abstract) WaveSimBase < Simulation
                     state.last_step_energy = Simulation.energy( obj.crop_field(state.Ediff) );                  
                 end
                 
-                can_terminate = mod(state.it, Nwiggle) == 0; %only stop after multiple of Nwiggle iterations
+                can_terminate = mod(state.it, obj.Nwiggles) == 0; %only stop after multiple of Nwiggles iterations
                 state = next(obj, state, can_terminate);                
             end
             
+            % divide field by gamma to convert E' -> E and crop field to 
+            % remove boundary layers 
             state.E = state.E ./ obj.gamma;
-            state.rel_error = obj.calculate_rel_error(state);
-            
-            % crop field to remove boundary layers
             state.E = obj.crop_field(state.E);
         end
     end
@@ -183,59 +194,7 @@ classdef(Abstract) WaveSimBase < Simulation
             end
             epsilon = max(Vabs_max, obj.epsilonmin); % minimum value epsilonmin to avoid divergence when simulating empty medium
         end
-        
-        function [wiggle_descriptors, no_wiggle] = compute_wiggles(obj, wiggle_option) 
-            %% Decides which borders to wiggle and returns wiggled coordinates
-            % for those borders
-
-            % calculate descriptor without wiggling
-            no_wiggle = obj.wiggle_descriptor([0;0;0]);
-
-            % decide which borders to wiggle
-            % true -> wiggle all non-periodic boundaries
-            % [true, false, true] -> wiggle only 1st and 3rd dimension
-            % false -> same as [false, false, false]
-            %
-            if numel(wiggle_option) == 1 && wiggle_option == true %'auto'
-                wiggle_option = ~obj.grid.periodic; 
-            end
-            
-            if ~any(wiggle_option)
-                wiggle_descriptors = no_wiggle;
-                return;
-            end
-            
-            %determine wiggle directions
-            wiggles = ...
-                [0, 1, 0, 0, 1, 1, 0, 1;...
-                 0, 0, 1, 0, 1, 0, 1, 1;...
-                 0, 0, 0, 1, 0, 1, 1, 1]/2 - 0.25;
-            wiggles = unique(wiggles.' .* wiggle_option, 'rows').';
-            N_wiggles = size(wiggles, 2);
-            wiggle_descriptors(N_wiggles) = no_wiggle; % pre-allocate memory
-            for w_i=1:N_wiggles %calculate all wiggled coordinates
-                wiggle_descriptors(w_i) = obj.wiggle_descriptor(wiggles(:, w_i));
-            end
-        end
-        
-        function wd = wiggle_descriptor(obj, dir)
-            %
-            % Construct shifted coordinates and phase ramps for a wiggle
-            % steps. Pre-scale Fourier coordinates to optimize the
-            % propagation functions a bit
-            %
-            wd = struct;
-            % construct coordinates, shift quarter of a pixel when wiggling
-            wd.pxe = obj.data_array((obj.grid.px_range - obj.grid.dpx * dir(2))/sqrt(obj.epsilon));
-            wd.pye = obj.data_array((obj.grid.py_range - obj.grid.dpy * dir(1))/sqrt(obj.epsilon));
-            wd.pze = obj.data_array((obj.grid.pz_range - obj.grid.dpz * dir(3))/sqrt(obj.epsilon));
-            % construct phase gradients to compensate for the pixel
-            % shift
-            wd.gx = obj.data_array(exp(2.0i * pi * dir(2) * obj.grid.x_range / obj.grid.dx / length(obj.grid.x_range)));% - floor(obj.grid.N(2)/2));
-            wd.gy = obj.data_array(exp(2.0i * pi * dir(1) * obj.grid.y_range / obj.grid.dx / length(obj.grid.y_range)));%
-            wd.gz = obj.data_array(exp(2.0i * pi * dir(3) * obj.grid.z_range / obj.grid.dx / length(obj.grid.z_range)));%
-        end
-        
+                
         function Ecrop = crop_field(obj,E)
             % Removes the boundary layer from the simulated field by
             % cropping field dataset
@@ -245,19 +204,77 @@ classdef(Abstract) WaveSimBase < Simulation
                       obj.output_roi(1,4):obj.output_roi(2,4));
         end
         
-        function rel_error = calculate_rel_error(obj, state)
-            % Calculates relative error in final field by computing the
-            % residual field: E - (GVE + GS).  dE_1 = GS, dE_k = GVdE_(k-1)
-            % notes: 
-            % no wiggle applied here so added errors are expected near boundaries. 
-            % what to do with close zero-valued pixels?
-            % todo: thoroughly test function 
-            Etmp = -1.0i*obj.epsilon*obj.gamma.*state.E;         % E = VE
-            Etmp = obj.propagate(Etmp,obj.no_wiggle)/obj.epsilon;% E = G'E/eps
-            Etmp = state.source.add_to(Etmp,1.0i / obj.epsilon); % E = E + GS
-                        
-            rel_error = mean(abs(state.E(:) - Etmp(:)).^2)./mean(abs(state.E(:)).^2);
-            rel_error = gather(rel_error);
+        %%% Wiggle methods (move to separate class?)
+        function [wiggle_descriptors,boundary_wiggle,medium_wiggle,Nwiggles] = compute_wiggles(obj) 
+            % Decides which borders to wiggle and returns wiggled coordinates
+            % for those borders
+
+            % initialize boundary wiggle
+            % true -> wiggle all non-periodic boundaries
+            % [true, false, true] -> wiggle only 1st and 3rd dimension
+            % false -> same as [false, false, false]
+            boundary_wiggle = obj.boundary_wiggle(:);
+            if numel(boundary_wiggle) == 1
+                if boundary_wiggle == true
+                    boundary_wiggle = ~obj.grid.periodic(:);
+                else
+                    boundary_wiggle = false(3,1);
+                end
+            end
+            
+            % initialize medium_wiggle vector
+            medium_wiggle = obj.medium_wiggle(:);
+            if numel(medium_wiggle) == 1 % either true or false in all dimensions
+                medium_wiggle = logical(medium_wiggle*ones(3,1));
+            end
+                            
+            % generate matrix with all posible wiggle combinations (combine 
+            % boundary_wiggle and medium_wiggle)
+            wiggles_3D = [-1,  1, -1, -1,  1,  1, -1, 1;...
+                          -1, -1,  1, -1,  1, -1,  1, 1;...
+                          -1, -1, -1,  1, -1,  1,  1, 1]; % all possible permutations in 3D
+            all_wiggles = zeros(6,2^6); % [y;x;z;ky;kx;kz] in all 64 different permutations 
+            for w = 1:8
+                all_wiggles(:,(w-1)*8+(1:8)) = [wiggles_3D; repmat(wiggles_3D(:,w),1,8)];
+            end
+             
+            % determine wiggle directions
+            wiggles_combined = [boundary_wiggle;medium_wiggle]';
+            [~,idx] = unique(all_wiggles' .* wiggles_combined, 'rows');
+            boundary_wiggles = all_wiggles(1:3,sort(idx)).* boundary_wiggle;
+            medium_wiggles = all_wiggles(4:6,sort(idx)).* medium_wiggle;
+            
+            % calculate phase ramps and coordinates for every
+            % boundary_wiggle and medium_wiggle
+            Nwiggles = numel(idx);
+            wiggle_descriptors = cell(Nwiggles,1); % pre-allocate memory
+            for w_i=1:Nwiggles 
+                wiggle_descriptors{w_i} = obj.wiggle_descriptor(boundary_wiggles(:, w_i), medium_wiggles(:, w_i));
+            end
+        end
+        
+        function wd = wiggle_descriptor(obj, b_wigg, m_wigg)
+            % Constructs shifted coordinates and phase ramps for a wiggle
+            % steps. (b_wigg: boundary_wiggle, m_wigg: medium_wiggle)
+            wd = struct;
+            % construct coordinates, shift quarter of a pixel when wiggling
+            % (required for calculating wiggled Green's function). Pre-scale 
+            % Fourier coordinates to optimize the propagation functions a bit
+            wd.pxe = obj.data_array((obj.grid.px_range - obj.grid.dpx * b_wigg(2)/4)/sqrt(obj.epsilon));
+            wd.pye = obj.data_array((obj.grid.py_range - obj.grid.dpy * b_wigg(1)/4)/sqrt(obj.epsilon));
+            wd.pze = obj.data_array((obj.grid.pz_range - obj.grid.dpz * b_wigg(3)/4)/sqrt(obj.epsilon));
+            
+            % construct real space phase gradients to compensate for the
+            % pixel shift in k_space (required for boundary_wiggle)
+            wd.gx = obj.data_array(exp(1.0i * pi/2 * b_wigg(2) * obj.grid.x_range / obj.grid.dx / length(obj.grid.x_range)));
+            wd.gy = obj.data_array(exp(1.0i * pi/2 * b_wigg(1) * obj.grid.y_range / obj.grid.dx / length(obj.grid.y_range)));
+            wd.gz = obj.data_array(exp(1.0i * pi/2 * b_wigg(3) * obj.grid.z_range / obj.grid.dx / length(obj.grid.z_range)));
+            
+            % construct k-space phase gradients to compensate for the
+            % pixel shift in real space (required for medium_wiggle)
+            wd.gpx = obj.data_array(exp(1.0i * pi/2 * m_wigg(2) * obj.grid.px_range / obj.grid.dpx / length(obj.grid.px_range)));
+            wd.gpy = obj.data_array(exp(1.0i * pi/2 * m_wigg(1) * obj.grid.py_range / obj.grid.dpy / length(obj.grid.py_range)));
+            wd.gpz = obj.data_array(exp(1.0i * pi/2 * m_wigg(3) * obj.grid.pz_range / obj.grid.dpz / length(obj.grid.py_range)));      
         end
     end
 end

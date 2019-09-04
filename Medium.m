@@ -11,7 +11,8 @@ classdef Medium
         grid        %  simgrid object, with x and k ranges
         filters = []% profiles for windowed absorbing boundaries
         leakage = 0
-        n_media = 1;% number of potential maps stored in memory for anti-aliasing wiggle
+        n_media;    % number of potential maps stored in memory (multiple 
+                    % submedia are used for anti-aliasing algorithm)
     end
     methods
         function obj = Medium(refractive_index, options)
