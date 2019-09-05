@@ -271,6 +271,7 @@ classdef(Abstract) WaveSimBase < Simulation
             wd.gpy = obj.data_array(exp(1.0i * pi/2 * m_wigg(1) * obj.grid.py_range / obj.grid.dpy / length(obj.grid.py_range)));
             wd.gpz = obj.data_array(exp(1.0i * pi/2 * m_wigg(3) * obj.grid.pz_range / obj.grid.dpz / length(obj.grid.pz_range)));      
         end
+        
     end
 end
 
