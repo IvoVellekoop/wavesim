@@ -17,26 +17,35 @@ classdef WaveSimVector < WaveSimBase
         function E = propagate(obj, E, wiggle)
             % calculate (I - p p^T / (k_0^2+i epsilon)
             % TODO: replace fEx with E directly to save memory
+            % apply wiggle phase ramps
             if obj.gpu_enabled
                 E = arrayfun(@f_wiggle, E, wiggle.gx, wiggle.gy, wiggle.gz);
             else
                 E = f_wiggle(E, wiggle.gx, wiggle.gy, wiggle.gz);
             end
+            
+            % Fourier transform all vector components separately
             fEx = fftn(E(:,:,:,1));
             fEy = fftn(E(:,:,:,2));
             fEz = fftn(E(:,:,:,3));
+            
+            % apply propagation kernel
             if obj.gpu_enabled
                 [fEx, fEy, fEz] = arrayfun(@f_g0_vector, fEx, fEy, fEz, wiggle.pxe, wiggle.pye, wiggle.pze, obj.k02e);
             else
                 [fEx, fEy, fEz] = f_g0_vector(fEx, fEy, fEz, wiggle.pxe, wiggle.pye, wiggle.pze, obj.k02e);
-            end    
+            end
+            
+            % inverse Fourier transform all vector components
             E(:,:,:,1) = ifftn(fEx);
             E(:,:,:,2) = ifftn(fEy);
             E(:,:,:,3) = ifftn(fEz);
+            
+            % reverse wiggle phase ramp
             if obj.gpu_enabled
-                E = arrayfun(@f_wiggle, E, conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
+                E = arrayfun(@f_iwiggle, E, wiggle.gx, wiggle.gy, wiggle.gz);
             else
-                E = f_wiggle(E, conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
+                E = f_iwiggle(E, wiggle.gx, wiggle.gy, wiggle.gz);
             end
         end
     end
