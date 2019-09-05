@@ -95,7 +95,11 @@ classdef Simulation
                 obj.(fieldname) = options.(fieldname);
             end
             
+            % set grid and number of grid points
             obj.grid = sample.grid;
+            obj.N    = [obj.grid.N, 1]; %vector simulations set last parameter to 3
+            
+            % set region of interest
             obj.roi  = [sample.roi, [1;1]]; %vector simulation objects change the last column to [1;3] to indicate 3 polarization channels.
             if isempty(obj.output_roi)
                 obj.output_roi = obj.roi; % by default return the full field
@@ -104,9 +108,7 @@ classdef Simulation
                 obj.output_roi = obj.output_roi + obj.roi(1,:) - 1; %shift to match grid coordinates
             end
             
-            obj.energy_calculation_interval = min(obj.energy_calculation_interval, obj.callback_interval); %update the energy at least every callback
-            
-            obj.N    = [obj.grid.N, 1]; %vector simulations set last parameter to 3
+            % calculate roi coordinates
             obj.x_range = sample.grid.x_range(obj.roi(1,2):obj.roi(2,2));
             obj.x_range = obj.x_range - obj.x_range(1);
             obj.y_range = sample.grid.y_range(obj.roi(1,1):obj.roi(2,1));
@@ -114,15 +116,8 @@ classdef Simulation
             obj.z_range = sample.grid.z_range(obj.roi(1,3):obj.roi(2,3));
             obj.z_range = obj.z_range - obj.z_range(1);
             
-            % determine how many optical cycles to simulate.
-            % By default, simulate enough cycles to pass the medium 1.5
-            % times. Note that this will not be sufficient if there are
-            % significant reflections.
-            %
-            %if (obj.max_cycles == 0)
-            %    LN = sqrt(length(obj.x_range).^2 + length(obj.y_range)^2 + length(obj.z_range)^2);
-            %    obj.max_cycles = LN * obj.grid.dx / obj.lambda * 2;
-            %end
+            %update the energy at least every callback
+            obj.energy_calculation_interval = min(obj.energy_calculation_interval, obj.callback_interval); 
         end
         
         function [E, state] = exec(obj, source)

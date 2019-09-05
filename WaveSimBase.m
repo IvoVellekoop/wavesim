@@ -46,8 +46,13 @@ classdef(Abstract) WaveSimBase < Simulation
             %% Constructs a wave simulation object
             %	sample = SampleMedium object
             %   options.lambda = free space wavelength (same unit as pixel_size, e. g. um)
-            %   options.epsilon = convergence parameter (leave empty unless forcing a specific value)            
-            options.boundary_wiggle = options.wiggle; % temporarily fix for change in syntax
+            %   options.epsilon = convergence parameter (leave empty unless forcing a specific value)                    
+            
+            % temporary fix for change in syntax (wiggle is now callled boundary_wiggle)
+            if isfield(options,'id')
+                options.boundary_wiggle = options.wiggle;
+            end
+            % call simulation constructor
             obj@Simulation(sample, options);
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             
@@ -227,26 +232,16 @@ classdef(Abstract) WaveSimBase < Simulation
             if numel(medium_wiggle) == 1 % either true or false in all dimensions
                 medium_wiggle = logical(medium_wiggle*ones(3,1));
             end
-                            
-            % generate matrix with all posible wiggle combinations (combine 
-            % boundary_wiggle and medium_wiggle)
 
-            % Powers of minus one generate rows of alternating ones and minus ones.
-            % The alternation period is two on the first row, four on the second, 
-            % eight on the third, etc. This generates all possible wiggle permuta-
-            % tions where every column is a unique permutation.
-            n_directions = 6;
-            all_wiggles = (-1).^(ceil([1:2^n_directions]./2.^([1:n_directions]' - 1)) + 1); 
-             
             % determine wiggle directions
-            wiggles_combined = [boundary_wiggle;medium_wiggle]';
-            [~,idx] = unique(all_wiggles' .* wiggles_combined, 'rows');
-            boundary_wiggles = all_wiggles(1:3,sort(idx)).* boundary_wiggle;
-            medium_wiggles = all_wiggles(4:6,sort(idx)).* medium_wiggle;
+            wiggle_vector = [boundary_wiggle;medium_wiggle];
+            wiggles_combined = wiggle_perm(wiggle_vector);
+            boundary_wiggles = wiggles_combined(1:3,:);
+            medium_wiggles = wiggles_combined(4:6,:);
             
             % calculate phase ramps and coordinates for every
             % boundary_wiggle and medium_wiggle
-            Nwiggles = numel(idx);
+            Nwiggles = size(wiggles_combined,2);
             wiggle_descriptors = cell(Nwiggles,1); % pre-allocate memory
             for w_i=1:Nwiggles 
                 wiggle_descriptors{w_i} = obj.wiggle_descriptor(boundary_wiggles(:, w_i), medium_wiggles(:, w_i));

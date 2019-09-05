@@ -213,24 +213,20 @@ classdef Medium
             % right-shifted grid and even indices represent grid points on a
             % left-shift grid. If medium
             
-            % check if size of total medium is even in every direction  
-            if ~isequal(mod(size(e_r),2),[0,0,0]) && any(medium_wiggle)
-                warning('medium wiggle disabled. Not supported for media with uneven number of grid points');
-                medium_wiggle = false(1,3);
-            end
+            % check if all wiggled direction have an even number of 
+            % gridpoints. If not, append to make grid even
+            odd_grid = mod([size(e_r,1),size(e_r,2),size(e_r,3)],2);
+            append = double(odd_grid & medium_wiggle);
+            e_r = padarray(e_r, append, 'replicate', 'post');
 
             % determine wiggle directions [y;x;z]
-            wiggles = [0, 1, 0, 0, 1, 1, 0, 1;...
-                       0, 0, 1, 0, 1, 0, 1, 1;...
-                       0, 0, 0, 1, 0, 1, 1, 1];
-            [~,idx] = unique(wiggles.' .* medium_wiggle, 'rows');
-            wshift_set = wiggles(:,sort(idx));
+            medium_wiggles = wiggle_perm(medium_wiggle);
             
             % generate wiggled submedia 
             n_media = 2^(sum(medium_wiggle));
             e_r_set = cell(n_media,1);
             for i_medium = 1:n_media
-                wshift = wshift_set(:,i_medium);
+                wshift = (medium_wiggles(:,i_medium) == 1);
                 e_r_set{i_medium} = e_r(1+wshift(1):1+medium_wiggle(1):end,...
                     1+wshift(2):1+medium_wiggle(2):end,...
                     1+wshift(3):1+medium_wiggle(3):end);
@@ -255,8 +251,8 @@ classdef Medium
             % test 2
             disp('test 2: single medium wiggle...');
             [B,n_media] = Medium.subsample(A,[1,0,0]);
-            B_expected{1} = A(1:2:end,:,:);
-            B_expected{2} = A(2:2:end,:,:);
+            B_expected{1} = A(2:2:end,:,:);
+            B_expected{2} = A(1:2:end,:,:);
             
             for i_medium = 1:numel(B)
                 if ~isequal(B{i_medium},B_expected{i_medium})
@@ -271,10 +267,10 @@ classdef Medium
             % test 3:
             disp('test 3: medium wiggle in 2D...');
             [B,n_media] = Medium.subsample(A,[1,0,1]);
-            B_expected{1} = A(1:2:end,:,1:2:end);
-            B_expected{2} = A(2:2:end,:,1:2:end);
-            B_expected{3} = A(1:2:end,:,2:2:end);
-            B_expected{4} = A(2:2:end,:,2:2:end);
+            B_expected{1} = A(2:2:end,:,2:2:end);
+            B_expected{2} = A(1:2:end,:,2:2:end);
+            B_expected{3} = A(2:2:end,:,1:2:end);
+            B_expected{4} = A(1:2:end,:,1:2:end);
 
             for i_medium = 1:numel(B)
                 if ~isequal(B{i_medium},B_expected{i_medium}) 
@@ -289,14 +285,14 @@ classdef Medium
             % test 4:
             disp('test 4: medium wiggle in 3D...');
             [B,n_media] = Medium.subsample(A,[1,1,1]);
-            B_expected{1} = A(1:2:end,1:2:end,1:2:end);
-            B_expected{2} = A(2:2:end,1:2:end,1:2:end);
-            B_expected{3} = A(1:2:end,2:2:end,1:2:end);
+            B_expected{1} = A(2:2:end,2:2:end,2:2:end);
+            B_expected{2} = A(1:2:end,2:2:end,2:2:end);
+            B_expected{3} = A(2:2:end,1:2:end,2:2:end);
             B_expected{4} = A(1:2:end,1:2:end,2:2:end);
             B_expected{5} = A(2:2:end,2:2:end,1:2:end);
-            B_expected{6} = A(2:2:end,1:2:end,2:2:end);
-            B_expected{7} = A(1:2:end,2:2:end,2:2:end);
-            B_expected{8} = A(2:2:end,2:2:end,2:2:end);
+            B_expected{6} = A(1:2:end,2:2:end,1:2:end);
+            B_expected{7} = A(2:2:end,1:2:end,1:2:end);
+            B_expected{8} = A(1:2:end,1:2:end,1:2:end);
             for i_medium = 1:numel(B)
                 if ~isequal(B{i_medium},B_expected{i_medium}) 
                     disp('failed');
@@ -305,6 +301,19 @@ classdef Medium
                 if i_medium == numel(B) && n_media == 8
                     disp('passed');
                 end
+            end
+            
+            % test 5:
+            disp('test 5: test sample with odd number of grid points...');
+            A = rand(11,11,1);
+            [B,~] = Medium.subsample(A,[0,1,0]);
+            B_expected{1} = [A(:,2:2:end),A(:,end)];   % appended direction
+            B_expected{2} = A(:,1:2:end);
+
+            if isequal(B{1},B_expected{1}) && isequal(B{2},B_expected{2})
+                disp('passed');
+            else
+                disp('failed');
             end
         end
     end
