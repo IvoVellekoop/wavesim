@@ -211,12 +211,22 @@ classdef Medium
             % function used to subsample medium into smaller submedia for
             % anti-aliasing. Odd indices represent grid points on a
             % right-shifted grid and even indices represent grid points on a
-            % left-shift grid. If medium
+            % left-shift grid.
             
+            Nx = [size(e_r,1), size(e_r,2), size(e_r,3)]; % size sample
+            
+            % check medium_wiggle input
+            if medium_wiggle == true
+                medium_wiggle = Nx > 1;
+            elseif medium_wiggle == false
+                medium_wiggle = false(1,3);
+            elseif numel(medium_wiggle) < 3
+                medium_wiggle(end+1:3) = false;
+            end
+       
             % check if all wiggled direction have an even number of 
             % gridpoints. If not, append to make grid even
-            odd_grid = mod([size(e_r,1),size(e_r,2),size(e_r,3)],2);
-            append = double(odd_grid & medium_wiggle);
+            append = double(mod(Nx,2) & medium_wiggle);
             e_r = padarray(e_r, append, 'replicate', 'post');
 
             % determine wiggle directions [y;x;z]
@@ -306,7 +316,7 @@ classdef Medium
             % test 5:
             disp('test 5: test sample with odd number of grid points...');
             A = rand(11,11,1);
-            [B,~] = Medium.subsample(A,[0,1,0]);
+            [B,~] = Medium.subsample(A,[0,1]);
             B_expected{1} = [A(:,2:2:end),A(:,end)];   % appended direction
             B_expected{2} = A(:,1:2:end);
 

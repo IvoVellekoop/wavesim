@@ -159,10 +159,15 @@ classdef(Abstract) WaveSimBase < Simulation
                     Etmp = state.source.add_to(state.Ediff, 1.0i / obj.epsilon / obj.Nwiggles);
                 else
                     Etmp = state.Ediff;
-                end
+                end               
                 
                 Etmp = obj.propagate(Etmp, wiggle);
+                
+                % these lines should be combined in a new mix function
+%                 state.Ediff = obj.transform_wiggle(state.Ediff, wiggle.gpx, wiggle.gpy, wiggle.gpz);
                 state.Ediff = obj.mix(state.Ediff, Etmp, obj.gamma);
+%                 state.Ediff = obj.transform_wiggle(state.Ediff, conj(wiggle.gpx), conj(wiggle.gpy), conj(wiggle.gpz));
+                
                 state.E = state.E + state.Ediff;
                 
                 if state.calculate_energy
@@ -179,7 +184,7 @@ classdef(Abstract) WaveSimBase < Simulation
             state.E = obj.crop_field(state.E);
         end
     end
-    methods(Access=private)
+    methods(Access=protected)
         function epsilon = calculate_epsilon(obj, e_r, k0, k0c)
             % function used to calculate the optimal convergence parameter 
             % epsilon used by wavesim based on maximum real value of 
@@ -229,49 +234,98 @@ classdef(Abstract) WaveSimBase < Simulation
             
             % initialize medium_wiggle vector
             medium_wiggle = obj.medium_wiggle(:);
-            if numel(medium_wiggle) == 1 % either true or false in all dimensions
-                medium_wiggle = logical(medium_wiggle*ones(3,1));
+
+            if medium_wiggle == true
+                medium_wiggle = obj.N(:) > 1;
+            elseif medium_wiggle == false
+                medium_wiggle = false(3,1);
+            elseif numel(medium_wiggle) < 3
+                medium_wiggle(end+1:3) = false;
             end
 
             % determine wiggle directions
-            wiggle_vector = [boundary_wiggle;medium_wiggle];
-            wiggles_combined = wiggle_perm(wiggle_vector);
-            boundary_wiggles = wiggles_combined(1:3,:);
-            medium_wiggles = wiggles_combined(4:6,:);
+            wiggle_flags = [boundary_wiggle;medium_wiggle];
+            wiggle_set = wiggle_perm(wiggle_flags);
             
             % calculate phase ramps and coordinates for every
             % boundary_wiggle and medium_wiggle
-            Nwiggles = size(wiggles_combined,2);
+            Nwiggles = size(wiggle_set,2);
             wiggle_descriptors = cell(Nwiggles,1); % pre-allocate memory
             for w_i=1:Nwiggles 
-                wiggle_descriptors{w_i} = obj.wiggle_descriptor(boundary_wiggles(:, w_i), medium_wiggles(:, w_i));
+                wiggle_descriptors{w_i} = obj.wiggle_descriptor(wiggle_set(:,w_i));
             end
         end
         
-        function wd = wiggle_descriptor(obj, b_wigg, m_wigg)
+        function wd = wiggle_descriptor(obj, wig)
             % Constructs shifted coordinates and phase ramps for a wiggle
-            % steps. (b_wigg: boundary_wiggle, m_wigg: medium_wiggle)
+            % steps. (wig: logical vector 6x1 [x;y;z;kx;ky;kz])
             wd = struct;
             % construct coordinates, shift quarter of a pixel when wiggling
             % (required for calculating wiggled Green's function). Pre-scale 
             % Fourier coordinates to optimize the propagation functions a bit
-            wd.pxe = obj.data_array((obj.grid.px_range - obj.grid.dpx * b_wigg(2)/4)/sqrt(obj.epsilon));
-            wd.pye = obj.data_array((obj.grid.py_range - obj.grid.dpy * b_wigg(1)/4)/sqrt(obj.epsilon));
-            wd.pze = obj.data_array((obj.grid.pz_range - obj.grid.dpz * b_wigg(3)/4)/sqrt(obj.epsilon));
+            wd.pxe = obj.data_array((obj.grid.px_range - obj.grid.dpx * wig(2)/4)/sqrt(obj.epsilon));
+            wd.pye = obj.data_array((obj.grid.py_range - obj.grid.dpy * wig(1)/4)/sqrt(obj.epsilon));
+            wd.pze = obj.data_array((obj.grid.pz_range - obj.grid.dpz * wig(3)/4)/sqrt(obj.epsilon));
             
             % construct real space phase gradients to compensate for the
             % pixel shift in k_space (required for boundary_wiggle)
-            wd.gx = obj.data_array(exp(1.0i * pi/2 * b_wigg(2) * obj.grid.x_range / obj.grid.dx / length(obj.grid.x_range)));
-            wd.gy = obj.data_array(exp(1.0i * pi/2 * b_wigg(1) * obj.grid.y_range / obj.grid.dx / length(obj.grid.y_range)));
-            wd.gz = obj.data_array(exp(1.0i * pi/2 * b_wigg(3) * obj.grid.z_range / obj.grid.dx / length(obj.grid.z_range)));
+            wd.gx = obj.data_array(exp(1.0i * pi/2 * wig(2) * obj.grid.x_range / obj.grid.dx / length(obj.grid.x_range)));
+            wd.gy = obj.data_array(exp(1.0i * pi/2 * wig(1) * obj.grid.y_range / obj.grid.dx / length(obj.grid.y_range)));
+            wd.gz = obj.data_array(exp(1.0i * pi/2 * wig(3) * obj.grid.z_range / obj.grid.dx / length(obj.grid.z_range)));
             
             % construct k-space phase gradients to compensate for the
             % pixel shift in real space (required for medium_wiggle)
-            wd.gpx = obj.data_array(exp(1.0i * pi/2 * m_wigg(2) * obj.grid.px_range / obj.grid.dpx / length(obj.grid.px_range)));
-            wd.gpy = obj.data_array(exp(1.0i * pi/2 * m_wigg(1) * obj.grid.py_range / obj.grid.dpy / length(obj.grid.py_range)));
-            wd.gpz = obj.data_array(exp(1.0i * pi/2 * m_wigg(3) * obj.grid.pz_range / obj.grid.dpz / length(obj.grid.pz_range)));      
+            wd.gpx = obj.data_array(exp(1.0i * pi/2 * wig(5) * obj.grid.px_range / obj.grid.dpx / length(obj.grid.px_range)));
+            wd.gpy = obj.data_array(exp(1.0i * pi/2 * wig(4) * obj.grid.py_range / obj.grid.dpy / length(obj.grid.py_range)));
+            wd.gpz = obj.data_array(exp(1.0i * pi/2 * wig(6) * obj.grid.pz_range / obj.grid.dpz / length(obj.grid.pz_range)));      
         end
         
+        function E = fft_wiggle(obj, E, wig)
+            % Modified Fourier transform: additionally applies wiggle phase
+            % ramps in real-space and k-space in wiggle descriptor wig.
+            % Todo: move to separate wiggle class?
+            if obj.gpu_enabled
+                E = arrayfun(@f_wiggle, E, wig.gx, wig.gy, wig.gz);
+                E = fftn(E);
+                %  E = arrayfun(@f_wiggle, E, conj(wig.gpx), conj(wig.gpy), conj(wig.gpz)); % this line is not needed for the current (simple) implementation
+            else
+                E = f_wiggle(E, wig.gx, wig.gy, wig.gz);
+                E = fftn(E);
+                %  E = f_wiggle(E, conj(wig.gpx), conj(wig.gpy), conj(wig.gpz)); % this line is not needed for the current (simple) implementation
+            end
+        end
+        
+        function E = ifft_wiggle(obj, E, wig)
+            % Modified inverse Fourier transform: additionally applies wiggle
+            % phase ramps in real-space and k-space in wiggle descriptor wig.
+            % Todo: move to separate wiggle class?
+            if obj.gpu_enabled
+                E = arrayfun(@f_wiggle, E, wig.gpx, wig.gpy, wig.gpz);
+                E = ifftn(E);
+                E = arrayfun(@f_wiggle, E, conj(wig.gx), conj(wig.gy), conj(wig.gz));
+            else
+                E = f_wiggle(E, wig.gpx, wig.gpy, wig.gpz);
+                E = ifftn(E);
+                E = f_wiggle(E, conj(wig.gx), conj(wig.gy), conj(wig.gz));
+            end
+        end
+        
+        function E = transform_wiggle(obj, E, gpx, gpy, gpz)
+            % Transforms k-space wiggle phase ramp of a field in real-space
+            % Is required by the anti-aliasing algorithm
+            E = fftn(E);
+            if obj.gpu_enabled
+                E = arrayfun(@f_wiggle, E, gpx, gpy, gpz);
+            else
+                E = f_wiggle(E, gpx, gpy, gpz);
+            end
+            E = ifftn(E);
+            
+%             % 1D FFT implementation (seems to be closer)
+%             E = ifft( fft(E,obj.grid.N(2),2) .* gpx , obj.grid.N(2), 2);
+%             E = ifft( fft(E,obj.grid.N(1),1) .* gpy , obj.grid.N(1), 1);
+%             E = ifft( fft(E,obj.grid.N(3),3) .* gpz , obj.grid.N(3), 3);
+        end
     end
 end
 
