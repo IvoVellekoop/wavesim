@@ -11,10 +11,9 @@ classdef(Abstract) WaveSimBase < Simulation
     % Ivo M. Vellekoop 2014-2018
     
     properties
-        gamma;     % potential array used in simulation
+        gamma;     % potential array used in simulation (uses multiple arrays when medium_wiggle is enabled)
         epsilon;   % convergence parameter
         k02e;      % precomputed constants (pre-divided by sqrt epsilon)
-        mix;       % function handle to function performing the mixing step
         %% wiggle properties (might be moved to separate class?)
         wiggles;
         % cell array containing all the instructions for the
@@ -86,18 +85,18 @@ classdef(Abstract) WaveSimBase < Simulation
             % Ediff = (1-gamma) Ediff + gamma^2 [G Ediff]
             % (where [G Ediff] is the propagated field)
             %
-            mix = @(Ediff, Eprop, gamma) (1-gamma) .* Ediff - 1.0i * gamma.^2 .* Eprop;
-            
-            if obj.gpu_enabled
-                % For performance reasons, we use arrayfun when using the
-                % GPU. This way we prevent unnessecary memory allocations
-                % and memory access. Unfortunately, using arrayfun on the
-                % CPU is extremely inefficient (tested in Matlab 2017a)
-                %
-                obj.mix = @(Eold, Enew, gamma) arrayfun(mix, Eold, Enew, gamma);
-            else
-                obj.mix = mix;
-            end
+%             mix = @(Ediff, Eprop, gamma) (1-gamma) .* Ediff - 1.0i * gamma.^2 .* Eprop;
+%             
+%             if obj.gpu_enabled
+%                 % For performance reasons, we use arrayfun when using the
+%                 % GPU. This way we prevent unnessecary memory allocations
+%                 % and memory access. Unfortunately, using arrayfun on the
+%                 % CPU is extremely inefficient (tested in Matlab 2017a)
+%                 %
+%                 obj.mix = @(Eold, Enew, gamma) arrayfun(mix, Eold, Enew, gamma);
+%             else
+%                 obj.mix = mix;
+%             end
             
             %% calculate wiggle descriptors
             [obj.wiggles, obj.boundary_wiggle, obj.medium_wiggle, obj.Nwiggles] = obj.compute_wiggles();    
@@ -162,12 +161,7 @@ classdef(Abstract) WaveSimBase < Simulation
                 end               
                 
                 Etmp = obj.propagate(Etmp, wiggle);
-                
-                % these lines should be combined in a new mix function
-%                 state.Ediff = obj.transform_wiggle(state.Ediff, wiggle.gpx, wiggle.gpy, wiggle.gpz);
-                state.Ediff = obj.mix(state.Ediff, Etmp, obj.gamma);
-%                 state.Ediff = obj.transform_wiggle(state.Ediff, conj(wiggle.gpx), conj(wiggle.gpy), conj(wiggle.gpz));
-                
+                state.Ediff = obj.mix(state.Ediff, Etmp, obj.gamma, wiggle);                
                 state.E = state.E + state.Ediff;
                 
                 if state.calculate_energy
@@ -204,7 +198,26 @@ classdef(Abstract) WaveSimBase < Simulation
             end
             epsilon = max(Vabs_max, obj.epsilonmin); % minimum value epsilonmin to avoid divergence when simulating empty medium
         end
-                
+        
+        function Ediff = mix(obj, Ediff, Eprop, gamma, wiggle)
+            % applies medium potential to previous difference field and the
+            % propagated field and mixes the two fields
+            
+            % transform the k-space wiggle phase ramp if medium_wiggle is
+            % enabled. Eprop is already prepared in the propagation method
+            Ediff = obj.transform_wiggle(Ediff, wiggle.gpx, wiggle.gpy, wiggle.gpz);
+            
+            % mixes two (wiggled) functions
+            if obj.gpu_enabled
+                Ediff = arrayfun(@f_mix, Ediff, Eprop, gamma);
+            else
+                Ediff = f_mix(Ediff, Eprop, gamma);
+            end
+            
+            % reverses k-space wiggle phase ramp of the combined field
+            Ediff = obj.transform_wiggle(Ediff, conj(wiggle.gpx), conj(wiggle.gpy), conj(wiggle.gpz));
+        end
+        
         function Ecrop = crop_field(obj,E)
             % Removes the boundary layer from the simulated field by
             % cropping field dataset
@@ -283,7 +296,6 @@ classdef(Abstract) WaveSimBase < Simulation
         function E = fft_wiggle(obj, E, wig)
             % Modified Fourier transform: additionally applies wiggle phase
             % ramps in real-space and k-space in wiggle descriptor wig.
-            % Todo: move to separate wiggle class?
             if obj.gpu_enabled
                 E = arrayfun(@f_wiggle, E, wig.gx, wig.gy, wig.gz);
                 E = fftn(E);
@@ -298,7 +310,6 @@ classdef(Abstract) WaveSimBase < Simulation
         function E = ifft_wiggle(obj, E, wig)
             % Modified inverse Fourier transform: additionally applies wiggle
             % phase ramps in real-space and k-space in wiggle descriptor wig.
-            % Todo: move to separate wiggle class?
             if obj.gpu_enabled
                 E = arrayfun(@f_wiggle, E, wig.gpx, wig.gpy, wig.gpz);
                 E = ifftn(E);
@@ -321,7 +332,7 @@ classdef(Abstract) WaveSimBase < Simulation
             end
             E = ifftn(E);
             
-%             % 1D FFT implementation (seems to be closer)
+%             % 1D FFT implementation (seems to be slower)
 %             E = ifft( fft(E,obj.grid.N(2),2) .* gpx , obj.grid.N(2), 2);
 %             E = ifft( fft(E,obj.grid.N(1),1) .* gpy , obj.grid.N(1), 1);
 %             E = ifft( fft(E,obj.grid.N(3),3) .* gpz , obj.grid.N(3), 3);
