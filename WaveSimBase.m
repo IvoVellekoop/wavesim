@@ -30,9 +30,6 @@ classdef(Abstract) WaveSimBase < Simulation
         % true indicates that the anti-aliasing algorithm is used in all 
         % dimensions. Algorithm can also exclusively enabled in a single or 
         % two dimensions by passing a 3x1 logical vector. 
-        Nwiggles; 
-        % number of wiggles performed (all combination of boundary_wiggle 
-        % and medium_wiggle)
         
         %% diagnostics and feedback
         epsilonmin = 3; % minimum value to avoid divergence when simulating empty medium   
@@ -74,15 +71,14 @@ classdef(Abstract) WaveSimBase < Simulation
                 V = Medium.apply_filters(V,sample.filters); % apply sample filters to edge of potential map
                 obj.gamma{i_medium} = obj.data_array(1.0i / obj.epsilon * V); % calculate gamma and convert to desired data type
             end
-            obj.gamma = obj.gamma{1};           % medium_wiggle currently still disabled (still under development)
-            
+
             %% convert to single or double precision, and put on gpu if
             % needed. 
             obj.k02e = obj.data_array(k0c^2/obj.epsilon + 1.0i);
             obj.epsilon = obj.data_array(obj.epsilon);      
 
             %% calculate wiggle descriptors
-            [obj.wiggles, obj.boundary_wiggle, obj.medium_wiggle, obj.Nwiggles] = obj.compute_wiggles();    
+            [obj.wiggles, obj.boundary_wiggle, obj.medium_wiggle] = obj.compute_wiggles();    
         end
         
         function state = run_algorithm(obj, state)
@@ -134,30 +130,40 @@ classdef(Abstract) WaveSimBase < Simulation
             state.E = obj.data_array([], obj.N);
             state.Ediff = obj.data_array([], obj.N);
             
+            %% calculate number of wiggles
+            Nwiggles = numel(obj.wiggles);                   % total number of wiggles
+            Nwiggles_per_medium= 2^sum(obj.boundary_wiggle); % number of boundary wiggles performed on a single submedium
+            
             %% simulation iterations
             while state.has_next
-                wiggle = obj.wiggles{mod(state.it, obj.Nwiggles) + 1}; 
-                if state.it <= obj.Nwiggles % During the first few iterations: add source term
-                    Etmp = state.source.add_to(state.Ediff, 1.0i / obj.epsilon / obj.Nwiggles);
+                % select correct wiggle and medium number based on iteration number
+                wiggle = obj.wiggles{mod(state.it, Nwiggles) + 1};
+                i_medium = floor(mod(state.it-1, Nwiggles)/Nwiggles_per_medium) + 1;
+                
+                % add source term (first Nwiggles iterations only) 
+                if state.it <= Nwiggles % During the first few iterations: add source term
+                    Etmp = state.source.add_to(state.Ediff, 1.0i / obj.epsilon / Nwiggles);
                 else
                     Etmp = state.Ediff;
                 end               
                 
+                % main computations steps
                 Etmp = obj.propagate(Etmp, wiggle);
-                state.Ediff = obj.mix(state.Ediff, Etmp, obj.gamma, wiggle);                
+                state.Ediff = obj.mix(state.Ediff, Etmp, obj.gamma{i_medium}, wiggle);                
                 state.E = state.E + state.Ediff;
-                
+
+                % check if algorithm has to be terminated
                 if state.calculate_energy
                     state.last_step_energy = Simulation.energy( obj.crop_field(state.Ediff) );                  
                 end
                 
-                can_terminate = mod(state.it, obj.Nwiggles) == 0; %only stop after multiple of Nwiggles iterations
+                can_terminate = mod(state.it, Nwiggles) == 0; %only stop after multiple of Nwiggles iterations
                 state = next(obj, state, can_terminate);                
             end
             
             % divide field by gamma to convert E' -> E and crop field to 
             % remove boundary layers 
-            state.E = state.E ./ obj.gamma;
+            state.E = state.E ./ obj.gamma{1};  % is not correct when medium_wiggle is enabled!
             state.E = obj.crop_field(state.E);
         end
     end
@@ -211,7 +217,7 @@ classdef(Abstract) WaveSimBase < Simulation
         end
         
         %%% Wiggle methods (move to separate class?)
-        function [wiggle_descriptors,boundary_wiggle,medium_wiggle,Nwiggles] = compute_wiggles(obj) 
+        function [wiggle_descriptors,boundary_wiggle,medium_wiggle] = compute_wiggles(obj) 
             % Decides which borders to wiggle and returns wiggled coordinates
             % for those borders
 
@@ -231,8 +237,8 @@ classdef(Abstract) WaveSimBase < Simulation
             % initialize medium_wiggle vector
             medium_wiggle = obj.medium_wiggle(:);
 
-            if medium_wiggle == true
-                medium_wiggle = obj.N(:) > 1;
+            if medium_wiggle == true                
+                medium_wiggle = obj.N(:) > 1; % medium wiggle disabled in directions where gridsize is 1
             elseif medium_wiggle == false
                 medium_wiggle = false(3,1);
             elseif numel(medium_wiggle) < 3
@@ -246,9 +252,9 @@ classdef(Abstract) WaveSimBase < Simulation
             % calculate phase ramps and coordinates for every
             % boundary_wiggle and medium_wiggle
             Nwiggles = size(wiggle_set,2);
-            wiggle_descriptors = cell(Nwiggles,1); % pre-allocate memory
+            wiggle_descriptors = cell(Nwiggles,1);  % pre-allocate memory
             for w_i=1:Nwiggles 
-                wiggle_descriptors{w_i} = obj.wiggle_descriptor(wiggle_set(:,w_i));
+                wiggle_descriptors{w_i} = obj.wiggle_descriptor(wiggle_set(:,w_i));                
             end
         end
         
