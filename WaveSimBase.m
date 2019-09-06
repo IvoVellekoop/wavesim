@@ -312,19 +312,17 @@ classdef(Abstract) WaveSimBase < Simulation
         
         function E = wiggle_transform(obj, E, gpx, gpy, gpz)
             % Transforms k-space wiggle phase ramp of a field in real-space
-            % Is required by the anti-aliasing algorithm
-            E = fftn(E);
-            if obj.gpu_enabled
-                E = arrayfun(@f_wiggle, E, gpx, gpy, gpz);
-            else
-                E = f_wiggle(E, gpx, gpy, gpz);
+            % Is required by the anti-aliasing algorithm. transform is only 
+            % performed in the medium_wiggle direction that is enabled
+            if obj.medium_wiggle(2) % px-direction
+                E = ifft( fft(E,obj.grid.N(2),2) .* gpx , obj.grid.N(2), 2);
             end
-            E = ifftn(E);
-            
-%             % 1D FFT implementation (seems to be slower)
-%             E = ifft( fft(E,obj.grid.N(2),2) .* gpx , obj.grid.N(2), 2);
-%             E = ifft( fft(E,obj.grid.N(1),1) .* gpy , obj.grid.N(1), 1);
-%             E = ifft( fft(E,obj.grid.N(3),3) .* gpz , obj.grid.N(3), 3);
+            if obj.medium_wiggle(1) % py-direction
+                E = ifft( fft(E,obj.grid.N(1),1) .* gpy , obj.grid.N(1), 1);
+            end
+            if obj.medium_wiggle(3) % pz-direction
+                E = ifft( fft(E,obj.grid.N(3),3) .* gpz , obj.grid.N(3), 3);
+            end
         end
     end
 end
