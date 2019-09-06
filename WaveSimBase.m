@@ -194,7 +194,7 @@ classdef(Abstract) WaveSimBase < Simulation
             
             % transform the k-space wiggle phase ramp if medium_wiggle is
             % enabled. Eprop is already prepared in the propagation method
-            Ediff = obj.transform_wiggle(Ediff, wiggle.gpx, wiggle.gpy, wiggle.gpz);
+            Ediff = obj.wiggle_transform(Ediff, wiggle.gpx, wiggle.gpy, wiggle.gpz);
             
             % mixes two (wiggled) functions
             if obj.gpu_enabled
@@ -204,7 +204,7 @@ classdef(Abstract) WaveSimBase < Simulation
             end
             
             % reverses k-space wiggle phase ramp of the combined field
-            Ediff = obj.transform_wiggle(Ediff, conj(wiggle.gpx), conj(wiggle.gpy), conj(wiggle.gpz));
+            Ediff = obj.wiggle_transform(Ediff, conj(wiggle.gpx), conj(wiggle.gpy), conj(wiggle.gpz));
         end
         
         function Ecrop = crop_field(obj,E)
@@ -310,7 +310,7 @@ classdef(Abstract) WaveSimBase < Simulation
             end
         end
         
-        function E = transform_wiggle(obj, E, gpx, gpy, gpz)
+        function E = wiggle_transform(obj, E, gpx, gpy, gpz)
             % Transforms k-space wiggle phase ramp of a field in real-space
             % Is required by the anti-aliasing algorithm
             E = fftn(E);
