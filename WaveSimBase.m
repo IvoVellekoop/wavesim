@@ -30,6 +30,9 @@ classdef(Abstract) WaveSimBase < Simulation
         % true indicates that the anti-aliasing algorithm is used in all 
         % dimensions. Algorithm can also exclusively enabled in a single or 
         % two dimensions by passing a 3x1 logical vector. 
+        n_media;    
+        % number of potential maps stored in memory (multiple submedia are 
+        % used for anti-aliasing algorithm)
         
         %% diagnostics and feedback
         epsilonmin = 3; % minimum value to avoid divergence when simulating empty medium   
@@ -65,7 +68,8 @@ classdef(Abstract) WaveSimBase < Simulation
             obj.iterations_per_cycle = obj.lambda /(2*k0c/obj.epsilon); %divide wavelength by pseudo-propagation length    
             
             % calculate gamma for all submedia
-            obj.gamma = cell(sample.n_media,1);
+            obj.n_media = sample.n_media;
+            obj.gamma = cell(obj.n_media,1);
             for i_medium = 1:sample.n_media                
                 V = sample.e_r{i_medium}*k0^2-k0c^2 - 1.0i*obj.epsilon; % calculate potential map                   
                 V = Medium.apply_filters(V,sample.filters); % apply sample filters to edge of potential map
@@ -117,7 +121,7 @@ classdef(Abstract) WaveSimBase < Simulation
             %   dE'_{0} = 0
             %   dE'_{1} = -i\gamma^2 G' [dE'_{k-1} + i/\epsilon S]  + (1-\gamma) dE'_{k-1}
             %   dE'_{k} = -i\gamma^2 G'  dE'_{k-1}                  + (1-\gamma) dE'_{k-1}
-            
+               
             %   These iterations are implemented as:
             %   1. a propagation step:   Eprop   =  G' [E_diff + i/\epsilon S] {only add S in 1st iteration}
             %   2. a mixing step:        E_diff  => (1-\gamma) E_diff - i \gamma^2 Eprop  
@@ -131,14 +135,15 @@ classdef(Abstract) WaveSimBase < Simulation
             state.Ediff = obj.data_array([], obj.N);
             
             %% calculate number of wiggles
-            Nwiggles = numel(obj.wiggles);                   % total number of wiggles
-            Nwiggles_per_medium= 2^sum(obj.boundary_wiggle); % number of boundary wiggles performed on a single submedium
+            Nwiggles = numel(obj.wiggles);             % total number of wiggles
+            Nwiggles_per_medium= Nwiggles/obj.n_media; % number of boundary wiggles performed on a single submedium
             
             %% simulation iterations
             while state.has_next
                 % select correct wiggle and medium number based on iteration number
-                wiggle = obj.wiggles{mod(state.it, Nwiggles) + 1};
-                i_medium = floor(mod(state.it-1, Nwiggles)/Nwiggles_per_medium) + 1;
+                i_wiggle = mod(state.it-1, Nwiggles)+1; % wiggle counter
+                i_medium = ceil(i_wiggle/Nwiggles_per_medium); % medium counter
+                wiggle = obj.wiggles{i_wiggle};               
                 
                 % add source term (first Nwiggles iterations only) 
                 if state.it <= Nwiggles % During the first few iterations: add source term
