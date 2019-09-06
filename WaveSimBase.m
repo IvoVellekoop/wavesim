@@ -81,23 +81,6 @@ classdef(Abstract) WaveSimBase < Simulation
             obj.k02e = obj.data_array(k0c^2/obj.epsilon + 1.0i);
             obj.epsilon = obj.data_array(obj.epsilon);      
 
-            %% define function for the mixing step:
-            % Ediff = (1-gamma) Ediff + gamma^2 [G Ediff]
-            % (where [G Ediff] is the propagated field)
-            %
-%             mix = @(Ediff, Eprop, gamma) (1-gamma) .* Ediff - 1.0i * gamma.^2 .* Eprop;
-%             
-%             if obj.gpu_enabled
-%                 % For performance reasons, we use arrayfun when using the
-%                 % GPU. This way we prevent unnessecary memory allocations
-%                 % and memory access. Unfortunately, using arrayfun on the
-%                 % CPU is extremely inefficient (tested in Matlab 2017a)
-%                 %
-%                 obj.mix = @(Eold, Enew, gamma) arrayfun(mix, Eold, Enew, gamma);
-%             else
-%                 obj.mix = mix;
-%             end
-            
             %% calculate wiggle descriptors
             [obj.wiggles, obj.boundary_wiggle, obj.medium_wiggle, obj.Nwiggles] = obj.compute_wiggles();    
         end
@@ -271,7 +254,7 @@ classdef(Abstract) WaveSimBase < Simulation
         
         function wd = wiggle_descriptor(obj, wig)
             % Constructs shifted coordinates and phase ramps for a wiggle
-            % steps. (wig: logical vector 6x1 [x;y;z;kx;ky;kz])
+            % steps. (wig: logical vector 6x1 [y;x;z;ky;kx;kz])
             wd = struct;
             % construct coordinates, shift quarter of a pixel when wiggling
             % (required for calculating wiggled Green's function). Pre-scale 
