@@ -43,9 +43,9 @@ classdef WaveSimVector < WaveSimBase
             
             % reverse wiggle phase ramp
             if obj.gpu_enabled
-                E = arrayfun(@f_iwiggle, E, wiggle.gx, wiggle.gy, wiggle.gz);
+                E = arrayfun(@f_wiggle, E, conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
             else
-                E = f_iwiggle(E, wiggle.gx, wiggle.gy, wiggle.gz);
+                E = f_wiggle(E, conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
             end
         end
     end
