@@ -143,7 +143,7 @@ classdef(Abstract) WaveSimBase < Simulation
                 % select correct wiggle and medium number based on iteration number
                 i_wiggle = mod(state.it-1, Nwiggles)+1; % wiggle counter
                 i_medium = ceil(i_wiggle/Nwiggles_per_medium); % medium counter
-                wiggle = obj.wiggles{i_wiggle};               
+                wig = obj.wiggles{i_wiggle};               
                 
                 % add source term (first Nwiggles iterations only) 
                 if state.it <= Nwiggles % During the first few iterations: add source term
@@ -153,8 +153,8 @@ classdef(Abstract) WaveSimBase < Simulation
                 end               
                 
                 % main computations steps
-                Etmp = obj.propagate(Etmp, wiggle);
-                state.Ediff = obj.mix(state.Ediff, Etmp, obj.gamma{i_medium}, wiggle);                
+                Etmp = obj.propagate(Etmp, wig);
+                state.Ediff = obj.mix(state.Ediff, Etmp, obj.gamma{i_medium}, wig);                
                 state.E = state.E + state.Ediff;
 
                 % check if algorithm has to be terminated
@@ -166,9 +166,14 @@ classdef(Abstract) WaveSimBase < Simulation
                 state = next(obj, state, can_terminate);                
             end
             
-            % divide field by gamma to convert E' -> E and crop field to 
-            % remove boundary layers 
-            state.E = state.E ./ obj.gamma{1};  % is not correct when medium_wiggle is enabled!
+            % Final steps
+            % divide field by gamma to convert E' -> E
+            wig = obj.wiggles{1};
+            state.E = obj.wiggle_transform(state.E, wig.gpx, wig.gpy, wig.gpz);
+            state.E = state.E ./ obj.gamma{1}; % this step will introduce aliasing artefacts
+            state.E = obj.wiggle_transform(state.E, conj(wig.gpx), conj(wig.gpy), conj(wig.gpz));
+            
+            % crop field to match roi size
             state.E = obj.crop_field(state.E);
         end
     end
