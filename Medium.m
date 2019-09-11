@@ -188,8 +188,9 @@ classdef Medium
                 if bl > 0
                     L = options.ar_width(dim); % width of window
                     % window = parzenwin(L);
-                    window = nuttallwin(L);
-                    smoothstep = cumsum(window)/sum(window); % integrate window to get step function
+                    window = nuttallwin(2*L-1);
+%                     smoothstep = cumsum(window)/sum(window); % integrate window to get step function
+                    smoothstep = window(1:L);
                     filt = [zeros(bl-L, 1); smoothstep; ones(roi_size, 1); flipud(smoothstep); zeros(br-L, 1)];
                     filters{dim} = reshape(filt, circshift([1, 1, length(filt)], [0,dim]));
                 end
