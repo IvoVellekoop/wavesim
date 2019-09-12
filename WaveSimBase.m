@@ -132,7 +132,7 @@ classdef(Abstract) WaveSimBase < Simulation
             
             %% Allocate memory for calculations
             state.E = obj.data_array([], obj.N);
-            state.Ediff = obj.data_array([], obj.N);
+            state.dE = obj.data_array([], obj.N);
             
             %% calculate number of wiggles
             Nwiggles = numel(obj.wiggles);             % total number of wiggles
@@ -147,19 +147,19 @@ classdef(Abstract) WaveSimBase < Simulation
                 
                 % add source term (first Nwiggles iterations only) 
                 if state.it <= Nwiggles % During the first few iterations: add source term
-                    Etmp = state.source.add_to(state.Ediff, 1.0i / obj.epsilon / Nwiggles);
+                    Etmp = state.source.add_to(state.dE, 1.0i / obj.epsilon / Nwiggles);
                 else
-                    Etmp = state.Ediff;
+                    Etmp = state.dE;
                 end               
                 
                 % main computations steps
                 Etmp = obj.propagate(Etmp, wig);
-                state.Ediff = obj.mix(state.Ediff, Etmp, obj.gamma{i_medium}, wig);                
-                state.E = state.E + state.Ediff;
+                state.dE = obj.mix(state.dE, Etmp, obj.gamma{i_medium}, wig);
+                state.E = state.E + state.dE;
 
                 % check if algorithm has to be terminated
                 if state.calculate_energy
-                    state.last_step_energy = Simulation.energy( obj.crop_field(state.Ediff) );                  
+                    state.last_step_energy = Simulation.energy( obj.crop_field(state.dE) );                  
                 end
                 
                 can_terminate = mod(state.it, Nwiggles) == 0; %only stop after multiple of Nwiggles iterations
@@ -198,24 +198,24 @@ classdef(Abstract) WaveSimBase < Simulation
             epsilon = max(Vabs_max, obj.epsilonmin); % minimum value epsilonmin to avoid divergence when simulating empty medium
         end
         
-        function Ediff = mix(obj, Ediff, Eprop, gamma, wiggle)
+        function dE = mix(obj, dE, Eprop, gamma, wig)
             % applies medium potential to previous difference field and the
-            % propagated field and mixes the two fields
+            % propagated field and combines the two fields
             
             % transform the k-space wiggle phase ramp if medium_wiggle is
             % enabled.
-            Ediff = obj.wiggle_transform(Ediff, wiggle.gpx, wiggle.gpy, wiggle.gpz);
-            Eprop = obj.wiggle_transform(Eprop, wiggle.gpx, wiggle.gpy, wiggle.gpz);
+            dE = obj.wiggle_transform(dE, wig.gpx, wig.gpy, wig.gpz);
+            Eprop = obj.wiggle_transform(Eprop, wig.gpx, wig.gpy, wig.gpz);
             
-            % mixes two (wiggled) functions
+            % mixes two (wiggled) fields
             if obj.gpu_enabled
-                Ediff = arrayfun(@f_mix, Ediff, Eprop, gamma);
+                dE = arrayfun(@f_mix, dE, Eprop, gamma);
             else
-                Ediff = f_mix(Ediff, Eprop, gamma);
+                dE = f_mix(dE, Eprop, gamma);
             end
             
             % reverses k-space wiggle phase ramp of the combined field
-            Ediff = obj.wiggle_transform(Ediff, conj(wiggle.gpx), conj(wiggle.gpy), conj(wiggle.gpz));
+            dE = obj.wiggle_transform(dE, conj(wig.gpx), conj(wig.gpy), conj(wig.gpz));
         end
         
         function Ecrop = crop_field(obj,E)
@@ -305,7 +305,7 @@ classdef(Abstract) WaveSimBase < Simulation
         end
         
         function E = ifft_wiggle(obj, E, wig)
-            % Modified inverse Fourier transform: additionally applies wiggle
+            % Modified inverse Fourier transform: additionally reverses wiggle
             % phase ramps in real-space. Todo: combine with wiggle_transform
             E = ifftn(E);
             if obj.gpu_enabled              
