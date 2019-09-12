@@ -48,7 +48,7 @@ classdef(Abstract) WaveSimBase < Simulation
             %   options.epsilon = convergence parameter (leave empty unless forcing a specific value)                    
             
             % temporary fix for change in syntax (wiggle is now callled boundary_wiggle)
-            if isfield(options,'id')
+            if isfield(options,'wiggle')
                 options.boundary_wiggle = options.wiggle;
             end
             % call simulation constructor
@@ -163,15 +163,15 @@ classdef(Abstract) WaveSimBase < Simulation
                 end
                 
                 can_terminate = mod(state.it, Nwiggles) == 0; %only stop after multiple of Nwiggles iterations
-                state = next(obj, state, can_terminate);                
+                state = next(obj, state, can_terminate);
             end
             
             % Final steps
             % divide field by gamma to convert E' -> E
             wig = obj.wiggles{1};
-            state.E = obj.wiggle_transform(state.E, wig.gpx, wig.gpy, wig.gpz);
+%             state.E = obj.wiggle_transform(state.E, wig.gpx, wig.gpy, wig.gpz);
             state.E = state.E ./ obj.gamma{1}; % this step will introduce aliasing artefacts
-            state.E = obj.wiggle_transform(state.E, conj(wig.gpx), conj(wig.gpy), conj(wig.gpz));
+%             state.E = obj.wiggle_transform(state.E, conj(wig.gpx), conj(wig.gpy), conj(wig.gpz));
             
             % crop field to match roi size
             state.E = obj.crop_field(state.E);
@@ -248,7 +248,7 @@ classdef(Abstract) WaveSimBase < Simulation
             medium_wiggle = obj.medium_wiggle(:);
 
             if medium_wiggle == true                
-                medium_wiggle = obj.N(:) > 1; % medium wiggle disabled in directions where gridsize is 1
+                medium_wiggle = obj.N(1:3)' > 1; % medium wiggle disabled in directions where gridsize is 1
             elseif medium_wiggle == false
                 medium_wiggle = false(3,1);
             elseif numel(medium_wiggle) < 3
