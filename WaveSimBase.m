@@ -142,8 +142,7 @@ classdef(Abstract) WaveSimBase < Simulation
             while state.has_next
                 % select correct wiggle and medium number based on iteration number
                 i_wiggle = mod(state.it-1, Nwiggles)+1; % wiggle counter
-%                 i_medium = ceil(i_wiggle/Nwiggles_per_medium); % medium counter
-                i_medium = 1;   
+                i_medium = ceil(i_wiggle/Nwiggles_per_medium); % medium counter
                 wig = obj.wiggles{i_wiggle};               
                 
                 % add source term (first Nwiggles iterations only) 
