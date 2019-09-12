@@ -142,7 +142,8 @@ classdef(Abstract) WaveSimBase < Simulation
             while state.has_next
                 % select correct wiggle and medium number based on iteration number
                 i_wiggle = mod(state.it-1, Nwiggles)+1; % wiggle counter
-                i_medium = ceil(i_wiggle/Nwiggles_per_medium); % medium counter
+%                 i_medium = ceil(i_wiggle/Nwiggles_per_medium); % medium counter
+                i_medium = 1;   
                 wig = obj.wiggles{i_wiggle};               
                 
                 % add source term (first Nwiggles iterations only) 
@@ -169,9 +170,9 @@ classdef(Abstract) WaveSimBase < Simulation
             % Final steps
             % divide field by gamma to convert E' -> E
             wig = obj.wiggles{1};
-%             state.E = obj.wiggle_transform(state.E, wig.gpx, wig.gpy, wig.gpz);
+            state.E = obj.wiggle_transform(state.E, wig.gpx, wig.gpy, wig.gpz);
             state.E = state.E ./ obj.gamma{1}; % this step will introduce aliasing artefacts
-%             state.E = obj.wiggle_transform(state.E, conj(wig.gpx), conj(wig.gpy), conj(wig.gpz));
+            state.E = obj.wiggle_transform(state.E, conj(wig.gpx), conj(wig.gpy), conj(wig.gpz));
             
             % crop field to match roi size
             state.E = obj.crop_field(state.E);
@@ -203,8 +204,9 @@ classdef(Abstract) WaveSimBase < Simulation
             % propagated field and mixes the two fields
             
             % transform the k-space wiggle phase ramp if medium_wiggle is
-            % enabled. Eprop is already prepared in the propagation method
+            % enabled.
             Ediff = obj.wiggle_transform(Ediff, wiggle.gpx, wiggle.gpy, wiggle.gpz);
+            Eprop = obj.wiggle_transform(Eprop, wiggle.gpx, wiggle.gpy, wiggle.gpz);
             
             % mixes two (wiggled) functions
             if obj.gpu_enabled
@@ -294,28 +296,22 @@ classdef(Abstract) WaveSimBase < Simulation
         
         function E = fft_wiggle(obj, E, wig)
             % Modified Fourier transform: additionally applies wiggle phase
-            % ramps in real-space and k-space in wiggle descriptor wig.
+            % ramps in real-space. Todo: combine with wiggle_transform
             if obj.gpu_enabled
                 E = arrayfun(@f_wiggle, E, wig.gx, wig.gy, wig.gz);
-                E = fftn(E);
-                %  E = arrayfun(@f_wiggle, E, conj(wig.gpx), conj(wig.gpy), conj(wig.gpz)); % this line is not needed for the current (simple) implementation
             else
-                E = f_wiggle(E, wig.gx, wig.gy, wig.gz);
-                E = fftn(E);
-                %  E = f_wiggle(E, conj(wig.gpx), conj(wig.gpy), conj(wig.gpz)); % this line is not needed for the current (simple) implementation
+                E = f_wiggle(E, wig.gx, wig.gy, wig.gz);              
             end
+            E = fftn(E);
         end
         
         function E = ifft_wiggle(obj, E, wig)
             % Modified inverse Fourier transform: additionally applies wiggle
-            % phase ramps in real-space and k-space in wiggle descriptor wig.
-            if obj.gpu_enabled
-                E = arrayfun(@f_wiggle, E, wig.gpx, wig.gpy, wig.gpz);
-                E = ifftn(E);
+            % phase ramps in real-space. Todo: combine with wiggle_transform
+            E = ifftn(E);
+            if obj.gpu_enabled              
                 E = arrayfun(@f_wiggle, E, conj(wig.gx), conj(wig.gy), conj(wig.gz));
             else
-                E = f_wiggle(E, wig.gpx, wig.gpy, wig.gpz);
-                E = ifftn(E);
                 E = f_wiggle(E, conj(wig.gx), conj(wig.gy), conj(wig.gz));
             end
         end
