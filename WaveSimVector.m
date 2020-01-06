@@ -11,8 +11,10 @@ classdef WaveSimVector < WaveSimBase
     methods
         function obj=WaveSimVector(sample, options)
             obj@WaveSimBase(sample, options);
-            obj.roi(2,4) = 3; %3-polarization planes
-            obj.N(4)     = 3;
+            if ~isfield(options,'roi')
+                obj.roi(2,4) = 3;  %by default return all 3 polarization planes
+            end
+            obj.N(4) = 3;
         end
         function E = propagate(obj, E, wiggle)
             % calculate (I - p p^T / (k_0^2+i epsilon)

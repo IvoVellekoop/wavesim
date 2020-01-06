@@ -17,15 +17,16 @@ classdef Simulation
     %
     properties
         %options:
-        output_roi = []; % Part of the simulated field that is returned as output,
+        roi = []; % Part of the simulated field that is returned as output,
+        % this matrix contains 2 rows, one for the start index and one for
+        % the last index. It contains 4 columns (one for each dimension and
+        % one to indicate the polarization component, which is always 1 for
+        % scalar simulations)
         % Defaults to the full medium. To save memory, a smaller
-        % output_roi can be specified. [experimental]
-        
-        lambda = 1;      % Wavelength (in micrometers)
-        
+        % output_roi can be specified.         
+        lambda = 1;      % Wavelength (in micrometers)        
         gpu_enabled = gpuDeviceCount > 0; % flag to determine if simulation are run
-        % on the GPU (default: run on GPU if we have one)
-        
+        % on the GPU (default: run on GPU if we have one)        
         single_precision = true; % flag to determine if single precision or
         % double precision calculations are used.
         % Note that on a typical GPU, double
@@ -65,11 +66,6 @@ classdef Simulation
         
         %internal:
         grid; % simgrid object
-        roi; % position of simulation area with respect to padded array.
-        %      this matrix contains 2 rows, one for the start index and one for
-        %      the last index. It contains 4 columns (one for each dimension and
-        %      one to indicate the polarization component, which is always 1 for
-        %      scalar simulations)
         N; % size of simulation grid (in pixels)
         x_range; %x-coordinates of roi
         y_range; %y-coordinates of roi
@@ -100,12 +96,11 @@ classdef Simulation
             obj.N    = [obj.grid.N, 1]; %vector simulations set last parameter to 3
             
             % set region of interest
-            obj.roi  = [sample.roi, [1;1]]; %vector simulation objects change the last column to [1;3] to indicate 3 polarization channels.
-            if isempty(obj.output_roi)
-                obj.output_roi = obj.roi; % by default return the full field
+            if isempty(obj.roi) % by default return the full field (excluding boundaries)
+                obj.roi = [Source.make4(sample.roi(1,:)); Source.make4(sample.roi(2,:))]; 
             else
-                obj.output_roi = [Source.make4(obj.output_roi(1,:)); Source.make4(obj.output_roi(2,:))];
-                obj.output_roi = obj.output_roi + obj.roi(1,:) - 1; %shift to match grid coordinates
+                obj.roi = [Source.make4(obj.roi(1,:)); Source.make4(obj.roi(2,:))];
+                obj.roi(:,1:3) = obj.roi(:,1:3) + sample.roi(1,:) - 1; %shift xyz to match grid coordinates
             end
             
             % calculate roi coordinates
