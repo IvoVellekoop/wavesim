@@ -187,10 +187,15 @@ classdef Medium
                 roi_size = full_size(dim) - bl - br;
                 if bl > 0
                     L = options.ar_width(dim); % width of window
-                    % window = parzenwin(L);
-                    window = nuttallwin(2*L-1);
-%                     smoothstep = cumsum(window)/sum(window); % integrate window to get step function
-                    smoothstep = window(1:L);
+                    if bl == br % even number, we need to add zeros
+                        B = L-1;
+                        smoothstep = [0; ((1:B)-0.21).'/(B+0.66)];
+                    else %odd number, we are already adding one 0
+                        smoothstep = ((1:L)-0.21).'/(L+0.66);
+                    end
+                    %old version:
+                    %window = nuttallwin(2*L-1);
+                    %smoothstep = window(1:L);
                     filt = [zeros(bl-L, 1); smoothstep; ones(roi_size, 1); flipud(smoothstep); zeros(br-L, 1)];
                     filters{dim} = reshape(filt, circshift([1, 1, length(filt)], [0,dim]));
                 end
