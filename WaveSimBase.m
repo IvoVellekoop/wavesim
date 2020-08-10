@@ -8,85 +8,88 @@ classdef(Abstract) WaveSimBase < Simulation
     % 'mix' and 'propagate'. Only the 'propagate' function is different
     % for vector or scalar waves.
     %
-    % Ivo M. Vellekoop 2014-2018
+    % Ivo Vellekoop & Gerwin Osnabrugge 2016-2020
     
     properties
         gamma;     % potential array used in simulation (uses multiple arrays when medium_wiggle is enabled)
         epsilon;   % convergence parameter
         k02e;      % precomputed constants (pre-divided by sqrt epsilon)
-        %% wiggle properties (might be moved to separate class?)
+        filters;   % filters applied on the edge of the potential map
+        %% wiggle properties
         wiggles;
-        % cell array containing all the instructions for the
-        % anti-wraparound and anti-aliasing algorithm (the wiggle algorithms)
-        boundary_wiggle = true;         
-        % 'true' indicates that the anti-wraparound algorithm is used on
-        % all edges with non-zero boundary width. Note: zero-width
-        % boundaries are treated as periodic boundaries, and the
-        % anti-wraparound algorithm is disabled by default for these
+        % cell array containing all the phase ramps and the shifted 
+        % coordinates  for the anti-wraparound and anti-aliasing algorithm 
+        % (the wiggle algorithms)
+        boundary_wiggle = true;
+        % 'true' indicates that the anti-cyclic convolution algorithm is 
+        % used on in all dimensions with non-zero boundary width. 
+        % Note: zero-width boundaries are treated as periodic boundaries, 
+        % and the anti-wraparound algorithm is disabled by default for these
         % boundaries. To override this default behavior, you can explicitly
         % pass a 3x1 logical vector (e.g. [true false false]) to indicate
         % which boundaries to 'wiggle'
-        medium_wiggle = false; 
-        % true indicates that the anti-aliasing algorithm is used in all 
-        % dimensions. Algorithm can also exclusively enabled in a single or 
-        % two dimensions by passing a 3x1 logical vector. 
-        n_media;    
-        % number of potential maps stored in memory (multiple submedia are 
+        medium_wiggle = false;
+        % true indicates that the anti-aliasing algorithm is used in all
+        % dimensions. Algorithm can also exclusively enabled in a single or
+        % two dimensions by passing a 3x1 logical vector.
+        n_media;
+        % number of potential maps stored in memory (multiple submedia are
         % used for anti-aliasing algorithm)
         
         %% diagnostics and feedback
-        epsilonmin = 3; % minimum value to avoid divergence when simulating empty medium   
+        epsilonmin = 3; % minimum value to avoid divergence when simulating empty medium
     end
     methods(Abstract)
-        propagate(obj); % function performing the propagation step        
+        propagate(obj); % function performing the propagation step
     end
     methods
-        function obj = WaveSimBase(sample, options)
+        function obj = WaveSimBase(refractive_index, options)
             %% Constructs a wave simulation object
-            %	sample = SampleMedium object
-            %   options.lambda = free space wavelength (same unit as pixel_size, e. g. um)
-            %   options.epsilon = convergence parameter (leave empty unless forcing a specific value)                    
+            % refractive_index   = refractive index map, may be complex, need not
+            %                      be square. Can be 2-D or 3-D.
+            % options.lambda = free space wavelength (same unit as pixel_size, e. g. um)
+            % options.epsilon = convergence parameter (leave empty unless forcing a specific value)
             
             % temporary fix for change in syntax (wiggle is now callled boundary_wiggle)
             if isfield(options,'wiggle')
                 options.boundary_wiggle = options.wiggle;
-            end
+            end   
+            
             % call simulation constructor
-            obj@Simulation(sample, options);
+            obj@Simulation(refractive_index, options);
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             
             %% determine wavenumbers
             % the optimal k_0 follows is given by n_center (see Medium)
             k0 = 2*pi/obj.lambda;                   % wavenumber in empty medium
-            k0c = sqrt(sample.e_r_center) * k0; % wavenumber for center value refractive index
+            k0c = sqrt(obj.sample.e_r_center) * k0; % wavenumber for center value refractive index
             
-            %% Determine epsilon and gamma    
-            % determine optimal epsilon (if value is not given in options) 
+            %% Determine epsilon and gamma
+            % determine optimal epsilon (if value is not given in options)
             if ~isfield(options, 'epsilon') % setting epsilon in options forces a specific value, may not converge
-                obj.epsilon = obj.calculate_epsilon(sample.e_r,k0,k0c);
+                obj.epsilon = obj.calculate_epsilon(obj.sample.e_r,k0,k0c);
             end
-            obj.iterations_per_cycle = obj.lambda /(2*k0c/obj.epsilon); %divide wavelength by pseudo-propagation length    
+            obj.iterations_per_cycle = obj.lambda /(2*k0c/obj.epsilon); %divide wavelength by pseudo-propagation length
             
             % calculate gamma for all submedia
-            obj.n_media = sample.n_media;
-            obj.gamma = cell(obj.n_media,1);
-            for i_medium = 1:sample.n_media                
-                V = sample.e_r{i_medium}*k0^2-k0c^2 - 1.0i*obj.epsilon; % calculate potential map                   
-                V = Medium.apply_filters(V,sample.filters); % apply sample filters to edge of potential map
+            obj.gamma = cell(obj.sample.n_media,1);
+            for i_medium = 1:obj.sample.n_media
+                V = obj.sample.e_r{i_medium}*k0^2-k0c^2 - 1.0i*obj.epsilon; % calculate potential map
+                [V,obj.filters] = obj.apply_edge_filters(V, options); % apply filters to edge of potential map
                 obj.gamma{i_medium} = obj.data_array(1.0i / obj.epsilon * V); % calculate gamma and convert to desired data type
             end
-
+            
             %% convert to single or double precision, and put on gpu if
-            % needed. 
+            % needed.
             obj.k02e = obj.data_array(k0c^2/obj.epsilon + 1.0i);
-            obj.epsilon = obj.data_array(obj.epsilon);      
-
+            obj.epsilon = obj.data_array(obj.epsilon);
+            
             %% calculate wiggle descriptors
-            [obj.wiggles, obj.boundary_wiggle, obj.medium_wiggle] = obj.compute_wiggles();    
+            [obj.wiggles, obj.boundary_wiggle, obj.medium_wiggle] = obj.compute_wiggles();
         end
         
         function state = run_algorithm(obj, state)
-            % paper: 
+            % paper:
             %   E = [1+M+M^2+...] \gamma G S
             % iterate:
             %   E_{0}   = 0
@@ -95,7 +98,7 @@ classdef(Abstract) WaveSimBase < Simulation
             %
             % Now instead accumulate all in one buffer. dE_{k} are the terms in the Born series:
             %   dE_{k} = M^k \gamma G S
-            % 
+            %
             % or, recursively:
             %   dE_{1} = \gamma G S
             %   dE_{k} = M dE_{k-1}
@@ -121,12 +124,12 @@ classdef(Abstract) WaveSimBase < Simulation
             %   dE'_{0} = 0
             %   dE'_{1} = -i\gamma^2 G' [dE'_{k-1} + i/\epsilon S]  + (1-\gamma) dE'_{k-1}
             %   dE'_{k} = -i\gamma^2 G'  dE'_{k-1}                  + (1-\gamma) dE'_{k-1}
-               
+            
             %   These iterations are implemented as:
             %   1. a propagation step:   Eprop   =  G' [E_diff + i/\epsilon S] {only add S in 1st iteration}
-            %   2. a mixing step:        E_diff  => (1-\gamma) E_diff - i \gamma^2 Eprop  
+            %   2. a mixing step:        E_diff  => (1-\gamma) E_diff - i \gamma^2 Eprop
             %   3. an accumulation step: E       => E + E_diff
-            %   
+            %
             %   And, after all iterations:
             %       E       => E / \gamma
             
@@ -135,31 +138,31 @@ classdef(Abstract) WaveSimBase < Simulation
             state.dE = obj.data_array([], obj.N);
             
             %% calculate number of wiggles
-            Nwiggles = numel(obj.wiggles);             % total number of wiggles
-            Nwiggles_per_medium= Nwiggles/obj.n_media; % number of boundary wiggles performed on a single submedium
+            Nwiggles = numel(obj.wiggles);                    % total number of wiggles
+            Nwiggles_per_medium= Nwiggles/obj.sample.n_media; % number of boundary wiggles performed on a single submedium
             
             %% simulation iterations
             while state.has_next
                 % select correct wiggle and medium number based on iteration number
                 i_wiggle = mod(state.it-1, Nwiggles)+1; % wiggle counter
                 i_medium = ceil(i_wiggle/Nwiggles_per_medium); % medium counter
-                wig = obj.wiggles{i_wiggle};               
+                wig = obj.wiggles{i_wiggle};
                 
-                % add source term (first Nwiggles iterations only) 
+                % add source term (first Nwiggles iterations only)
                 if state.it <= Nwiggles % During the first few iterations: add source term
                     Etmp = state.source.add_to(state.dE, 1.0i / obj.epsilon / Nwiggles);
                 else
                     Etmp = state.dE;
-                end               
+                end
                 
                 % main computations steps
                 Etmp = obj.propagate(Etmp, wig);
                 state.dE = obj.mix(state.dE, Etmp, obj.gamma{i_medium}, wig);
                 state.E = state.E + state.dE;
-
+                
                 % check if algorithm has to be terminated
                 if state.calculate_energy
-                    state.last_step_energy = Simulation.energy( obj.crop_field(state.dE) );                  
+                    state.last_step_energy = Simulation.energy( obj.crop_field(state.dE) );
                 end
                 
                 can_terminate = mod(state.it, Nwiggles) == 0; %only stop after multiple of Nwiggles iterations
@@ -179,11 +182,11 @@ classdef(Abstract) WaveSimBase < Simulation
     end
     methods(Access=protected)
         function epsilon = calculate_epsilon(obj, e_r, k0, k0c)
-            % function used to calculate the optimal convergence parameter 
-            % epsilon used by wavesim based on maximum real value of 
-            % potential map   
+            % function used to calculate the optimal convergence parameter
+            % epsilon used by wavesim based on maximum real value of
+            % potential map
             
-            % determine largest absolute potential fluctuation of all submedia 
+            % determine largest absolute potential fluctuation of all submedia
             % to guarantee convergence
             V_tot = cell2mat(e_r)*k0^2-k0c^2;
             [Vabs_max, max_index] = max(abs(V_tot(:)));
@@ -196,6 +199,49 @@ classdef(Abstract) WaveSimBase < Simulation
                 Vabs_max = Vabs_max * 1.05;
             end
             epsilon = max(Vabs_max, obj.epsilonmin); % minimum value epsilonmin to avoid divergence when simulating empty medium
+        end
+        
+        function [V,filters] = apply_edge_filters(obj, V, options)
+            % filters the edges of the potential map V to reduce
+            % reflections at the boundaries (is used for the ARL
+            % boundaries)
+            
+            % construct edge filters
+            filters = cell(3,1);
+            
+            % V is only filtered when ARL boundary type is used
+            if (~strcmp(obj.sample.boundary_type, 'window') || all(obj.sample.Bl==0))
+                return;
+            end
+            
+            for dim=1:3
+                bl = obj.sample.Bl(dim); %width of added boundary
+                br = obj.sample.Br(dim);
+                roi_size = obj.grid.N(dim) - bl - br;
+                if bl > 0                
+                    L = options.boundary_widths(dim); % width of boundary layer
+                    if all(obj.grid.N > 1) % use linear window designed for 3D simulations
+                        window = @(B) ((1:B)-0.21).'/(B+0.66);                      
+                    else % use nuttall window for 1D and 2D simulations
+                        win = @(nutall,B) nutall(1:B);
+                        window = @(B) win(nuttallwin(2*L-1),B);
+                    end
+                    
+                    % add a zero to the window if number of grid points is even 
+                    if br == bl
+                        smoothstep = [0; window(L-1)];
+                    else % for odd number of grid points zeros are already added
+                        smoothstep = window(L);
+                    end
+                    
+                    % construct filter
+                    filt = [zeros(bl-L, 1); smoothstep; ones(roi_size, 1); flipud(smoothstep); zeros(br-L, 1)];
+                    filters{dim} = reshape(filt, circshift([1, 1, length(filt)], [0,dim]));
+                    
+                    % apply filter to potential map
+                    V = V .* filters{dim};
+                end
+            end
         end
         
         function dE = mix(obj, dE, Eprop, gamma, wig)
@@ -217,21 +263,13 @@ classdef(Abstract) WaveSimBase < Simulation
             % reverses k-space wiggle phase ramp of the combined field
             dE = obj.wiggle_transform(dE, conj(wig.gpx), conj(wig.gpy), conj(wig.gpz));
         end
-        
-        function Ecrop = crop_field(obj,E)
-            % Removes the boundary layer from the simulated field by
-            % cropping field dataset
-            Ecrop = E(obj.roi(1,1):obj.roi(2,1),...
-                      obj.roi(1,2):obj.roi(2,2),...
-                      obj.roi(1,3):obj.roi(2,3),...
-                      obj.roi(1,4):obj.roi(2,4));
-        end
+       
         
         %%% Wiggle methods (move to separate class?)
-        function [wiggle_descriptors,boundary_wiggle,medium_wiggle] = compute_wiggles(obj) 
+        function [wiggle_descriptors,boundary_wiggle,medium_wiggle] = compute_wiggles(obj)
             % Decides which borders to wiggle and returns wiggled coordinates
             % for those borders
-
+            
             % initialize boundary wiggle
             % true -> wiggle all non-periodic boundaries
             % [true, false, true] -> wiggle only 1st and 3rd dimension
@@ -247,15 +285,15 @@ classdef(Abstract) WaveSimBase < Simulation
             
             % initialize medium_wiggle vector
             medium_wiggle = obj.medium_wiggle(:);
-
-            if medium_wiggle == true                
+            
+            if medium_wiggle == true
                 medium_wiggle = obj.N(1:3)' > 1; % medium wiggle disabled in directions where gridsize is 1
             elseif medium_wiggle == false
                 medium_wiggle = false(3,1);
             elseif numel(medium_wiggle) < 3
                 medium_wiggle(end+1:3) = false;
             end
-
+            
             % determine wiggle directions
             wiggle_flags = [boundary_wiggle;medium_wiggle];
             wiggle_set = wiggle_perm(wiggle_flags);
@@ -264,8 +302,8 @@ classdef(Abstract) WaveSimBase < Simulation
             % boundary_wiggle and medium_wiggle
             Nwiggles = size(wiggle_set,2);
             wiggle_descriptors = cell(Nwiggles,1);  % pre-allocate memory
-            for w_i=1:Nwiggles 
-                wiggle_descriptors{w_i} = obj.wiggle_descriptor(wiggle_set(:,w_i));                
+            for w_i=1:Nwiggles
+                wiggle_descriptors{w_i} = obj.wiggle_descriptor(wiggle_set(:,w_i));
             end
         end
         
@@ -274,7 +312,7 @@ classdef(Abstract) WaveSimBase < Simulation
             % steps. (wig: logical vector 6x1 [y;x;z;ky;kx;kz])
             wd = struct;
             % construct coordinates, shift quarter of a pixel when wiggling
-            % (required for calculating wiggled Green's function). Pre-scale 
+            % (required for calculating anti-cyclic Green's function). Pre-scale
             % Fourier coordinates to optimize the propagation functions a bit
             wd.pxe = obj.data_array((obj.grid.px_range - obj.grid.dpx * wig(2)/4)/sqrt(obj.epsilon));
             wd.pye = obj.data_array((obj.grid.py_range - obj.grid.dpy * wig(1)/4)/sqrt(obj.epsilon));
@@ -290,7 +328,7 @@ classdef(Abstract) WaveSimBase < Simulation
             % pixel shift in real space (required for medium_wiggle)
             wd.gpx = obj.data_array(exp(1.0i * pi/2 * wig(5) * obj.grid.px_range / obj.grid.dpx / length(obj.grid.px_range)));
             wd.gpy = obj.data_array(exp(1.0i * pi/2 * wig(4) * obj.grid.py_range / obj.grid.dpy / length(obj.grid.py_range)));
-            wd.gpz = obj.data_array(exp(1.0i * pi/2 * wig(6) * obj.grid.pz_range / obj.grid.dpz / length(obj.grid.pz_range)));      
+            wd.gpz = obj.data_array(exp(1.0i * pi/2 * wig(6) * obj.grid.pz_range / obj.grid.dpz / length(obj.grid.pz_range)));
         end
         
         function E = fft_wiggle(obj, E, wig)
@@ -299,7 +337,7 @@ classdef(Abstract) WaveSimBase < Simulation
             if obj.gpu_enabled
                 E = arrayfun(@f_wiggle, E, wig.gx, wig.gy, wig.gz);
             else
-                E = f_wiggle(E, wig.gx, wig.gy, wig.gz);              
+                E = f_wiggle(E, wig.gx, wig.gy, wig.gz);
             end
             E = fftn(E);
         end
@@ -308,7 +346,7 @@ classdef(Abstract) WaveSimBase < Simulation
             % Modified inverse Fourier transform: additionally reverses wiggle
             % phase ramps in real-space. Todo: combine with wiggle_transform
             E = ifftn(E);
-            if obj.gpu_enabled              
+            if obj.gpu_enabled
                 E = arrayfun(@f_wiggle, E, conj(wig.gx), conj(wig.gy), conj(wig.gz));
             else
                 E = f_wiggle(E, conj(wig.gx), conj(wig.gy), conj(wig.gz));
@@ -317,7 +355,7 @@ classdef(Abstract) WaveSimBase < Simulation
         
         function E = wiggle_transform(obj, E, gpx, gpy, gpz)
             % Transforms k-space wiggle phase ramp of a field in real-space
-            % Is required by the anti-aliasing algorithm. transform is only 
+            % Is required by the anti-aliasing algorithm. transform is only
             % performed in the medium_wiggle direction that is enabled
             if obj.medium_wiggle(2) % px-direction
                 E = ifft( fft(E,obj.grid.N(2),2) .* gpx , obj.grid.N(2), 2);

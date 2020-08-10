@@ -7,7 +7,7 @@ addpath('..');
 %% simulations options
 PPW=4;                           % points per wavelength
 opt.lambda = 1;                  % wavelength in vacuum (in um)
-opt.energy_threshold = 1E-4;     % simulation has converged when total added energy is lower than threshold 
+opt.energy_threshold = 1E-10;     % simulation has converged when total added energy is lower than threshold 
 opt.pixel_size = opt.lambda/PPW; % grid pixel size (in um)
 opt.boundary_widths = [0,15*PPW];% periodic boundaries
 
@@ -15,14 +15,11 @@ opt.boundary_widths = [0,15*PPW];% periodic boundaries
 N = [32*PPW 32*PPW];            % size of medium (in pixels)
 n_sample = ones(N);             % sample refractive index
 
-% construct sample object
-sample = Medium(n_sample, opt); 
-
 %% define a source with spectrum (800-1200nm) at the medium center
 lambda = 1;                                 % center wavelength (in um)
 Nfreq = 50;                                 % number of independent frequencies simulated
 lambda_set = linspace(0.8,1.2,Nfreq)*lambda;% source bandwidth
-source_spectrum = gausswin(Nfreq);          % source spectrum
+source_spectrum = gausswin(Nfreq,4);          % source spectrum
 
 %% wavesim simulation for all source frequencies
 % Preallocate data for fields
@@ -35,7 +32,7 @@ for f = 1:Nfreq
     opt.lambda = lambda_set(f);
     
     % run simulation and store resulting field
-    sim = WaveSim(sample, opt);
+    sim = WaveSim(n_sample, opt);
     E_set(:,:,f) = exec(sim, source);
 end
 
@@ -56,8 +53,9 @@ t_set = t_set(t_set >= 0) * 10^15;       % in fs
 % plot all fields as funcion of time
 figure(2); clf;
 
+Imax = max(abs(E_time(:)).^2);
 for t = 1:Nfreq/2
-    figure(2); imagesc(x,y,abs(E_time(:,:,t)).^2);
+    figure(2); imagesc(x,y,abs(E_time(:,:,t)).^2,[0,Imax]);
     title(['t = ',num2str(t_set(t)),' fs']);
     xlabel('x / \lambda','FontSize',16);
     ylabel('y / \lambda','FontSize',16);

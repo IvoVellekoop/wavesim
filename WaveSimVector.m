@@ -5,12 +5,12 @@ classdef WaveSimVector < WaveSimBase
     % The only difference that this function implements is in the
     % propagation step
     %
-    % Ivo M. Vellekoop 2018
+    % Ivo Vellekoop & Gerwin Osnabrugge 2016-2020
     properties
     end
     methods
-        function obj=WaveSimVector(sample, options)
-            obj@WaveSimBase(sample, options);
+        function obj=WaveSimVector(refractive_index, options)
+            obj@WaveSimBase(refractive_index, options);
             if ~isfield(options,'roi')
                 obj.roi(2,4) = 3;  %by default return all 3 polarization planes
             end

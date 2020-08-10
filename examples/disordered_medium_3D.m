@@ -34,9 +34,8 @@ window = bsxfun(@times, W(N(2))' * W(N(1)), reshape(W(N(3)), [1,1,N(3)]));
 n_sample = ifftn(n_fft.*fftshift(window));
 n_sample = max(real(n_sample), 1.0) + 1.0i * max(imag(n_sample), 0.0);
 
-% construct sample  and wavesim object
-sample = Medium(n_sample, opt); 
-sim = WaveSim(sample, opt);
+%% construct wavesim object
+sim = WaveSim(n_sample, opt);
 
 %% define a point source at the medium center
 source = Source(1,[N(1)/2,N(2)/2,N(3)/2]);

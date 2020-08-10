@@ -1,6 +1,6 @@
 classdef SimulationGrid
-    %grid parameters for simulation
-    % Ivo M. Vellekoop
+    % grid parameters for simulation
+    % Ivo Vellekoop & Gerwin Osnabrugge 2016-2020
     properties
         N  % number of grid points in y,x,z-dimension
         dx  % grid resolution (same in all directions)

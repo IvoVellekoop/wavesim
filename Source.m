@@ -13,7 +13,7 @@ classdef Source
     %
     % Most functions allow for the use of arrays of source objects
     %
-    % Ivo M. Vellekoop 2018
+    % Ivo Vellekoop & Gerwin Osnabrugge 2016-2020
     properties
         %don't access directly, implementation may change!
         positions % top-left-front corner of sources
@@ -37,7 +37,7 @@ classdef Source
                 if nargin < 2
                     position = [1,1,1,1];
                 end
-                obj.positions{1} = Source.make4(position);
+                obj.positions{1} = Simulation.make4(position);
                 obj.values{1} = value;
             else
                 obj.positions = cell(1,0);
@@ -85,7 +85,7 @@ classdef Source
                 keep = ones(1, numel(source(s).positions), 'logical');
                 for c=1:numel(source(s).positions)
                     pos = source(s).positions{c};
-                    sz  = Source.make4(size(source(s).values{c}));
+                    sz  = Simulation.make4(size(source(s).values{c}));
                     tlt = max(roi(1,:), pos); %top left corner target
                     brt = min(roi(2,:), pos + sz - 1); %bottom right corner target
                     if any(tlt > brt)
@@ -141,7 +141,7 @@ classdef Source
                     % determine size of overlap
                     pos = obj(s).positions{c};
                     val = obj(s).values{c};
-                    sz  = Source.make4(size(val));
+                    sz  = Simulation.make4(size(val));
                     
                     %Note: the code below is relatively slow for small array on a gpu
                     % this is because of the the indexing. Fortunately we don't call it often in 
@@ -157,25 +157,6 @@ classdef Source
                     E(tlt(1):brt(1), tlt(2):brt(2), tlt(3):brt(3), tlt(4):brt(4)) =...
                             E(tlt(1):brt(1), tlt(2):brt(2), tlt(3):brt(3), tlt(4):brt(4)) + ...
                             A(s) * val;
-                end
-            end
-        end
-    end
-    methods (Static)
-        function sz = make4(sz)
-            % converts the vector sz to a 4-element vector by appending 1's
-            % when needed. This function is useful since 'size' removes
-            % trailing singleton dimensions of arrays, so a 100x100x1x1
-            % array returns a size of [100, 100], whereas a 100x100x1x3
-            % array retuns a size of [100, 100, 1, 3]
-            % As a workaround for this inconsistency, we always use
-            % 4-element size vectors.
-            sz = sz(:).';
-            if numel(sz) < 4
-                sz((end+1):4) = 1;
-            else
-                if numel(sz) > 4
-                    error('Position and size vectors can be 4-dimensional at most');
                 end
             end
         end

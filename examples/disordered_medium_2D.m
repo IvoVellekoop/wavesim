@@ -31,9 +31,8 @@ n_fft = fft2(n_sample);
 window = [zeros(1,N(2)/4), ones(1,N(2)/2), zeros(1,N(2)/4)]' * [zeros(1,N(1)/4), ones(1,N(1)/2), zeros(1,N(1)/4)];
 n_sample = ifft2(n_fft.*fftshift(window));
 
-% construct sample and wavesim object
-sample = Medium(n_sample, opt);
-sim = WaveSim(sample, opt);
+%% construct wavesim object
+sim = WaveSim(n_sample, opt);
 
 %% define a point source at the center of the medium
 source = Source(1,[N(1)/2,N(2)/2]);
@@ -62,8 +61,8 @@ set(gca,'FontSize',14);
 subplot(1,2,2);
 imagesc(x,y,log(abs(E)));
 axis square;
-xlabel('x (\lambda)','FontSize',16);
-ylabel('y (\lambda)','FontSize',16);
+xlabel('x / \lambda','FontSize',16);
+ylabel('y / \lambda','FontSize',16);
 h = colorbar;
 set(get(h,'Title'),'String','log|E|','FontSize',18,'FontName','Times New Roman');
 set(gca,'FontSize',14);

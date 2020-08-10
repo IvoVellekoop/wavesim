@@ -1,21 +1,23 @@
 classdef Simulation
-    %Base class for a 2-D or 3D wave simulation
-    % Ivo M. Vellekoop 2015-2018
+    % Base class for a 2-D or 3D wave simulation
+    % Ivo Vellekoop & Gerwin Osnabrugge 2016-2020
     %
     % Data storage:
     % Internally, all data is stored as 2-D or 3-D arrays. For vector simulations,
     % the data for each polarization components is stored as a separate
     % array in a 1x3 cell array.
     %
-    % The size of the simulation grid is determined by the sample object
-    % that is passed in the constructor (see SampleMedium.m). The grid size
-    % includes the region of interest (ROI), boundaries, and
+    % The size of the simulation grid is determined by the refractive index
+    % distribution that is passed in the constructor (see Medium.m). 
+    % The grid size includes the region of interest (ROI), boundaries, and
     % padding for efficient application of the fft algorithm. In the end,
     % only the field within the ROI is returned by exec(), although it is
     % possible to recover the full field including boundaries and padding
     % through the 'state' variable that is an optional return argument.
     %
     properties
+        sample;   % a medium object containing the map of the relative 
+        % dielectric constant including the boundary layers
         %options:
         roi = []; % Part of the simulated field that is returned as output,
         % this matrix contains 2 rows, one for the start index and one for
@@ -25,7 +27,7 @@ classdef Simulation
         % Defaults to the full medium. To save memory, a smaller
         % output_roi can be specified.         
         lambda = 1;      % Wavelength (in micrometers)        
-        gpu_enabled = gpuDeviceCount > 0; % flag to determine if simulation are run
+        gpu_enabled; % flag to determine if simulation are run
         % on the GPU (default: run on GPU if we have one)        
         single_precision = true; % flag to determine if single precision or
         % double precision calculations are used.
@@ -75,7 +77,7 @@ classdef Simulation
     end
     
     methods
-        function obj = Simulation(sample, options)
+        function obj = Simulation(refractive_index, options)
             %% Constructs a simulation object
             %	sample = SampleMedium object
             %   options = simulation options.
@@ -83,32 +85,36 @@ classdef Simulation
             %   which to run the simulation. Note that the number of
             %   required iterations per cycle depends on the algorithm and
             %   its parameters
-            
-            %copy values from 'options' to 'obj' (only if the field is present in obj)
+     
+            % copy values from 'options' to 'obj' (only if the field is present in obj)
             fs = intersect(fields(obj), fields(options));
             for f=1:length(fs)
                 fieldname = fs{f};
                 obj.(fieldname) = options.(fieldname);
             end
             
+            % generate Medium object and set corresponding grid
+            [obj.sample, obj.grid] = Medium(refractive_index, options);
+            
             % set grid and number of grid points
-            obj.grid = sample.grid;
             obj.N    = [obj.grid.N, 1]; %vector simulations set last parameter to 3
             
             % set region of interest
-            if isempty(obj.roi) % by default return the full field (excluding boundaries)
-                obj.roi = [Source.make4(sample.roi(1,:)); Source.make4(sample.roi(2,:))]; 
-            else
-                obj.roi = [Source.make4(obj.roi(1,:)); Source.make4(obj.roi(2,:))];
-                obj.roi(:,1:3) = obj.roi(:,1:3) + sample.roi(1,:) - 1; %shift xyz to match grid coordinates
+            % by default the full field is returned (excluding boundaries)
+            default_roi = [obj.sample.Bl + 1; obj.grid.N - obj.sample.Br];
+            if isempty(obj.roi)     
+                obj.roi = [Simulation.make4(default_roi(1,:)); Simulation.make4(default_roi(2,:))]; 
+            else % use specified region of interest
+                obj.roi = [Simulation.make4(obj.roi(1,:)); Simulation.make4(obj.roi(2,:))];
+                obj.roi(:,1:3) = obj.roi(:,1:3) + default_roi(1,:) - 1; % shift xyz to match grid coordinates
             end
             
             % calculate roi coordinates
-            obj.x_range = sample.grid.x_range(obj.roi(1,2):obj.roi(2,2));
+            obj.x_range = obj.grid.x_range(obj.roi(1,2):obj.roi(2,2));
             obj.x_range = obj.x_range - obj.x_range(1);
-            obj.y_range = sample.grid.y_range(obj.roi(1,1):obj.roi(2,1));
+            obj.y_range = obj.grid.y_range(obj.roi(1,1):obj.roi(2,1));
             obj.y_range = obj.y_range - obj.y_range(1);
-            obj.z_range = sample.grid.z_range(obj.roi(1,3):obj.roi(2,3));
+            obj.z_range = obj.grid.z_range(obj.roi(1,3):obj.roi(2,3));
             obj.z_range = obj.z_range - obj.z_range(1);
             
             %update the energy at least every callback
@@ -161,11 +167,10 @@ classdef Simulation
             state.time=toc;
             if state.converged
                 disp(['Reached steady state in ' num2str(state.it) ' iterations']);
-                disp(['Time consumption: ' num2str(state.time) ' s']);
             else
                 disp('Did not reach steady state');
-                disp(['Time consumption: ' num2str(state.time) ' s']);
             end
+            disp(['Time consumption: ' num2str(state.time) ' s']);
             
             E = gather(state.E); % convert gpuArray back to normal array
         end
@@ -227,9 +232,18 @@ classdef Simulation
                 d = gpuArray(d);
             end
         end
+        
+        function Ecrop = crop_field(obj,E)
+            % Removes the boundary layer from the simulated field by
+            % cropping field dataset
+            Ecrop = E(obj.roi(1,1):obj.roi(2,1),...
+                      obj.roi(1,2):obj.roi(2,2),...
+                      obj.roi(1,3):obj.roi(2,3),...
+                      obj.roi(1,4):obj.roi(2,4));
+        end
     end
     
-    methods(Static)
+    methods(Static) 
         function en = energy(E_x, roi)
             % calculculate energy (absolute value squared) of E_x
             % optionally specify roi to indicate which values are to be
@@ -250,19 +264,7 @@ classdef Simulation
             else
                 E = state.E;
             end
-            imagesc(abs(E(:,:,ceil(end/2), 1, ceil(end/2))));
-            axis image;
-            title(['Differential energy ' num2str(state.diff_energy(state.it)/state.diff_energy(1))]);
-            drawnow;
-        end
-        
-        function abs_crossimage_callback(obj, state)
-            % callback function that displays the intensity along the
-            % propagation direction
-            %
-            figure(1);
-            Eprop = abs(squeeze(state.E(ceil(end/2),:,:,1)));
-            imagesc(Eprop);
+            imagesc(abs(E(ceil(end/2),:, :, 1)));
             axis image;
             title(['Differential energy ' num2str(state.diff_energy(state.it)/state.diff_energy(1))]);
             drawnow;
@@ -272,8 +274,9 @@ classdef Simulation
         function no_callback(obj, state)
         end
         
-        %default callback function. Shows real value of field, and total energy evolution
+        
         function default_callback(obj, state)
+            %default callback function. Shows real value of field, and total energy evolution
             figure(1);
             energy = state.diff_energy(1:state.it) / state.diff_energy(1);
             threshold = obj.energy_threshold;
@@ -302,6 +305,35 @@ classdef Simulation
             
             %disp(['Added energy ', num2str(energy(end))]);
             drawnow;
+        end
+        
+        function sz = make3(sz, pad)
+            % makes sure sz is a row vector with exactly 3 elements
+            % (pads when needed)
+            % (this function is needed because 'size' by default removes
+            %  trailing singleton dimensions)
+            sz = sz(:).'; %make row vector
+            if numel(sz) < 3
+                sz((end+1):3) = pad;
+            end
+        end
+        
+        function sz = make4(sz)
+            % converts the vector sz to a 4-element vector by appending 1's
+            % when needed. This function is useful since 'size' removes
+            % trailing singleton dimensions of arrays, so a 100x100x1x1
+            % array returns a size of [100, 100], whereas a 100x100x1x3
+            % array retuns a size of [100, 100, 1, 3]
+            % As a workaround for this inconsistency, we always use
+            % 4-element size vectors.
+            sz = sz(:).';
+            if numel(sz) < 4
+                sz((end+1):4) = 1;
+            else
+                if numel(sz) > 4
+                    error('Position and size vectors can be 4-dimensional at most');
+                end
+            end
         end
         
         % e.g. call Simulation.use('utilities') to add the 'utilities' folder

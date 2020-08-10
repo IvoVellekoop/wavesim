@@ -5,12 +5,12 @@ classdef WaveSim < WaveSimBase
     % The only difference that this function implements is in the
     % propagation step
     %
-    % Ivo M. Vellekoop 2018
+    % Ivo Vellekoop & Gerwin Osnabrugge 2016-2020
     properties
     end
     methods
-        function obj = WaveSim(sample, options)
-            obj@WaveSimBase(sample, options);
+        function obj = WaveSim(refractive_index, options)
+            obj@WaveSimBase(refractive_index, options);
         end
         function E = propagate(obj, E, wiggle)
             % calculate (I - p p^T / (k_0^2+i epsilon)

@@ -8,7 +8,6 @@
 clear all; close all;
 addpath('..');
 
-%% options for grid (gopt) and for simulation (sopt) 
 %% simulations options
 PPW=4;                                    % points per wavelength
 opt.lambda = 1;                           % wavelength in vacuum (in um)
@@ -34,9 +33,8 @@ window = [zeros(1,N(2)*(1/2-cutoff)), ones(1,N(2)*(2*cutoff)), zeros(1,N(2)*(1/2
     	 [zeros(1,N(1)*(1/2-cutoff)), ones(1,N(1)*(2*cutoff)), zeros(1,N(1)*(1/2-cutoff))];
 n_sample = real(ifft2(n_fft.*fftshift(window)));
 
-% construct sample and wavesim object
-sample = Medium(n_sample, opt); 
-sim = WaveSim(sample, opt);
+%% construct wavesim object
+sim = WaveSim(n_sample, opt);
 
 %% Experiment 1: recording phase
 % point source in random medium

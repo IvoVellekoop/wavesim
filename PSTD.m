@@ -1,14 +1,15 @@
 classdef PSTD < Simulation
-    %Simulation of the 2-D wave equation using PSTD
+    % Simulation of the 2-D and 3-D wave equation using PsuedoSpectral Time
+    % Domain
     % Saroch Leedumrongwatthanakun 2015
     
     properties
-        %optiond:
+        %option:
         dt_relative = 0.95; %Relative size of a time step compared to the convergence criterion for PSTD. Decrease for more accurate results (default=0.95)
         source_amplitude = @PSTD.default_source; %amplitude of the source as a function of time. Can be replaced by a different function by the user
         
-        %internal
-        c1;   % coefficients
+        %internal coefficients
+        c1;
         c2;
         c3;
         dt; % time step
@@ -18,49 +19,49 @@ classdef PSTD < Simulation
     end
     
     methods
-        function obj = PSTD(sample, options)
+        function obj = PSTD(refractive_index, options)
             warning('The PSTD code is only provided for comparison with wavesim, it is not optimized for real use.');
             %% Constructs a pseudo spectral time domain simulation object
-            %	sample = Medium object
-            %   options.wavelength = free space wavelength (same unit as pixel_size, e. g. um)
-            %   options.dt         = time step (leave empty unless forcing a specific value)
-            %   options.time_duration = time duration of whole simulation
+            %  refractive_index   = refractive index map, may be complex, need not
+            %                      be square. Can be 2-D or 3-D.
+            %  options.wavelength = free space wavelength (same unit as pixel_size, e. g. um)
+            %  options.dt         = time step (leave empty unless forcing a specific value)
+            %  options.time_duration = time duration of whole simulation     
+            obj@Simulation(refractive_index, options);
+            fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             
             % only use first submedium (medium_wiggle not implemented for
             % PSTD)
-            sample.e_r = sample.e_r{1};
-            
-            obj@Simulation(sample, options);
-            fftw('planner','patient'); %optimize fft2 and ifft2 at first use
+            obj.sample.e_r = obj.sample.e_r{1};
             
             %% Calculate time step dt
             % The light speed is defined as 1 distance_unit / time_unit.
             %
             % determine dimensionality of the simulation for calculating
             % the maximum time step
-            if min(sample.grid.N) == 1
+            if min(obj.grid.N) == 1
                 dimensions = 2;
             else
                 dimensions = 3;
             end
             
-            obj.dtmax = 2/sqrt(dimensions)/pi*sample.grid.dx*sqrt(sample.e_r_min); %Stability condition (ref needed)
+            obj.dtmax = 2/sqrt(dimensions)/pi*obj.grid.dx*sqrt(obj.sample.e_r_min); %Stability condition
             obj.dt = obj.dt_relative * obj.dtmax;
             obj.iterations_per_cycle = obj.lambda / obj.dt; %lambda[distance] / dt[time] / c[distance/time]
             
             %% Initialize coefficients (could be optimized);
             obj.omega = 2*pi/obj.lambda; %wave speed c_0 = 1 distance unit / time unit by definition, so omega=k00
-            c2dt = obj.dt^2./real(sample.e_r{1}); %(relative wave speed * dt) ^2
-            sdt  = obj.dt*obj.omega*imag(sample.e_r)./real(sample.e_r); %sigma dt
+            c2dt = obj.dt^2./real(obj.sample.e_r); %(relative wave speed * dt) ^2
+            sdt  = obj.dt*obj.omega*imag(obj.sample.e_r)./real(obj.sample.e_r); %sigma dt
             
             obj.c1 = (sdt-2)./(sdt+2);
             obj.c2 = 4./(sdt+2);
             obj.c3 = 2*c2dt./(sdt+2);
             
             %% Calculate PSTD laplace operator
-            px = sample.grid.px_range;
-            py = sample.grid.py_range;
-            pz = sample.grid.pz_range;            
+            px = obj.grid.px_range;
+            py = obj.grid.py_range;
+            pz = obj.grid.pz_range;            
             obj.koperator = -px.^2-py.^2-pz.^2;
             obj.max_cycles = obj.max_cycles+100; %slow starting source
             
@@ -77,7 +78,7 @@ classdef PSTD < Simulation
             state.E = obj.data_array([], obj.N);
             E_prev = obj.data_array([], obj.N);
             A = 1; %source amplitude
-            %todo: gpuarray for c1,c2,c3 and koperator
+
             %% iterate algorithm
             while state.has_next
                 %% Calculate source amplitude
@@ -119,12 +120,7 @@ classdef PSTD < Simulation
             
             %finally, crop to output_roi and compensate for phase of source
             A_next = obj.source_amplitude(state.it / obj.iterations_per_cycle);
-            state.E = state.E(...
-                obj.output_roi(1,1):obj.output_roi(2,1),...
-                obj.output_roi(1,2):obj.output_roi(2,2),...
-                obj.output_roi(1,3):obj.output_roi(2,3),...
-                obj.output_roi(1,4):obj.output_roi(2,4))...
-                    * exp(-1.0i*angle(A_next));
+            state.E = obj.crop_field(state.E) * exp(-1.0i*angle(A_next));
         end
     end
     methods(Static)
