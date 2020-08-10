@@ -26,7 +26,13 @@ classdef PSTD < Simulation
             %                      be square. Can be 2-D or 3-D.
             %  options.wavelength = free space wavelength (same unit as pixel_size, e. g. um)
             %  options.dt         = time step (leave empty unless forcing a specific value)
-            %  options.time_duration = time duration of whole simulation     
+            %  options.time_duration = time duration of whole simulation
+            
+            % ARL boundary and ACC algorithm not yet supported by PSTD
+            if ~isfield(options, 'boundary_type') || isfield(options, 'boundary_strength')
+                error('options field boundary_type and boundary_strength needs to be specified');
+            end
+            
             obj@Simulation(refractive_index, options);
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
             

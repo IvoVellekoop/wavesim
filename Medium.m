@@ -7,7 +7,7 @@ classdef Medium
         e_r_max         % maximum real part of obj.e_r
         e_r_min         % minimum real part of obj.e_r
         e_r_center      % (e_r_max+e_r_min)/2
-        boundary_type;  % type of boundary layer used around sample
+        boundary_type = 'ARL';  % type of boundary layer used around sample (default: anti-reflection layer)
         Bl;             % left boundary widths (absorbing boundaries + padding)
         Br;             % right boundary widths (absorbing boundaries + padding)
         n_media;        % number of potential maps stored in memory (multiple 
@@ -32,10 +32,10 @@ classdef Medium
             %                          to 0 for periodic boundary.
             % options.boundary_strength = maximum value of imaginary part of e_r
             %                             in the boundary (for 'PBL' only)
-            % options.boundary_type = boundary type. Currently supports 'window' (default) and
+            % options.boundary_type = boundary type. Currently supports 'ARL' (default) and
             % 'PBL1-5'
             % options.ar_width = width of anti-reflection layer (for
-            % 'window' only). Should be < boundary_widths. When omitted, a
+            % 'ARL' only). Should be < boundary_widths. When omitted, a
             % default fraction of the boundary width will be used
             % (pre-factor may change in the future)
             %
@@ -54,12 +54,7 @@ classdef Medium
             assert(numel(refractive_index) >= 1);
             assert(numel(options.boundary_widths) >= ndims(refractive_index));
             assert(numel(options.boundary_widths) <= 3);
-            if ~isfield(options, 'boundary_type')
-                options.boundary_type = 'window';
-                obj.boundary_type = options.boundary_type;
-            else    
-                obj.boundary_type = 'window'; %new default boundary type!
-            end       
+ 
             if ~isfield(options, 'medium_wiggle')
                 medium_wiggle = false; % by default medium wiggle is disabled in all dimensions
             end
@@ -104,7 +99,7 @@ classdef Medium
         function e_r = polynomial_boundary_layer(obj, e_r, options)
             % the polynomial boundary layer adds absorption in such a way 
             % to minimize  reflection of a normally incident beam
-            warning('PBL boundary conditions are deprecated and may be removed in the future: use window');
+            warning('PBL boundary conditions are deprecated and may be removed in the future: use ARL');
             
             %the shape of the boundary is determined by f_boundary_curve, a function
             %that takes a position (in pixels, 0=start of boundary) and returns

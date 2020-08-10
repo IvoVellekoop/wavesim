@@ -15,12 +15,8 @@ classdef(Abstract) WaveSimBase < Simulation
         epsilon;   % convergence parameter
         k02e;      % precomputed constants (pre-divided by sqrt epsilon)
         filters;   % filters applied on the edge of the potential map
-        %% wiggle properties
-        wiggles;
-        % cell array containing all the phase ramps and the shifted 
-        % coordinates  for the anti-wraparound and anti-aliasing algorithm 
-        % (the wiggle algorithms)
-        boundary_wiggle = true;
+        
+        ACC = true;
         % 'true' indicates that the anti-cyclic convolution algorithm is 
         % used on in all dimensions with non-zero boundary width. 
         % Note: zero-width boundaries are treated as periodic boundaries, 
@@ -32,6 +28,12 @@ classdef(Abstract) WaveSimBase < Simulation
         % true indicates that the anti-aliasing algorithm is used in all
         % dimensions. Algorithm can also exclusively enabled in a single or
         % two dimensions by passing a 3x1 logical vector.
+        
+        %% internal properties
+        wiggles;
+        % cell array containing all the phase ramps and the shifted 
+        % coordinates  for the anti-wraparound and anti-aliasing algorithm 
+        % (the wiggle algorithms)
         n_media;
         % number of potential maps stored in memory (multiple submedia are
         % used for anti-aliasing algorithm)
@@ -50,9 +52,9 @@ classdef(Abstract) WaveSimBase < Simulation
             % options.lambda = free space wavelength (same unit as pixel_size, e. g. um)
             % options.epsilon = convergence parameter (leave empty unless forcing a specific value)
             
-            % temporary fix for change in syntax (wiggle is now callled boundary_wiggle)
+            % temporary fix for change in syntax (wiggle is now callled ACC)
             if isfield(options,'wiggle')
-                options.boundary_wiggle = options.wiggle;
+                options.ACC = options.wiggle;
             end   
             
             % call simulation constructor
@@ -85,7 +87,7 @@ classdef(Abstract) WaveSimBase < Simulation
             obj.epsilon = obj.data_array(obj.epsilon);
             
             %% calculate wiggle descriptors
-            [obj.wiggles, obj.boundary_wiggle, obj.medium_wiggle] = obj.compute_wiggles();
+            [obj.wiggles, obj.ACC, obj.medium_wiggle] = obj.compute_wiggles();
         end
         
         function state = run_algorithm(obj, state)
@@ -210,7 +212,7 @@ classdef(Abstract) WaveSimBase < Simulation
             filters = cell(3,1);
             
             % V is only filtered when ARL boundary type is used
-            if (~strcmp(obj.sample.boundary_type, 'window') || all(obj.sample.Bl==0))
+            if (~strcmp(obj.sample.boundary_type, 'ARL') || all(obj.sample.Bl==0))
                 return;
             end
             
@@ -266,7 +268,7 @@ classdef(Abstract) WaveSimBase < Simulation
        
         
         %%% Wiggle methods (move to separate class?)
-        function [wiggle_descriptors,boundary_wiggle,medium_wiggle] = compute_wiggles(obj)
+        function [wiggle_descriptors,ACC,medium_wiggle] = compute_wiggles(obj)
             % Decides which borders to wiggle and returns wiggled coordinates
             % for those borders
             
@@ -274,12 +276,12 @@ classdef(Abstract) WaveSimBase < Simulation
             % true -> wiggle all non-periodic boundaries
             % [true, false, true] -> wiggle only 1st and 3rd dimension
             % false -> same as [false, false, false]
-            boundary_wiggle = obj.boundary_wiggle(:);
-            if numel(boundary_wiggle) == 1
-                if boundary_wiggle == true
-                    boundary_wiggle = ~obj.grid.periodic(:);
+            ACC = obj.ACC(:);
+            if numel(ACC) == 1
+                if ACC == true
+                    ACC = ~obj.grid.periodic(:);
                 else
-                    boundary_wiggle = false(3,1);
+                    ACC = false(3,1);
                 end
             end
             
@@ -295,11 +297,10 @@ classdef(Abstract) WaveSimBase < Simulation
             end
             
             % determine wiggle directions
-            wiggle_flags = [boundary_wiggle;medium_wiggle];
+            wiggle_flags = [ACC;medium_wiggle];
             wiggle_set = wiggle_perm(wiggle_flags);
             
-            % calculate phase ramps and coordinates for every
-            % boundary_wiggle and medium_wiggle
+            % calculate phase ramps and coordinates for every different wiggle
             Nwiggles = size(wiggle_set,2);
             wiggle_descriptors = cell(Nwiggles,1);  % pre-allocate memory
             for w_i=1:Nwiggles
@@ -319,7 +320,7 @@ classdef(Abstract) WaveSimBase < Simulation
             wd.pze = obj.data_array((obj.grid.pz_range - obj.grid.dpz * wig(3)/4)/sqrt(obj.epsilon));
             
             % construct real space phase gradients to compensate for the
-            % pixel shift in k_space (required for boundary_wiggle)
+            % pixel shift in k_space (required for the ACC algorithm)
             wd.gx = obj.data_array(exp(1.0i * pi/2 * wig(2) * obj.grid.x_range / obj.grid.dx / length(obj.grid.x_range)));
             wd.gy = obj.data_array(exp(1.0i * pi/2 * wig(1) * obj.grid.y_range / obj.grid.dx / length(obj.grid.y_range)));
             wd.gz = obj.data_array(exp(1.0i * pi/2 * wig(3) * obj.grid.z_range / obj.grid.dx / length(obj.grid.z_range)));
