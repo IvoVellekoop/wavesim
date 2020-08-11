@@ -11,11 +11,10 @@ classdef(Abstract) WaveSimBase < Simulation
     % Ivo Vellekoop & Gerwin Osnabrugge 2016-2020
     
     properties
-        gamma;     % potential array used in simulation (uses multiple arrays when medium_wiggle is enabled)
-        epsilon;   % convergence parameter
         k02e;      % precomputed constants (pre-divided by sqrt epsilon)
-        filters;   % filters applied on the edge of the potential map
-        
+        gamma;     % potential array used in simulation (uses multiple arrays when anti_aliasing is enabled)
+        epsilon;   % convergence parameter        
+        filters;   % filters applied on the edge of the potential map       
         ACC = true;
         % 'true' indicates that the anti-cyclic convolution algorithm is 
         % used on in all dimensions with non-zero boundary width. 
@@ -23,23 +22,24 @@ classdef(Abstract) WaveSimBase < Simulation
         % and the anti-wraparound algorithm is disabled by default for these
         % boundaries. To override this default behavior, you can explicitly
         % pass a 3x1 logical vector (e.g. [true false false]) to indicate
-        % which boundaries to 'wiggle'
-        medium_wiggle = false;
+        % which boundaries to 'wiggle'. 
+        anti_aliasing = false;
         % true indicates that the anti-aliasing algorithm is used in all
         % dimensions. Algorithm can also exclusively enabled in a single or
-        % two dimensions by passing a 3x1 logical vector.
-        
+        % two dimensions by passing a 3x1 logical vector. (in development)
         %% internal properties
         wiggles;
-        % cell array containing all the phase ramps and the shifted 
-        % coordinates  for the anti-wraparound and anti-aliasing algorithm 
-        % (the wiggle algorithms)
+        % 'wiggling' is the multiplication of the field with a linear phase 
+        % ramp in either real space or Fourier space. this cell array 
+        % containing all the phase ramps and the shifted coordinates  for 
+        % used the anti-wraparound and anti-aliasing algorithm 
+        % (the wiggle algorithms). 
         n_media;
         % number of potential maps stored in memory (multiple submedia are
         % used for anti-aliasing algorithm)
-        
-        %% diagnostics and feedback
-        epsilonmin = 3; % minimum value to avoid divergence when simulating empty medium
+        epsilonmin = 3; 
+        % minimum value to avoid divergence when simulating empty medium
+        % (can perhaps be further optimized?)
     end
     methods(Abstract)
         propagate(obj); % function performing the propagation step
@@ -59,7 +59,7 @@ classdef(Abstract) WaveSimBase < Simulation
             
             % call simulation constructor
             obj@Simulation(refractive_index, options);
-            fftw('planner','patient'); %optimize fft2 and ifft2 at first use
+            fftw('planner','patient'); %optimize fft and ifft at first use
             
             %% determine wavenumbers
             % the optimal k_0 follows is given by n_center (see Medium)
@@ -87,7 +87,7 @@ classdef(Abstract) WaveSimBase < Simulation
             obj.epsilon = obj.data_array(obj.epsilon);
             
             %% calculate wiggle descriptors
-            [obj.wiggles, obj.ACC, obj.medium_wiggle] = obj.compute_wiggles();
+            [obj.wiggles, obj.ACC, obj.anti_aliasing] = obj.compute_wiggles();
         end
         
         function state = run_algorithm(obj, state)
@@ -139,7 +139,7 @@ classdef(Abstract) WaveSimBase < Simulation
             state.E = obj.data_array([], obj.N);
             state.dE = obj.data_array([], obj.N);
             
-            %% calculate number of wiggles
+            %% calculate number of different wiggles
             Nwiggles = numel(obj.wiggles);                    % total number of wiggles
             Nwiggles_per_medium= Nwiggles/obj.sample.n_media; % number of boundary wiggles performed on a single submedium
             
@@ -250,7 +250,7 @@ classdef(Abstract) WaveSimBase < Simulation
             % applies medium potential to previous difference field and the
             % propagated field and combines the two fields
             
-            % transform the k-space wiggle phase ramp if medium_wiggle is
+            % transform the k-space wiggle phase ramp if anti_aliasing is
             % enabled.
             dE = obj.wiggle_transform(dE, wig.gpx, wig.gpy, wig.gpz);
             Eprop = obj.wiggle_transform(Eprop, wig.gpx, wig.gpy, wig.gpz);
@@ -268,7 +268,7 @@ classdef(Abstract) WaveSimBase < Simulation
        
         
         %%% Wiggle methods (move to separate class?)
-        function [wiggle_descriptors,ACC,medium_wiggle] = compute_wiggles(obj)
+        function [wiggle_descriptors,ACC,anti_aliasing] = compute_wiggles(obj)
             % Decides which borders to wiggle and returns wiggled coordinates
             % for those borders
             
@@ -285,19 +285,19 @@ classdef(Abstract) WaveSimBase < Simulation
                 end
             end
             
-            % initialize medium_wiggle vector
-            medium_wiggle = obj.medium_wiggle(:);
+            % initialize anti_aliasing vector
+            anti_aliasing = obj.anti_aliasing(:);
             
-            if medium_wiggle == true
-                medium_wiggle = obj.N(1:3)' > 1; % medium wiggle disabled in directions where gridsize is 1
-            elseif medium_wiggle == false
-                medium_wiggle = false(3,1);
-            elseif numel(medium_wiggle) < 3
-                medium_wiggle(end+1:3) = false;
+            if anti_aliasing == true
+                anti_aliasing = obj.N(1:3)' > 1; % medium wiggle disabled in directions where gridsize is 1
+            elseif anti_aliasing == false
+                anti_aliasing = false(3,1);
+            elseif numel(anti_aliasing) < 3
+                anti_aliasing(end+1:3) = false;
             end
             
             % determine wiggle directions
-            wiggle_flags = [ACC;medium_wiggle];
+            wiggle_flags = [ACC;anti_aliasing];
             wiggle_set = wiggle_perm(wiggle_flags);
             
             % calculate phase ramps and coordinates for every different wiggle
@@ -326,7 +326,7 @@ classdef(Abstract) WaveSimBase < Simulation
             wd.gz = obj.data_array(exp(1.0i * pi/2 * wig(3) * obj.grid.z_range / obj.grid.dx / length(obj.grid.z_range)));
             
             % construct k-space phase gradients to compensate for the
-            % pixel shift in real space (required for medium_wiggle)
+            % pixel shift in real space (required for anti_aliasing)
             wd.gpx = obj.data_array(exp(1.0i * pi/2 * wig(5) * obj.grid.px_range / obj.grid.dpx / length(obj.grid.px_range)));
             wd.gpy = obj.data_array(exp(1.0i * pi/2 * wig(4) * obj.grid.py_range / obj.grid.dpy / length(obj.grid.py_range)));
             wd.gpz = obj.data_array(exp(1.0i * pi/2 * wig(6) * obj.grid.pz_range / obj.grid.dpz / length(obj.grid.pz_range)));
@@ -357,14 +357,14 @@ classdef(Abstract) WaveSimBase < Simulation
         function E = wiggle_transform(obj, E, gpx, gpy, gpz)
             % Transforms k-space wiggle phase ramp of a field in real-space
             % Is required by the anti-aliasing algorithm. transform is only
-            % performed in the medium_wiggle direction that is enabled
-            if obj.medium_wiggle(2) % px-direction
+            % performed in the anti_aliasing direction that is enabled
+            if obj.anti_aliasing(2) % px-direction
                 E = ifft( fft(E,obj.grid.N(2),2) .* gpx , obj.grid.N(2), 2);
             end
-            if obj.medium_wiggle(1) % py-direction
+            if obj.anti_aliasing(1) % py-direction
                 E = ifft( fft(E,obj.grid.N(1),1) .* gpy , obj.grid.N(1), 1);
             end
-            if obj.medium_wiggle(3) % pz-direction
+            if obj.anti_aliasing(3) % pz-direction
                 E = ifft( fft(E,obj.grid.N(3),3) .* gpz , obj.grid.N(3), 3);
             end
         end

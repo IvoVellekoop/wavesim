@@ -40,7 +40,7 @@ classdef Medium
             % (pre-factor may change in the future)
             %
             % New feature:
-            % options.medium_wiggle (3x1 boolean array, corresponding with
+            % options.anti_aliasing (3x1 boolean array, corresponding with
             % dimensions y,x,z).
             % when enabled the medium will be subdivided into multiple sub
             % media for anti-aliasing
@@ -55,8 +55,8 @@ classdef Medium
             assert(numel(options.boundary_widths) >= ndims(refractive_index));
             assert(numel(options.boundary_widths) <= 3);
  
-            if ~isfield(options, 'medium_wiggle')
-                medium_wiggle = false; % by default medium wiggle is disabled in all dimensions
+            if ~isfield(options, 'anti_aliasing')
+                options.anti_aliasing = false; % by default medium wiggle is disabled in all dimensions
             end
             
             %% calculate e_r and min/max values
@@ -65,9 +65,9 @@ classdef Medium
             obj.e_r_max = max(real(e_r(:)));
             obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;
             
-            % subsample medium into smaller media when medium_wiggle is
+            % subsample medium into smaller media when anti_aliasing is
             % enabled
-            [obj.e_r,obj.n_media] = Medium.subsample(e_r,medium_wiggle);
+            [obj.e_r,obj.n_media] = Medium.subsample(e_r,options.anti_aliasing);
             
             %% construct coordinate set and calculate padding width
             % padds to next efficient size for fft in each dimension, and makes sure to
@@ -146,7 +146,7 @@ classdef Medium
             e_r = padarray(e_r, Bl, 'replicate', 'pre');
             e_r = padarray(e_r, Br, 'replicate', 'post');
         end
-        function [e_r_set,n_media] = subsample(e_r, medium_wiggle)
+        function [e_r_set,n_media] = subsample(e_r, anti_aliasing)
             % function used to subsample medium into smaller submedia for
             % anti-aliasing. Odd indices represent grid points on a
             % right-shifted grid and even indices represent grid points on a
@@ -154,31 +154,31 @@ classdef Medium
             
             Nx = [size(e_r,1), size(e_r,2), size(e_r,3)]; % size sample
             
-            % check medium_wiggle input
-            if medium_wiggle == true
-                medium_wiggle = Nx > 1;
-            elseif medium_wiggle == false
-                medium_wiggle = false(1,3);
-            elseif numel(medium_wiggle) < 3
-                medium_wiggle(end+1:3) = false;
+            % check anti_aliasing input
+            if anti_aliasing == true
+                anti_aliasing = Nx > 1;
+            elseif anti_aliasing == false
+                anti_aliasing = false(1,3);
+            elseif numel(anti_aliasing) < 3
+                anti_aliasing(end+1:3) = false;
             end
        
             % check if all wiggled direction have an even number of 
             % gridpoints. If not, append to make grid even
-            append = double(mod(Nx,2) & medium_wiggle);
+            append = double(mod(Nx,2) & anti_aliasing);
             e_r = padarray(e_r, append, 'replicate', 'post');
 
             % determine wiggle directions [y;x;z]
-            medium_wiggles = wiggle_perm(medium_wiggle);
+            medium_wiggles = wiggle_perm(anti_aliasing);
             
             % generate wiggled submedia 
-            n_media = 2^(sum(medium_wiggle));
+            n_media = 2^(sum(anti_aliasing));
             e_r_set = cell(n_media,1);
             for i_medium = 1:n_media
                 wshift = (medium_wiggles(:,i_medium) == 1);
-                e_r_set{i_medium} = e_r(1+wshift(1):1+medium_wiggle(1):end,...
-                    1+wshift(2):1+medium_wiggle(2):end,...
-                    1+wshift(3):1+medium_wiggle(3):end);
+                e_r_set{i_medium} = e_r(1+wshift(1):1+anti_aliasing(1):end,...
+                    1+wshift(2):1+anti_aliasing(2):end,...
+                    1+wshift(3):1+anti_aliasing(3):end);
             end
         end
         
