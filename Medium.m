@@ -3,15 +3,13 @@ classdef Medium
     % simulations (wavesim, PSTD)
     % Ivo Vellekoop & Gerwin Osnabrugge 2016-2020
     properties
-        e_r             % relative dielectric constand map with boundaries appended
+        boundary_type = 'ARL';  % type of boundary layer used around sample (default: anti-reflection layer)
+        e_r             % relative dielectric constand map with added boundary layers
         e_r_max         % maximum real part of obj.e_r
         e_r_min         % minimum real part of obj.e_r
         e_r_center      % (e_r_max+e_r_min)/2
-        boundary_type = 'ARL';  % type of boundary layer used around sample (default: anti-reflection layer)
         Bl;             % left boundary widths (absorbing boundaries + padding)
         Br;             % right boundary widths (absorbing boundaries + padding)
-        n_media;        % number of potential maps stored in memory (multiple 
-                        % submedia are used for anti-aliasing algorithm)
     end
     methods
         function [obj,grid] = Medium(refractive_index, options)
@@ -19,45 +17,36 @@ classdef Medium
             % simulations (wavesim, PSTD)
             %
             % internally, the object stores a map of the relative dielectric
-            % constant (e_r), which is the refractive index squared. The e_r map
-            % is padded with boundaries, and then expanded to the next
-            % multiple of 2^N in each dimension (for fast fourier transform)
+            % constant (e_r), which is the refractive index squared. The 
+            % e_r map is padded with boundaries, and then expanded in each 
+            % dimension to an efficient size for fast fourier transform 
             %
-            % refractive_index   = refractive index map, may be complex, need not
-            %                      be square. Can be 2-D or 3-D.
-            % options.pixel_size = size of a grid pixel in any desired unit (e.g.
-            % microns)
+            % refractive_index   = refractive index map, may be complex, 
+            %                      need not be square. Can be 2-D or 3-D.
+            % options.pixel_size = size of a grid pixel in any desired unit .
+            %                      (e.g microns)
             % options.boundary_widths = vector with widths of the absorbing
-            %                          boundary (in pixels) for each dimension. Set element
-            %                          to 0 for periodic boundary.
-            % options.boundary_strength = maximum value of imaginary part of e_r
-            %                             in the boundary (for 'PBL' only)
-            % options.boundary_type = boundary type. Currently supports 'ARL' (default) and
-            % 'PBL1-5'
-            % options.ar_width = width of anti-reflection layer (for
-            % 'ARL' only). Should be < boundary_widths. When omitted, a
-            % default fraction of the boundary width will be used
-            % (pre-factor may change in the future)
-            %
-            % New feature:
-            % options.anti_aliasing (3x1 boolean array, corresponding with
-            % dimensions y,x,z).
-            % when enabled the medium will be subdivided into multiple sub
-            % media for anti-aliasing
+            %                           boundary (in pixels) for each dimension. 
+            %                           Set element to 0 for periodic boundary.
+            % options.boundary_strength = maximum value of imaginary part 
+            %                             of e_r in the boundary (for 'PBL' only)
+            % options.boundary_type = boundary type. Currently supports 
+            %                         'ARL' (default) and 'PBL1-5'
             
             %% check validity of input sample
             if min(imag(refractive_index(:))) < 0
                 error('Medium cannot have gain, imaginary part of refractive index should be negative');
             end
             
+            % set default boundary type
+            if isfield(options, 'boundary_type')
+                obj.boundary_type = options.boundary_type;
+            end
+            
             %% Set default values and check validity of inputs
             assert(numel(refractive_index) >= 1);
             assert(numel(options.boundary_widths) >= ndims(refractive_index));
             assert(numel(options.boundary_widths) <= 3);
- 
-            if ~isfield(options, 'anti_aliasing')
-                options.anti_aliasing = false; % by default medium wiggle is disabled in all dimensions
-            end
             
             %% calculate e_r and min/max values
             e_r = refractive_index.^2;
@@ -65,14 +54,10 @@ classdef Medium
             obj.e_r_max = max(real(e_r(:)));
             obj.e_r_center = (obj.e_r_min + obj.e_r_max)/2;
             
-            % subsample medium into smaller media when anti_aliasing is
-            % enabled
-            [obj.e_r,obj.n_media] = Medium.subsample(e_r,options.anti_aliasing);
-            
             %% construct coordinate set and calculate padding width
             % padds to next efficient size for fft in each dimension, and makes sure to
             % append at least 'boundary_widths' pixels on both sides.
-            sz = Simulation.make3(size(obj.e_r{1}), 1);
+            sz = Simulation.make3(size(e_r), 1);
             bw = Simulation.make3(options.boundary_widths * 2, 0);
             grid = SimulationGrid(sz + bw, options.pixel_size, bw==0);
             
@@ -81,17 +66,15 @@ classdef Medium
             obj.Bl = ceil((grid.N - sz) / 2);
             obj.Br = floor((grid.N - sz) / 2);
             
-            %% add boundary layer around the medium
-            for i_medium = 1:obj.n_media                
-                obj.e_r{i_medium} = obj.add_boundary_layer(obj.e_r{i_medium}, options);
-            end
+            %% add boundary layer around the medium             
+            obj.e_r = obj.add_boundary_layer(e_r, options);
         end
     end
     methods(Access=protected)     
         function e_r = add_boundary_layer(obj, e_r, options)        
             % adds a boundary layer around the medium
             e_r = Medium.extrapolate(e_r, obj.Bl, obj.Br);
-            if (strcmp(options.boundary_type(1:3), 'PBL') && any(obj.Bl~=0)) 
+            if (strcmp(obj.boundary_type(1:3), 'PBL') && any(obj.Bl~=0)) 
                 % add absorption to the boundary layer (deprecated) 
                 e_r = obj.polynomial_boundary_layer(e_r, options);
             end
@@ -145,125 +128,6 @@ classdef Medium
             % the boundaries are added to both sides.
             e_r = padarray(e_r, Bl, 'replicate', 'pre');
             e_r = padarray(e_r, Br, 'replicate', 'post');
-        end
-        function [e_r_set,n_media] = subsample(e_r, anti_aliasing)
-            % function used to subsample medium into smaller submedia for
-            % anti-aliasing. Odd indices represent grid points on a
-            % right-shifted grid and even indices represent grid points on a
-            % left-shift grid.
-            
-            Nx = [size(e_r,1), size(e_r,2), size(e_r,3)]; % size sample
-            
-            % check anti_aliasing input
-            if anti_aliasing == true
-                anti_aliasing = Nx > 1;
-            elseif anti_aliasing == false
-                anti_aliasing = false(1,3);
-            elseif numel(anti_aliasing) < 3
-                anti_aliasing(end+1:3) = false;
-            end
-       
-            % check if all wiggled direction have an even number of 
-            % gridpoints. If not, append to make grid even
-            append = double(mod(Nx,2) & anti_aliasing);
-            e_r = padarray(e_r, append, 'replicate', 'post');
-
-            % determine wiggle directions [y;x;z]
-            medium_wiggles = wiggle_perm(anti_aliasing);
-            
-            % generate wiggled submedia 
-            n_media = 2^(sum(anti_aliasing));
-            e_r_set = cell(n_media,1);
-            for i_medium = 1:n_media
-                wshift = (medium_wiggles(:,i_medium) == 1);
-                e_r_set{i_medium} = e_r(1+wshift(1):1+anti_aliasing(1):end,...
-                    1+wshift(2):1+anti_aliasing(2):end,...
-                    1+wshift(3):1+anti_aliasing(3):end);
-            end
-        end
-        
-        %%% testing methods
-        function test_subsample()
-            % unit test for Medium.subsample method
-            A = 1+rand(10,10,10);
-            
-            % test 1
-            disp('test 1: no medium wiggle enabled...');
-            [B,n_media] = Medium.subsample(A,[0,0,0]);
-            B_expected{1} = A;
-            if isequal(B{1},B_expected{1}) && n_media == 1
-                disp('passed');
-            else
-                disp('failed');
-            end
-            
-            % test 2
-            disp('test 2: single medium wiggle...');
-            [B,n_media] = Medium.subsample(A,[1,0,0]);
-            B_expected{1} = A(2:2:end,:,:);
-            B_expected{2} = A(1:2:end,:,:);
-            
-            for i_medium = 1:numel(B)
-                if ~isequal(B{i_medium},B_expected{i_medium})
-                    disp('failed');
-                    break;
-                end
-                if i_medium == numel(B) && n_media == 2
-                    disp('passed');
-                end
-            end
-            
-            % test 3:
-            disp('test 3: medium wiggle in 2D...');
-            [B,n_media] = Medium.subsample(A,[1,0,1]);
-            B_expected{1} = A(2:2:end,:,2:2:end);
-            B_expected{2} = A(1:2:end,:,2:2:end);
-            B_expected{3} = A(2:2:end,:,1:2:end);
-            B_expected{4} = A(1:2:end,:,1:2:end);
-
-            for i_medium = 1:numel(B)
-                if ~isequal(B{i_medium},B_expected{i_medium}) 
-                    disp('failed');
-                    break;
-                end
-                if i_medium == numel(B) && n_media == 4
-                    disp('passed');
-                end
-            end
-            
-            % test 4:
-            disp('test 4: medium wiggle in 3D...');
-            [B,n_media] = Medium.subsample(A,[1,1,1]);
-            B_expected{1} = A(2:2:end,2:2:end,2:2:end);
-            B_expected{2} = A(1:2:end,2:2:end,2:2:end);
-            B_expected{3} = A(2:2:end,1:2:end,2:2:end);
-            B_expected{4} = A(1:2:end,1:2:end,2:2:end);
-            B_expected{5} = A(2:2:end,2:2:end,1:2:end);
-            B_expected{6} = A(1:2:end,2:2:end,1:2:end);
-            B_expected{7} = A(2:2:end,1:2:end,1:2:end);
-            B_expected{8} = A(1:2:end,1:2:end,1:2:end);
-            for i_medium = 1:numel(B)
-                if ~isequal(B{i_medium},B_expected{i_medium}) 
-                    disp('failed');
-                    break;
-                end
-                if i_medium == numel(B) && n_media == 8
-                    disp('passed');
-                end
-            end
-            
-            % test 5:
-            disp('test 5: test sample with odd number of grid points...');
-            A = rand(11,11,1);
-            [B,~] = Medium.subsample(A,[0,1]);
-            B_expected{1} = [A(:,2:2:end),A(:,end)];   % appended direction
-            B_expected{2} = A(:,1:2:end);
-
-            if isequal(B{1},B_expected{1}) && isequal(B{2},B_expected{2})
-                disp('passed');
-            else
-                disp('failed');
-            end
         end
     end
 end

@@ -22,7 +22,7 @@ classdef WaveSim < WaveSimBase
             pz2k = wiggle.pze.^2 - obj.k02e;
             
             % perform modified Fourier transform (applies wiggle phase ramps)
-            E = obj.fft_wiggle(E, wiggle);
+            E = obj.mfft(E, wiggle);
             
             % apply propagation kernel
             if obj.gpu_enabled
@@ -32,7 +32,7 @@ classdef WaveSim < WaveSimBase
             end
             
             % Perform modified inverse Fourier transform (reverses wiggle phase ramps)
-            E = obj.ifft_wiggle(E, wiggle);          
+            E = obj.mifft(E, wiggle);          
         end
     end
 end

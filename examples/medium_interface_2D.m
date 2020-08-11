@@ -16,7 +16,7 @@ n2 = 2;          % refractive index medium 2 (bottom)
 
 %% make refractive index distribution and create WaveSim object
 n_sample = [n1*ones(N(1)/2,N(2));n2*ones(N(1)/2,N(2))];
-sim = WaveSim(n_sample, opt);
+sim = WaveSimVector(n_sample, opt);
 
 %% define plane wave source with Gaussian intensity profile with incident angle theta
 % properties
@@ -26,14 +26,14 @@ x = (1:N(2))*opt.pixel_size;
 
 % create source object
 source_amplitude = [gausswin(N(2)/2,3)'.*exp(1.0i*kx*x(1:end/2)),zeros(1,N(2)/2)];
-source = Source(source_amplitude, [1,1]); % plane wave source under a angle
+source = Source(source_amplitude, [1,1,1,1]); % horizontally-polarized plane wave source under a angle
 
 %% perform simulation and plot resulting field
 E = sim.exec(source);
 
-% plot results
+% plot results (in horizontal-direction only)
 figure;
-imagesc(sim.x_range,sim.y_range,abs(E));
+imagesc(sim.x_range,sim.y_range,abs(E(:,:,:,1)));
 xlabel('x / \lambda','FontSize',16);
 ylabel('y / \lambda','FontSize',16);
 h = colorbar;

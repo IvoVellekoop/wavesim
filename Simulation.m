@@ -45,9 +45,9 @@ classdef Simulation
         callback_options = struct; %other options for the callback
         callback_interval = 50; % the callback is called every 'callback_interval' iterations.
         
-        % Stopping options
-        % To determine when to stop, the algorithm calculates the
-        % difference in the field before and after an iteration. The
+        % Stopping criteria
+        % To determine when to stop, the algorithm calculates the amount of
+        % energy added in the last iteration. The
         % simulation is stopped when the total energy in this 'Ediff' is
         % lower than a threshold value.
         %

@@ -32,14 +32,11 @@ classdef PSTD < Simulation
             if ~isfield(options, 'boundary_type') || isfield(options, 'boundary_strength')
                 error('options field boundary_type and boundary_strength needs to be specified');
             end
+            options.ACC = false;
             
             obj@Simulation(refractive_index, options);
             fftw('planner','patient'); %optimize fft2 and ifft2 at first use
-            
-            % only use first submedium (medium_wiggle not implemented for
-            % PSTD)
-            obj.sample.e_r = obj.sample.e_r{1};
-            
+
             %% Calculate time step dt
             % The light speed is defined as 1 distance_unit / time_unit.
             %
