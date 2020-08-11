@@ -1,14 +1,14 @@
 classdef Source
     % Object to represent one or more sources for a simulation
     %
-    % to create a point source at pos x,y:   s = source([x,y], value);
-    % to create a planar source at depth y:  s = source([1,y], ones(N,1));
+    % to create a point source at pos x,y:   s = source(value, [x,y]);
+    % to create a planar source at depth y:  s = source(ones(N,1), [1,y]);
     % etc.
     %
     % Sources can be added together with the + operator
     % for example:
     %
-    % two_points = source([x1,y1], 1) + source([x2, y2], 1);
+    % two_points = source(1, [x1,y1]) + source(1, [x2, y2]);
     %
     %
     % Most functions allow for the use of arrays of source objects
