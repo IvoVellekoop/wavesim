@@ -27,7 +27,7 @@ classdef Simulation
         % Defaults to the full medium. To save memory, a smaller
         % output_roi can be specified.         
         lambda = 1;      % Wavelength (in micrometers)        
-        gpu_enabled; % flag to determine if simulation are run
+        gpu_enabled = gpuDeviceCount > 0; % flag to determine if simulation are run
         % on the GPU (default: run on GPU if we have one)        
         single_precision = true; % flag to determine if single precision or
         % double precision calculations are used.
@@ -254,27 +254,7 @@ classdef Simulation
             en = full(gather(sum(abs(E_x(:)).^2)));
         end
         
-        function abs_image_callback(obj, state)
-            % by default this function displays state.E, but it can be
-            % configured to show different variables, such as state.Ediff
-            %
-            figure(1);
-            if isfield(obj.callback_options, 'fieldname')
-                E = state.(obj.callback_options.fieldname);
-            else
-                E = state.E;
-            end
-            imagesc(abs(E(ceil(end/2),:, :, 1)));
-            axis image;
-            title(['Differential energy ' num2str(state.diff_energy(state.it)/state.diff_energy(1))]);
-            drawnow;
-        end
-        
-        %skip the callback function, for benchmarking speed
-        function no_callback(obj, state)
-        end
-        
-        
+       % callback functions
         function default_callback(obj, state)
             %default callback function. Shows real value of field, and total energy evolution
             figure(1);
@@ -305,6 +285,22 @@ classdef Simulation
             
             %disp(['Added energy ', num2str(energy(end))]);
             drawnow;
+        end
+        
+        function abs_crossimage_callback(obj, state)
+            % callback function that displays the intensity along the
+            % propagation direction
+            %
+            figure(1);
+            Eprop = abs(squeeze(state.E(ceil(end/2),:,:,1)));
+            imagesc(Eprop);
+            axis image;
+            title(['Differential energy ' num2str(state.diff_energy(state.it)/state.diff_energy(1))]);
+            drawnow;
+        end
+        
+        %skip the callback function, for benchmarking speed
+        function no_callback(obj, state)
         end
         
         function sz = make3(sz, pad)
