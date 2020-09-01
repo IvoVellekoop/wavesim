@@ -14,5 +14,10 @@ function wiggle_set = wiggle_perm(wiggle_flags)
     % eight on the third, etc. This generates all possible wiggle permutations 
     % where every column is a unique permutation.
     wiggle_set(wiggle_flags == 1,:) = (-1).^(ceil([1:2^n_wiggles]./2.^([1:n_wiggles]' - 1)) + 1);
+    
+    % change the order of the columns of wiggle_set to remove any shift 
+    % symmetries in the sequences
+    ind = [1:2:2^n_wiggles-1,2^n_wiggles:-2:2];
+    wiggle_set = wiggle_set(:,ind);
 end
 
