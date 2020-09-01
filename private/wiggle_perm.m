@@ -17,7 +17,7 @@ function wiggle_set = wiggle_perm(wiggle_flags)
     
     % change the order of the columns of wiggle_set to remove any shift 
     % symmetries in the sequences
-    ind = [1:2:2^n_wiggles-1,2^n_wiggles:-2:2];
+    ind = [1:2:2^n_wiggles,2^n_wiggles:-2:2];
     wiggle_set = wiggle_set(:,ind);
 end
 
