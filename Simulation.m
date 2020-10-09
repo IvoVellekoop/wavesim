@@ -96,12 +96,13 @@ classdef Simulation
             % computations
             if ~isfield(options,'gpu_enabled')
                 try
-                    obj.gpu_enabled = gpuDeviceCount > 0;
-                    gpu = gpuDevice;
-                    disp(['GPU found. Performing simulations on: ',gpu.name]);
-                catch
+                    if gpuDeviceCount > 0 % check for gpu
+                        obj.gpu_enabled = true;
+                        gpu = gpuDevice;
+                        disp(['GPU found. Performing simulations on: ',gpu.name]);
+                    end
+                catch % 
                     obj.gpu_enabled = false;
-                    disp('no gpu found');
                 end
             end
             

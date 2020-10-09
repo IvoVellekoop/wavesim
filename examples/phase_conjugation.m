@@ -13,7 +13,7 @@ PPW=4;                                    % points per wavelength
 opt.lambda = 1;                           % wavelength in vacuum (in um)
 opt.energy_threshold = 1E-12;             % simulation has converged when total added energy is lower than threshold 
 opt.pixel_size = opt.lambda/PPW;          % grid pixel size (in um)
-opt.boundary_widths = [24*PPW,24*PPW];    % periodic boundaries
+opt.boundary_widths = [4*PPW,4*PPW];      % absorbing boundaries
 
 %% Construct random medium
 % size of medium (in pixels)
