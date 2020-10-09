@@ -255,9 +255,12 @@ classdef Simulation
         end
         
        % callback functions
-        function default_callback(obj, state)
-            %default callback function. Shows real value of field, and total energy evolution
-            figure(1);
+        function default_callback(obj, state, dim, pol)
+            %default callback function. Shows  total energy evolution and 
+            %real value of field along specified dimension (longest
+            %dimension by default)
+            %
+            figure(1); clf;
             energy = state.diff_energy(1:state.it) / state.diff_energy(1);
             threshold = obj.energy_threshold;
             E = state.E;
@@ -268,20 +271,39 @@ classdef Simulation
             xpos = ceil(size(E, 2)/2);
             ypos = ceil(size(E, 1)/2);
             zpos = ceil(size(E, 3)/2);
-            if xpos > max(ypos, zpos)
-                sig = log(abs(E(ypos, :, zpos)));
-                sroi = obj.roi(:,1);
-            elseif ypos > max(xpos, zpos)
-                sig = log(abs(E(:, xpos, zpos)));
-                sroi = obj.roi(:,2);
-            else
-                sig = log(abs(E(ypos, xpos, :)));
-                sroi = obj.roi(:,3);
+            if nargin < 3
+                [~,dim] = max([ypos,xpos,zpos]);
             end
-            subplot(2,1,2);
-            plot(1:length(sig), squeeze(sig), sroi(1)*ones(1,2), [min(sig),max(sig)], sroi(end)*ones(1,2), [min(sig),max(sig)]);
+            if nargin < 4 % default show horizontal polarization
+                pol = 1;
+            end
+            
+            switch dim
+                case 1 % y-dimension
+                    sig = log(abs(E(:, xpos, zpos,pol)));
+                    ax = obj.y_range(:);
+                    sroi = ax(obj.roi(:,1));
+                    ax_label = 'y (\mum)';
+                case 2 % x-dimension
+                    sig = log(abs(E(ypos, :, zpos,pol)));                    
+                    ax = obj.x_range(:);
+                    sroi = ax(obj.roi(:,2));
+                    ax_label = 'x (\mum)';
+                case 3 % z-dimension
+                    sig = log(abs(E(ypos, xpos, :,pol)));   
+                    ax = obj.grid.z_range(:);
+                    sroi = ax(obj.roi(:,3));
+                    ax_label = 'z (\mum)';
+            end
+            subplot(2,1,2); 
+            plot(ax, squeeze(sig),'b'); hold on;
             title('midline cross-section')
-            xlabel('y (\lambda / 4)'); ylabel('log(|E_x|)');
+            xlabel(ax_label); ylabel('log(|E|)');
+            
+            % draw dashed lines to indicate start of boundary layer
+            ca = gca;
+            plot(sroi(1)*ones(1,2), [ca.YLim(1),ca.YLim(2)],'--k', ...
+                 sroi(end)*ones(1,2), [ca.YLim(1),ca.YLim(2)],'--k');
             
             %disp(['Added energy ', num2str(energy(end))]);
             drawnow;
@@ -292,7 +314,11 @@ classdef Simulation
             % propagation direction
             %
             figure(1);
-            Eprop = abs(squeeze(state.E(ceil(end/2),:,:,1)));
+            if size(state.E,3) == 1 % 1D/2D simulation
+                Eprop = abs(squeeze(state.E(:,:,1,1)));
+            else
+                Eprop = abs(squeeze(state.E(ceil(end/2),:,:,1)));
+            end
             imagesc(Eprop);
             axis image;
             title(['Differential energy ' num2str(state.diff_energy(state.it)/state.diff_energy(1))]);

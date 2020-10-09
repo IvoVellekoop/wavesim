@@ -146,7 +146,7 @@ classdef(Abstract) WaveSimBase < Simulation
                     Etmp = state.dE;
                 end
                 
-                % main computations steps
+                % main computation steps
                 Etmp = obj.propagate(Etmp, wig);
                 state.dE = obj.mix(state.dE, Etmp, obj.gamma);
                 state.E = state.E + state.dE;
@@ -288,31 +288,7 @@ classdef(Abstract) WaveSimBase < Simulation
             wd.gx = obj.data_array(exp(1.0i * pi/2 * wig(2) * obj.grid.x_range / obj.grid.dx / length(obj.grid.x_range)));
             wd.gy = obj.data_array(exp(1.0i * pi/2 * wig(1) * obj.grid.y_range / obj.grid.dx / length(obj.grid.y_range)));
             wd.gz = obj.data_array(exp(1.0i * pi/2 * wig(3) * obj.grid.z_range / obj.grid.dx / length(obj.grid.z_range)));
-        end
-        
-        function E = mfft(obj, E, wig)
-            % Modified Fourier transform: additionally applies wiggle phase
-            % ramps to field. Maps field from real space to a shifted
-            % Fourier space 
-            if obj.gpu_enabled
-                E = arrayfun(@f_wiggle, E, wig.gx, wig.gy, wig.gz);
-            else
-                E = f_wiggle(E, wig.gx, wig.gy, wig.gz);
-            end
-            E = fftn(E);
-        end
-        
-        function E = mifft(obj, E, wig)
-            % Modified inverse Fourier transform: additionally reverses wiggle
-            % phase ramps applied to field. Maps field from a shifted Fourier 
-            % space to real space  
-            E = ifftn(E);
-            if obj.gpu_enabled
-                E = arrayfun(@f_wiggle, E, conj(wig.gx), conj(wig.gy), conj(wig.gz));
-            else
-                E = f_wiggle(E, conj(wig.gx), conj(wig.gy), conj(wig.gz));
-            end
-        end
+        end       
     end
 end
 

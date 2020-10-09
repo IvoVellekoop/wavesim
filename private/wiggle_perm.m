@@ -13,11 +13,17 @@ function wiggle_set = wiggle_perm(wiggle_flags)
     % The alternation period is two on the first row, four on the second,
     % eight on the third, etc. This generates all possible wiggle permutations 
     % where every column is a unique permutation.
-    wiggle_set(wiggle_flags == 1,:) = (-1).^(ceil([1:2^n_wiggles]./2.^([1:n_wiggles]' - 1)) + 1);
+    wiggle_set(wiggle_flags == 1,:) = (-1).^(ceil((1:2^n_wiggles)./2.^((1:n_wiggles)' - 1)) + 1);
     
-    % change the order of the columns of wiggle_set to remove any shift 
-    % symmetries in the sequences
-    ind = [1:2:2^n_wiggles,2^n_wiggles:-2:2];
+    % shuffle the order of the columns of wiggle_set to minimize the
+    % second-order wrap-around artefact (see efficient_wiggle_sequences)
+    ind = 1:2^n_wiggles;
+    if n_wiggles == 2
+        ind = [1,2,4,3];
+    elseif n_wiggles == 3
+        ind = [1,2,3,5,4,6,7,8];
+    end
+       
     wiggle_set = wiggle_set(:,ind);
 end
 
