@@ -99,7 +99,7 @@ classdef Simulation
                     if gpuDeviceCount > 0 % check for gpu
                         obj.gpu_enabled = true;
                         gpu = gpuDevice;
-                        disp(['GPU found. Performing simulations on: ',gpu.name]);
+                        disp(['GPU found. Performing simulations on: ',gpu.Name]);
                     end
                 catch % 
                     obj.gpu_enabled = false;
