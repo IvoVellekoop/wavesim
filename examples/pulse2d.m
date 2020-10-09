@@ -5,11 +5,11 @@ clear all; close all;
 addpath('..');
 
 %% simulations options
-PPW=4;                           % points per wavelength
-opt.lambda = 1;                  % wavelength in vacuum (in um)
+PPW=4;                            % points per wavelength
+opt.lambda = 1;                   % wavelength in vacuum (in um)
 opt.energy_threshold = 1E-10;     % simulation has converged when total added energy is lower than threshold 
-opt.pixel_size = opt.lambda/PPW; % grid pixel size (in um)
-opt.boundary_widths = [0,15*PPW];% periodic boundaries
+opt.pixel_size = opt.lambda/PPW;  % grid pixel size (in um)
+opt.boundary_widths = [0,4*PPW];  % periodic boundary in y, absorbing boundary in x
 
 %% Construct homogeneous medium
 N = [32*PPW 32*PPW];            % size of medium (in pixels)

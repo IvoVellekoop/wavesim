@@ -1,7 +1,7 @@
 function [ sol ] = homogeneous_medium_analytic_solution( k, h, x )
 % ANALYTIC_SOL
-% Compute the analytic solution to the Helmholtz equation in 2D in
-% homogeneous medim
+% Compute the analytic solution to the Helmholtz equation for a 1D 
+% homogeneous medium
 % param:
 %   k: wavenumber k=k0*n (d²u/dx² + k² * u = 0)
 %   h: grid sixe

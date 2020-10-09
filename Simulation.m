@@ -27,8 +27,7 @@ classdef Simulation
         % Defaults to the full medium. To save memory, a smaller
         % output_roi can be specified.         
         lambda = 1;      % Wavelength (in micrometers)        
-        gpu_enabled = gpuDeviceCount > 0; % flag to determine if simulation are run
-        % on the GPU (default: run on GPU if we have one)        
+        gpu_enabled; % flag to determine if simulation are run on the GPU      
         single_precision = true; % flag to determine if single precision or
         % double precision calculations are used.
         % Note that on a typical GPU, double
@@ -91,6 +90,20 @@ classdef Simulation
             for f=1:length(fs)
                 fieldname = fs{f};
                 obj.(fieldname) = options.(fieldname);
+            end
+            
+            % if gpu_enabled not specified, then check for gpu to use for
+            % computations
+            if ~isfield(options,'gpu_enabled')
+                try
+                    if gpuDeviceCount > 0 % check for gpu
+                        obj.gpu_enabled = true;
+                        gpu = gpuDevice;
+                        disp(['GPU found. Performing simulations on: ',gpu.name]);
+                    end
+                catch % 
+                    obj.gpu_enabled = false;
+                end
             end
             
             % generate Medium object and set corresponding grid

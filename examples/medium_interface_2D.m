@@ -3,11 +3,11 @@
 
 clear
 %% simulation options
-PPW=8;                          % points per wavelength
-opt.lambda = 1;                 % wavelength in vacuum (in um)
-opt.energy_threshold = 1E-4;    % simulation has converged when total added energy is lower than threshold 
-opt.pixel_size = opt.lambda/PPW;% grid pixel size (in um)
-opt.boundary_widths = PPW*[2,2];% periodic boundaries
+PPW=8;                           % points per wavelength
+opt.lambda = 1;                  % wavelength in vacuum (in um)
+opt.energy_threshold = 1E-4;     % simulation has converged when total added energy is lower than threshold 
+opt.pixel_size = opt.lambda/PPW; % grid pixel size (in um)
+opt.boundary_widths = PPW*[2,2]; % absorbing boundaries
 
 %% sample properties
 N = PPW*[16,32]; % size of medium (in pixels)
