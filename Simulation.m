@@ -294,12 +294,12 @@ classdef Simulation
             switch dim
                 case 1 % y-dimension
                     sig = log(abs(E(:, xpos, zpos,pol)));
-                    ax = obj.y_range(:);
+                    ax = obj.grid.y_range(:);
                     sroi = ax(obj.roi(:,1));
                     ax_label = 'y (\mum)';
                 case 2 % x-dimension
                     sig = log(abs(E(ypos, :, zpos,pol)));                    
-                    ax = obj.x_range(:);
+                    ax = obj.grid.x_range(:);
                     sroi = ax(obj.roi(:,2));
                     ax_label = 'x (\mum)';
                 case 3 % z-dimension
