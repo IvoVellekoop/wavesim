@@ -9,6 +9,7 @@ if exist([dir_script,'\MatScat'],'dir') % check if MatScat package folder is cor
     addpath(genpath('MatScat'));
 else
     error(['MatScat package not included for copyright reasons.', newline, ...
+           'This package can be found at: mathworks.com/matlabcentral/fileexchange/36831-matscat', newline, ...
            'Make sure to copy the MatScat package to the "wavesim/examples/mie_sphere/" folder']);
 end
 
