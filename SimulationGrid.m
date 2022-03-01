@@ -34,7 +34,7 @@ classdef SimulationGrid
             min_size = ceil(min_size); %round up minimum required size to positive integer
             
             N = min_size;
-            N(periodic) = SimulationGrid.efficient_size(min_size(periodic)); %increase size to efficient number for fft
+            N(~periodic) = SimulationGrid.efficient_size(min_size(~periodic)); %increase size to efficient number for fft
             
             obj.periodic = periodic;
             obj.padding = N - min_size; %total amount of zero padding. Placed at right and bottom sides only (non-centric)
