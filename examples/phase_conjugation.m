@@ -17,7 +17,7 @@ opt.boundary_widths = [4*PPW,4*PPW];      % absorbing boundaries
 
 %% Construct random medium
 % size of medium (in pixels)
-N = [128*PPW 128*PPW];
+N = PPW*[128 64];
 
 % real refractive index
 n0 = 1.3;          % mean
@@ -29,8 +29,8 @@ n_sample = 1.0*(n0 + n_var * randn(N));
 % low pass filter to remove sharp edges
 n_fft = fft2(n_sample);
 cutoff = 1/16; % 1 is no cutoff frequency
-window = [zeros(1,N(2)*(1/2-cutoff)), ones(1,N(2)*(2*cutoff)), zeros(1,N(2)*(1/2-cutoff))]' * ...
-    	 [zeros(1,N(1)*(1/2-cutoff)), ones(1,N(1)*(2*cutoff)), zeros(1,N(1)*(1/2-cutoff))];
+window = ([zeros(1,N(2)*(1/2-cutoff)), ones(1,N(2)*(2*cutoff)), zeros(1,N(2)*(1/2-cutoff))]' * ...
+    	 [zeros(1,N(1)*(1/2-cutoff)), ones(1,N(1)*(2*cutoff)), zeros(1,N(1)*(1/2-cutoff))])';
 n_sample = real(ifft2(n_fft.*fftshift(window)));
 
 %% construct wavesim object
@@ -57,8 +57,8 @@ fig = figure(1); clf;
 set(fig,'Position',get(fig,'Position')+[0,0, 400, 0]);
 
 % set axes
-x = (-N(2)/2 + 1 : N(2)/2)*opt.pixel_size;
-y = (-N(1)/2 + 1 : N(1)/2)*opt.pixel_size;
+x = (-N(1)/2 + 1 : N(1)/2)*opt.pixel_size;
+y = (-N(2)/2 + 1 : N(2)/2)*opt.pixel_size;
 
 % plot recording phase
 subplot(1,2,1);
