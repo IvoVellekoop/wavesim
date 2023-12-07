@@ -83,44 +83,41 @@ classdef(Abstract) WaveSimBase < Simulation
         
         function state = run_algorithm(obj, state)
             % paper:
-            %   E = [1+M+M^2+...] \gamma G S
-            % iterate:
+            %   E = [1+M+M^2+...] γ G S
+            % iterate (with modification https://arxiv.org/abs/2207.14222)
             %   E_{0}   = 0
-            %   E_{k+1} = M E_k + \gamma G S
-            %   M = \gamma G V - \gamma + 1
+            %   E_{k+1} = E_k + α [(γ G V - γ) E_k + γ G S]
+            %           = M E_k + α γ G S
+            %   M = α (γ G V - γ) + I
             %
+            % we now substitute V = -i ε γ and define G' =  ε G so that:
+            %   M = -i α γ G' γ - γ + I
+
             % Now instead accumulate all in one buffer. dE_{k} are the terms in the Born series:
-            %   dE_{k} = M^k \gamma G S
+            %   dE_{k} = M^k α γ G S
             %
             % or, recursively:
-            %   dE_{1} = \gamma G S
-            %   dE_{k} = M dE_{k-1}
+            %   dE_{1} = α γ G S = i α γ / ε G' S
+            %   dE_{k} = M dE_{k-1} = [-i α γ G' γ - γ + I] dE_{k-1}
             %
             % and we accumulate all in one buffer to find E
             %   E = dE_{1} + dE_{2} + ...
             %
-            % we now substitute V = \epsilon/i \gamma and define
-            % G' = \epsilon G
-            % so that M = -i \gamma G' \gamma - \gamma + 1
+            % A further optimization can be done by replacing dE = dE' / γ
             %
-            %   dE_{1} = \gamma G' i/\epsilon S
-            %   dE_{k} = (-i \gamma G' \gamma - \gamma + 1) dE_{k-1}
-            %
-            % A further optimization can be done by replacing dE = dE' / \gamma
-            %
-            %   dE'_{1} = \gamma^2 G' i/\epsilon S
-            %   dE'_{k} = (-i \gamma^2 G' - \gamma + 1) dE'_{k-1}
-            %           = -i \gamma^2 G' dE'_{k-1}  + (1-\gamma) dE'_{k-1}
+            %   dE'_{1} = i α γ² / ε G' S
+            %   dE'_{k} = [-i α γ² G' - γ + I] dE'_{k-1}
+            %           =  -i α γ² G' dE'_{k-1}  + (1-α γ) dE'_{k-1}
             %
             % Which simplifies to
             %
             %   dE'_{0} = 0
-            %   dE'_{1} = -i\gamma^2 G' [dE'_{k-1} + i/\epsilon S]  + (1-\gamma) dE'_{k-1}
-            %   dE'_{k} = -i\gamma^2 G'  dE'_{k-1}                  + (1-\gamma) dE'_{k-1}
+            %   dE'_{1} = -i α γ² G' [dE'_{k-1} + i/ε S]  + (1-α γ) dE'_{k-1}
+            %   dE'_{k} = -i α γ² G'  dE'_{k-1}           + (1-α γ) dE'_{k-1}
             
             %   These iterations are implemented as:
-            %   1. a propagation step:   Eprop   =  G' [E_diff + i/\epsilon S] {only add S in 1st iteration}
-            %   2. a mixing step:        E_diff  => (1-\gamma) E_diff - i \gamma^2 Eprop
+            %   1. a propagation step:   Eprop   =  G' [E_diff + i/ε S] {only add S in 1st iteration}
+            %   2. a mixing step:        E_diff  => (1-α γ) E_diff - i α γ² Eprop
             %   3. an accumulation step: E       => E + E_diff
             %
             %   And, after all iterations:
@@ -179,13 +176,9 @@ classdef(Abstract) WaveSimBase < Simulation
             V_tot = e_r*k0^2-k0c^2;
             [Vabs_max, max_index] = max(abs(V_tot(:)));
             
-            % if Vabs_max corresponds to a point with only absorption
-            % and we use epsilon = Vabs_max, then at that point V will be
-            % 0, and the method does not work. In this special case, add
-            % a small offset to epsilon
-            if real(V_tot(max_index)) < 0.05 * Vabs_max
-                Vabs_max = Vabs_max * 1.05;
-            end
+            % For optimal convergence, reduce scaling with a factor of
+            % 0.95 (see https://arxiv.org/abs/2207.14222)
+            Vabs_max = Vabs_max / 0.95;
             epsilon = max(Vabs_max, obj.epsilonmin); % minimum value epsilonmin to avoid divergence when simulating empty medium
         end
         
