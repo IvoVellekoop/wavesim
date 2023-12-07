@@ -1,0 +1,62 @@
+MatScat is a MATLAB package which contains different solutions for the
+scattering of electromagnetic radiation by a sphere (Mie theory) or an
+infinite circular cylinder. Most of the code has been developed during my PhD
+work [3]. The multiple cylinder near field solution has been implemented
+afterwards and has been presented in a seperate publication [4].
+
+-----------------------------------------------------------------------------
+
+Make sure that the root folder and the folders  '/bessel', '/expcoeff' and 
+'/util' are in the Matlab-Path. The files in '/test' can be run to check if 
+everything works fine.  
+
+The functions to start the calculation can be found in the root folder.
+These are:
+
+calccyl.m - calculate the far field solution for a single (stratified) cylinder
+calccyl_nf.m - calculate the near field solution for a single (stratified) cylinder
+calccyl_multi.m - calculate the far field solution for multiple cylinders
+calccyl_multi_nf.m - calculate the near field solution for multiple cylinders
+calcmie.m - calculate the far field solution for a single (stratified) sphere 
+calcmie_nf.m - calculate the near field solution for a single (stratified) sphere
+
+-----------------------------------------------------------------------------
+
+If you use these functions in your research work please cite my work [3,4].
+Please also cite the theoretical work underlying my implementation which is:
+calccyl, calccyl_nf, calcmie and calcmie_nf are implemented based on [1].
+calccyl_multi and calccyl_multi_nf are implemented based on [2,4].
+The stratified cylinder/sphere solution is implemented based on [1,5].
+
+-----------------------------------------------------------------------------
+[1] Bohren, C. F. and Huffman, D. R., Absorption and scattering of light by
+small particles, Wiley-Interscience, New York, 1998.
+
+[2] Lee, S.-C., Dependent scattering of an obliquely incident plane wave by a
+collection of parallel cylinders. J. Appl. Phys. 68(10), 1990.
+
+[3] Schäfer, J.-P.,Implementierung und Anwendung analytischer und numerischer
+Verfahren zur Lösung der Maxwellgleichungen für die Untersuchung der
+Lichtausbreitung in biologischem Gewebe, PhD thesis, Univerität Ulm, 2011,
+http://vts.uni-ulm.de/doc.asp?id=7663
+
+[4] Schäfer, J. and Lee, S.-C. and Kienle, A,, Calculation of the near
+fields for the scattering of electromagnetic waves by multiple infinite
+cylinders at perpendicular incidence, J. Quant. Spectrosc. Radiat. Trans. 
+113(16), 2012. 
+
+[5] Kerker, M., The scattering of light and other electromagnetic 
+radiation, Academic Press, 1969 
+-----------------------------------------------------------------------------
+
+If you have questions or remarks about the MatScat package or if you find any
+bugs in the code please send an email to jan.schaefer@ilm.uni-ulm.de.
+
+Have fun!
+
+-----------------------------------------------------------------------------
+Copyright 2012 Jan Schäfer, Institut für Lasertechnologien (ILM) 
+Author: Jan Schäfer (jan.schaefer@ilm.uni-ulm.de)
+Organization: Institut für Lasertechnologien in der Medizin und Meßtechnik an
+	der Universität Ulm (http://www.ilm-ulm.de)
+-----------------------------------------------------------------------------

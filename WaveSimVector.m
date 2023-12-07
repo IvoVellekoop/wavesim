@@ -18,7 +18,7 @@ classdef WaveSimVector < WaveSimBase
         end
         function E = propagate(obj, E, wiggle)
             % calculate (I - p p^T / (k_0^2+i epsilon)
-            % TODO: replace fEx with E directly to save memory
+            % TODO: replace ifft by fft somehow, because ifftn is slow!?
             % apply wiggle phase ramps
             if obj.gpu_enabled
                 E = arrayfun(@f_wiggle, E, wiggle.gx, wiggle.gy, wiggle.gz);
@@ -30,6 +30,7 @@ classdef WaveSimVector < WaveSimBase
             fEx = fftn(E(:,:,:,1));
             fEy = fftn(E(:,:,:,2));
             fEz = fftn(E(:,:,:,3));
+            clear E;
             
             % apply propagation kernel
             if obj.gpu_enabled
@@ -39,9 +40,7 @@ classdef WaveSimVector < WaveSimBase
             end
             
             % inverse Fourier transform all vector components
-            E(:,:,:,1) = ifftn(fEx);
-            E(:,:,:,2) = ifftn(fEy);
-            E(:,:,:,3) = ifftn(fEz);
+            E = cat(4, ifftn(fEx), ifftn(fEy), ifftn(fEz));
             
             % reverse wiggle phase ramp
             if obj.gpu_enabled
