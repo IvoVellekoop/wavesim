@@ -35,7 +35,7 @@ classdef Medium
             
             %% check validity of input sample
             if min(imag(refractive_index(:))) < 0
-                error('Medium cannot have gain, imaginary part of refractive index should be negative');
+                error('Medium cannot have gain, imaginary part of refractive index should be positive');
             end
             
             % set default boundary type
@@ -44,9 +44,10 @@ classdef Medium
             end
             
             %% Set default values and check validity of inputs
-            assert(numel(refractive_index) >= 1);
-            assert(numel(options.boundary_widths) >= ndims(refractive_index));
-            assert(numel(options.boundary_widths) <= 3);
+            assert(numel(refractive_index) >= 1); % not sure why this is needed
+            assert(numel(options.boundary_widths) >= ndims(refractive_index), "boundary_widths array is too short");
+            assert(numel(options.boundary_widths) <= 3, "boundary_widths array is too long");
+            assert(all(round(options.boundary_widths)==options.boundary_widths), "boundary_widths should be integer numbers")
             
             %% calculate e_r and min/max values
             e_r = refractive_index.^2;
