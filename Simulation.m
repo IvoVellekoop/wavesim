@@ -194,7 +194,8 @@ classdef Simulation
             state.diff_energy(state.it) = state.last_step_energy;
             
             %% check if simulation should terminate
-            if can_terminate && state.diff_energy(state.it) / state.diff_energy(1) < obj.energy_threshold
+            %if can_terminate && state.diff_energy(state.it) / state.diff_energy(1) < obj.energy_threshold
+            if can_terminate && state.diff_energy(state.it) / state.source_energy < obj.energy_threshold
                 state.has_next = false;
                 state.converged = true;
             elseif can_terminate && state.it >= state.max_iterations
@@ -274,9 +275,11 @@ classdef Simulation
             %dimension by default)
             %
             figure(1); clf;
-            energy = state.diff_energy(1:state.it) / state.diff_energy(1);
-            threshold = obj.energy_threshold;
-            E = state.E;
+            energy = state.diff_energy(1:state.it);
+            threshold = obj.energy_threshold * state.source_energy;
+            %E = state.E;
+            E = state.dE;
+            E = max(max(E, [], 1), [], 1);
             subplot(2,1,1); plot(1:length(energy),log10(energy),'b',[1,length(energy)],log10(threshold)*ones(1,2),'--r');
             title(length(energy));  xlabel('# iterations'); ylabel('log_{10}(energy added)');
             
