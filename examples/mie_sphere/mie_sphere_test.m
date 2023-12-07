@@ -16,7 +16,6 @@ end
 opt.energy_threshold    = 1E-99;            % no energy threshold to make sure the same of iterations are performed in all simulations
 opt.max_cycles          = 200;              % maximum number of wave periods to run the simulation
 opt.single_precision    = true;
-opt.gpu_enabled = true;
 
 % callback settings
 opt.callback_interval   = 8;

@@ -35,8 +35,8 @@ end
 
 %% Calculate coordinate ranges
 center  = (N/2)*options.pixel_size + options.center;
-x_range = reshape((1:N(1))*options.pixel_size - center(1), [1,N(2),1]);
-y_range = reshape((1:N(2))*options.pixel_size - center(2), [N(1),1,1]);
+x_range = reshape((1:N(2))*options.pixel_size - center(1), [1,N(2),1]);
+y_range = reshape((1:N(1))*options.pixel_size - center(2), [N(1),1,1]);
 z_range = reshape((1:N(3))*options.pixel_size - center(3), [1,1,N(3)]);
 
 %% Calculate refractive index

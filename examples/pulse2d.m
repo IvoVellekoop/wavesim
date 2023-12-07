@@ -12,7 +12,7 @@ opt.pixel_size = opt.lambda/PPW;  % grid pixel size (in um)
 opt.boundary_widths = [0,4*PPW];  % periodic boundary in y, absorbing boundary in x
 
 %% Construct homogeneous medium
-N = [32*PPW 32*PPW];            % size of medium (in pixels)
+N = PPW*[32 16];            % size of medium (in pixels)
 n_sample = ones(N);             % sample refractive index
 
 %% define a source with spectrum (800-1200nm) at the medium center

@@ -12,7 +12,7 @@ opt.pixel_size = opt.lambda/PPW; % grid pixel size (in um)
 opt.boundary_widths = PPW*[2,2]; % absorbing boundaries
 
 %% Construct random medium
-N = [32*PPW 32*PPW];     % size of medium (in pixels)
+N = PPW*[32 20];     % size of medium (in pixels)
 n_sample = ones(N);
 
 %% construct wavesim object

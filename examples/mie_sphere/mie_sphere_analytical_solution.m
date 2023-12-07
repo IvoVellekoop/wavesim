@@ -3,6 +3,8 @@
 %%% note: This script makes use of the external matlab code package 'MatScat',
 %%% which can be found at: mathworks.com/matlabcentral/fileexchange/36831-matscat
 
+clear all; close all;
+
 %% Add pathway to MatScat code folder
 dir_script = fileparts(mfilename('fullpath'));
 if exist([dir_script,'\MatScat'],'dir') % check if MatScat package folder is correctly copied
@@ -16,11 +18,11 @@ end
 %% Sphere parameters               
 opt.PPW = 5;                                        % number of grid points per wavelength
 opt.lambda = 1;                                     % wavelength in vacuum (in um)
-opt.sphere_radius = 6;                              % radius of the scattering sphere (in um)
+opt.sphere_radius = 1;                              % radius of the scattering sphere (in um)
 opt.sphere_index = 1.2;                             % refractive index of the scattering sphere
 opt.bg_index = 1.00;                                % refractive index of surrounding medium
 opt.pixel_size = opt.lambda/opt.PPW;                % pixel spacing (in um)
-N = [120,120,120];                                  % size of grid (in pixels)
+N = [60,40,30];                                  % size of grid (in pixels)
 
 %% Create Mie sphere refractive index distribution and corresponding grid
 [n_sphere, x_r, y_r, z_r] = create_sphere(opt, N);
