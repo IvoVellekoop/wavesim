@@ -57,6 +57,8 @@ classdef Simulation
         % it is compensates for the
         % amplitude of the source terms.
         
+        usemex = false; %Flag to decide if a vector simulation should be run entirely within mex. 
+        
         energy_calculation_interval = 8; % only calculate energy difference every N steps (to reduce overhead)
         max_cycles = inf; % Maximum number of wave periods to run the simulation.
         % Note that the number of actual iterations per optical cycle

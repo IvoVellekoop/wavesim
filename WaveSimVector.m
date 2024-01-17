@@ -16,7 +16,7 @@ classdef WaveSimVector < WaveSimBase
             end
             obj.N(4) = 3;
         end
-        function E = propagate(obj, E, wiggle)
+        function E = propagate(obj, E, wiggle)        
             % calculate (I - p p^T / (k_0^2+i epsilon)
             % TODO: replace ifft by fft somehow, because ifftn is slow!?
             % apply wiggle phase ramps
@@ -47,6 +47,48 @@ classdef WaveSimVector < WaveSimBase
                 E = arrayfun(@f_wiggle, E, conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
             else
                 E = f_wiggle(E, conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
+            end
+        end
+        
+        function state = run_algorithm(obj, state)
+            
+            if(obj.gpu_enabled && obj.usemex && obj.N(4) == 3 )
+                epsilonSingle = single(gather(obj.epsilon));
+                if(state.max_iterations > 0 && state.max_iterations < inf)
+                   maxIter = state.max_iterations;
+                else
+                   maxIter = 1000;                 
+                end
+                
+                callbackString = 'NoCallback';
+                if(strcmp(func2str(obj.callback), 'Simulation.energy_added_disp_callback'))
+                    callbackString = 'EnergyAddedDisp';
+                elseif(strcmp(func2str(obj.callback), 'Simulation.energy_added_callback'))
+                    callbackString = 'EnergyAdded';             
+                end
+                
+                if(isgpuarray(obj.k02eSingle))
+                    obj.k02eSingle = gather(obj.k02eSingle);
+                end
+                sizeW = size(obj.wiggles);
+                sizeW = sizeW(1);
+                maxIter = double(gather(maxIter));
+                [state.E, state.diff_energy] = RunWaveSimAlgorithmMex(obj.gamma, sizeW, obj.wiggles, state.source, ...
+                epsilonSingle, obj.k02eSingle, obj.roi, maxIter, obj.energy_threshold, callbackString, obj.callback_interval);
+                
+                %% Final computional steps
+                % divide field by gamma to convert E' -> E
+                state.E = state.E ./ obj.gamma; 
+
+                % crop field to match roi size
+                state.E = obj.crop_field(state.E);
+                state.it = length(state.diff_energy) +1;
+                state.converged = state.it < maxIter;
+                %state.it = (length(state.diff_energy)-1)*8 +1;
+             
+
+            else 
+                state = run_algorithm@WaveSimBase(obj, state);
             end
         end
     end
