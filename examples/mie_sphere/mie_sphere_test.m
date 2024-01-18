@@ -4,7 +4,7 @@
 
 clear; close all; clc; warning off;
 addpath('../../'); % add path to wavesim core code
-addpath("../MexBin");
+
 %% load analytical result for Mie sphere
 try 
     load('mie_sphere_theory.mat');
@@ -13,7 +13,9 @@ catch
 end
 %Use optimized mex c++ + Cuda Api
 opt.usemex = true;
-
+if(opt.usemex)
+    addpath("../../MexBin");
+end
 %% simulations settings
 opt.energy_threshold    = 1E-99;            % no energy threshold to make sure the same of iterations are performed in all simulations
 opt.max_cycles          = 200;              % maximum number of wave periods to run the simulation
@@ -21,8 +23,9 @@ opt.single_precision    = true;
 
 % callback settings
 opt.callback_interval   = 8;
-%opt.callback            = @Simulation.abs_crossimage_callback;
-opt.callback            = @Simulation.no_callback;
+opt.callback            = @Simulation.abs_crossimage_callback;
+%Use no callback for a fair comparison with the Mex code
+%opt.callback            = @Simulation.no_callback;
 % tested parameters
 boundary_widths = (1:12)';                  % tested boundary widths (in wavelengths)
 boundary_labels = {'PBL','ARL','PBL (with ACC)','ARL (with ACC)'}; % boundary type

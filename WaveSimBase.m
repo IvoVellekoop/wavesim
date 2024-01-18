@@ -12,7 +12,6 @@ classdef(Abstract) WaveSimBase < Simulation
     
     properties
         k02e;      % precomputed constants (pre-divided by sqrt epsilon)
-        k02eSingle;% single precomputed constants (pre-divided by sqrt epsilon)
         gamma;     % potential array used in simulation
         epsilon;   % convergence parameter        
         filters;   % filters applied on the edge of the potential map       
@@ -76,8 +75,6 @@ classdef(Abstract) WaveSimBase < Simulation
             %% convert properties to single or double precision, and put on 
             % gpu if needed.                  
             obj.k02e = obj.data_array(k0c^2/obj.epsilon + 1.0i);
-            obj.k02eSingle = single(k0c^2/obj.epsilon + 1.0i);
-
             obj.epsilon = obj.data_array(obj.epsilon);
             
             %% calculate wiggle descriptors
