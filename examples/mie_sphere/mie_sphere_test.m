@@ -11,7 +11,11 @@ try
 catch
     error('Unable to read file: mie_sphere_theory.mat. First run mie_sphere_analytical_solution to obtain analytical results');
 end
-
+%Use optimized mex c++ + Cuda Api
+opt.usemex = true;
+if(opt.usemex)
+    addpath("../../MexBin");
+end
 %% simulations settings
 opt.energy_threshold    = 1E-99;            % no energy threshold to make sure the same of iterations are performed in all simulations
 opt.max_cycles          = 200;              % maximum number of wave periods to run the simulation
@@ -20,7 +24,8 @@ opt.single_precision    = true;
 % callback settings
 opt.callback_interval   = 8;
 opt.callback            = @Simulation.abs_crossimage_callback;
-
+%Use no callback for a fair comparison with the Mex code
+%opt.callback            = @Simulation.no_callback;
 % tested parameters
 boundary_widths = (1:12)';                  % tested boundary widths (in wavelengths)
 boundary_labels = {'PBL','ARL','PBL (with ACC)','ARL (with ACC)'}; % boundary type
@@ -37,7 +42,6 @@ for w = 1:numel(boundary_widths)
     for b = 1:4
         % change boundary type
         opt = boundary_type(opt,b);
-        
         % run simulation (including background simulation)
         E_sim = run_mie_sphere_simulation(opt, n_sphere, z_r);
         
