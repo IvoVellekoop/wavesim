@@ -10,7 +10,10 @@ opt.lambda = 1;                   % wavelength in vacuum (in um)
 opt.energy_threshold = 1E-10;     % simulation has converged when total added energy is lower than threshold 
 opt.pixel_size = opt.lambda/PPW;  % grid pixel size (in um)
 opt.boundary_widths = [0,4*PPW];  % periodic boundary in y, absorbing boundary in x
-
+opt.usemex = false;
+if(opt.usemex)
+    addpath('..\MexBin');
+end
 %% Construct homogeneous medium
 N = PPW*[32 16];            % size of medium (in pixels)
 n_sample = ones(N);             % sample refractive index

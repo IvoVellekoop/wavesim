@@ -72,7 +72,7 @@ classdef WaveSimVector < WaveSimBase
                 Nwiggles = numel(obj.wiggles);
                 maxIter = double(gather(maxIter));
 
-                [state.E, state.diff_energy] = RunWaveSimAlgorithmMex(obj.gamma, Nwiggles, obj.wiggles, state.source, ...
+                [state.E, state.diff_energy] = RunWaveSimAlgorithmMex(true, obj.gamma, Nwiggles, obj.wiggles, state.source, ...
                 epsilonSingle, k02eSingle, obj.roi, maxIter, obj.energy_threshold, callbackString, obj.callback_interval);
                 
                 %% Final computional steps
