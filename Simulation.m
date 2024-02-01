@@ -195,8 +195,8 @@ classdef Simulation
             state.diff_energy(state.it) = state.last_step_energy;
             
             %% check if simulation should terminate
-            %if can_terminate && state.diff_energy(state.it) / state.diff_energy(1) < obj.energy_threshold
-            if can_terminate && state.diff_energy(state.it) / state.source_energy < obj.energy_threshold
+            if can_terminate && state.diff_energy(state.it) / state.diff_energy(1) < obj.energy_threshold
+            %if can_terminate && state.diff_energy(state.it) / state.source_energy < obj.energy_threshold
                 state.has_next = false;
                 state.converged = true;
             elseif can_terminate && state.it >= state.max_iterations
@@ -243,6 +243,9 @@ classdef Simulation
                 return;
             end
             d = cast(full(data), p);
+            if(~isreal(data))
+                d = complex(d);
+            end
             if obj.gpu_enabled
                 d = gpuArray(d);
             end

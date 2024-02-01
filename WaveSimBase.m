@@ -278,9 +278,9 @@ classdef(Abstract) WaveSimBase < Simulation
             
             % construct real space phase gradients to compensate for the
             % pixel shift in k_space (required for the ACC algorithm)
-            wd.gx = obj.data_array(exp(1.0i * pi/2 * wig(2) * obj.grid.x_range / obj.grid.dx / length(obj.grid.x_range)));
-            wd.gy = obj.data_array(exp(1.0i * pi/2 * wig(1) * obj.grid.y_range / obj.grid.dx / length(obj.grid.y_range)));
-            wd.gz = obj.data_array(exp(1.0i * pi/2 * wig(3) * obj.grid.z_range / obj.grid.dx / length(obj.grid.z_range)));
+            wd.gx = obj.data_array(complex(exp(1.0i * pi/2 * wig(2) * obj.grid.x_range / obj.grid.dx / length(obj.grid.x_range))));
+            wd.gy = obj.data_array(complex(exp(1.0i * pi/2 * wig(1) * obj.grid.y_range / obj.grid.dx / length(obj.grid.y_range))));
+            wd.gz = obj.data_array(complex(exp(1.0i * pi/2 * wig(3) * obj.grid.z_range / obj.grid.dx / length(obj.grid.z_range))));
         end       
     end
 end
