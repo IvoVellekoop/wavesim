@@ -12,7 +12,7 @@ catch
     error('Unable to read file: mie_sphere_theory.mat. First run mie_sphere_analytical_solution to obtain analytical results');
 end
 %Use optimized mex c++ + Cuda Api
-opt.usemex = true;
+opt.usemex = false;
 if(opt.usemex)
     addpath("../../MexBin");
 end

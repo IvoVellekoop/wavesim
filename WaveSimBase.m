@@ -123,46 +123,79 @@ classdef(Abstract) WaveSimBase < Simulation
             %   And, after all iterations:
             %       E       => E / \gamma
             
-            %% Allocate memory for calculations
-            state.E = obj.data_array([], obj.N);
-            state.dE = obj.data_array([], obj.N);
-            
-            %% calculate number of different wiggles
-            Nwiggles = numel(obj.wiggles);                    % total number of wiggles
- 
-            %% simulation iterations
-            while state.has_next
-                % select correct wiggle and medium number based on iteration number
-                i_wiggle = mod(state.it-1, Nwiggles)+1; % wiggle counter
-                wig = obj.wiggles{i_wiggle};
-                
-                % add source term (first Nwiggles iterations only)
-                if state.it <= Nwiggles % During the first few iterations: add source term
-                    Etmp = state.source.add_to(state.dE, 1.0i / obj.epsilon / Nwiggles);
+            if(obj.gpu_enabled && obj.usemex )
+                if(state.max_iterations > 0 && state.max_iterations < inf)
+                   maxIter = state.max_iterations;
                 else
-                    Etmp = state.dE;
+                   maxIter = 1000;                 
                 end
                 
-                % main computation steps
-                Etmp = obj.propagate(Etmp, wig);
-                state.dE = obj.mix(state.dE, Etmp, obj.gamma);
-                state.E = state.E + state.dE;
-                
-                % check if algorithm has to be terminated
-                if state.calculate_energy
-                    state.last_step_energy = Simulation.energy( obj.crop_field(state.dE) );
+                callbackString = 'NoCallback';
+                if(strcmp(func2str(obj.callback), 'Simulation.energy_added_disp_callback'))
+                    callbackString = 'EnergyAddedDisp';
+                elseif(strcmp(func2str(obj.callback), 'Simulation.energy_added_callback'))
+                    callbackString = 'EnergyAdded';             
                 end
                 
-                can_terminate = mod(state.it, Nwiggles) == 0; %only stop after multiple of Nwiggles iterations
-                state = next(obj, state, can_terminate);
+                k02eSingle = single(gather(obj.k02e));
+                epsilonSingle = single(gather(obj.epsilon));
+                Nwiggles = numel(obj.wiggles);
+                maxIter = double(gather(maxIter));
+
+                [state.E, state.diff_energy] = RunWaveSimAlgorithmMex(obj.N, obj.gamma, Nwiggles, obj.wiggles, state.source, ...
+                epsilonSingle, k02eSingle, obj.roi, maxIter, obj.energy_threshold, callbackString, obj.callback_interval);
+                
+                %% Final computional steps
+                % divide field by gamma to convert E' -> E
+                state.E = state.E ./ obj.gamma; 
+
+                % crop field to match roi size
+                state.E = obj.crop_field(state.E);
+                state.it = length(state.diff_energy) +1;
+                state.converged = state.it < maxIter;
+            else
+                %% Allocate memory for calculations
+                createComplexOnGPU = true;
+                state.E = obj.data_array([], obj.N, createComplexOnGPU);
+                state.dE = obj.data_array([], obj.N, createComplexOnGPU);
+                
+                %% calculate number of different wiggles
+                Nwiggles = numel(obj.wiggles);                    % total number of wiggles
+    
+                %% simulation iterations
+                while state.has_next
+                    % select correct wiggle and medium number based on iteration number
+                    i_wiggle = mod(state.it-1, Nwiggles)+1; % wiggle counter
+                    wig = obj.wiggles{i_wiggle};
+                    
+                    % add source term (first Nwiggles iterations only)
+                    if state.it <= Nwiggles % During the first few iterations: add source term
+                        Etmp = state.source.add_to(state.dE, 1.0i / obj.epsilon / Nwiggles);
+                    else
+                        Etmp = state.dE;
+                    end
+                    
+                    % main computation steps
+                    Etmp = obj.propagate(Etmp, wig);
+                    state.dE = obj.mix(state.dE, Etmp, obj.gamma);
+                    state.E = state.E + state.dE;
+                    
+                    % check if algorithm has to be terminated
+                    if state.calculate_energy
+                        state.last_step_energy = Simulation.energy( obj.crop_field(state.dE) );
+                    end
+                    
+                    can_terminate = mod(state.it, Nwiggles) == 0; %only stop after multiple of Nwiggles iterations
+                    state = next(obj, state, can_terminate);
+                end
+                
+                %% Final computional steps
+                % divide field by gamma to convert E' -> E
+                state.E = state.E ./ obj.gamma; 
+                
+                % crop field to match roi size
+                state.E = obj.crop_field(state.E);
             end
-            
-            %% Final computional steps
-            % divide field by gamma to convert E' -> E
-            state.E = state.E ./ obj.gamma; 
-            
-            % crop field to match roi size
-            state.E = obj.crop_field(state.E);
         end
     end
     methods(Access=protected)
