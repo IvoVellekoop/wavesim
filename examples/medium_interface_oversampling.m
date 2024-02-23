@@ -9,7 +9,7 @@ opt.lambda = 1;                  % wavelength in vacuum (in um)
 opt.energy_threshold = 1E-4;     % simulation has converged when total added energy is lower than threshold 
 opt.pixel_size = opt.lambda/PPW; % grid pixel size (in um)
 opt.boundary_widths = PPW*[2,0]; % absorbing boundaries
-opt.usemex = true;
+opt.usemex = false;
 if(opt.usemex)
     addpath('..\MexBin');
 end
