@@ -1,8 +1,7 @@
 %%% Simulates the wave propagation of a point source in a 3D random medium
 %%% Gerwin Osnabrugge 2015
 
-clear all; close all;
-close all; clc; warning off; clear; clear mex; 
+clear all; close all; clear mex; 
 addpath('..');
 
 %% simulation options

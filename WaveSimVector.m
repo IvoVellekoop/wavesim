@@ -49,6 +49,5 @@ classdef WaveSimVector < WaveSimBase
                 E = f_wiggle(E, conj(wiggle.gx), conj(wiggle.gy), conj(wiggle.gz));
             end
         end
-        
     end
 end
