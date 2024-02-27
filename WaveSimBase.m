@@ -155,9 +155,8 @@ classdef(Abstract) WaveSimBase < Simulation
                 state.converged = state.it < maxIter;
             else
                 %% Allocate memory for calculations
-                createComplexOnGPU = true;
-                state.E = obj.data_array([], obj.N, createComplexOnGPU);
-                state.dE = obj.data_array([], obj.N, createComplexOnGPU);
+                state.E = obj.data_array([], obj.N);
+                state.dE = obj.data_array([], obj.N);
                 
                 %% calculate number of different wiggles
                 Nwiggles = numel(obj.wiggles);                    % total number of wiggles
