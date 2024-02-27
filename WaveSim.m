@@ -56,7 +56,7 @@ classdef WaveSim < WaveSimBase
             else
                 E = f_wiggle(E, conj(wig.gx), conj(wig.gy), conj(wig.gz));
             end
-        end  
+        end
     end
 end
 
