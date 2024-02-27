@@ -124,6 +124,16 @@ classdef Source
                     source(s).values{c} = cast(source(s).values{c}, type);
                 end
             end
+         end
+
+        function source = complex(obj)
+            % Converts the source data to the specified type ('single' or 'double')
+            source = obj;
+            for s=1:numel(obj)
+                for c=1:numel(source(s).positions)
+                    source(s).values{c} = complex(source(s).values{c});
+                end
+            end
         end
 
         function E = add_to(obj, E, A)

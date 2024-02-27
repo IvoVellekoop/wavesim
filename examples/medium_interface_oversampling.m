@@ -1,14 +1,18 @@
 %%% example script simulating a plane wave through an interface of two
 %%% media with different refractive indices
+addpath('..');
 
-clear
+clear; clear mex; 
 %% simulation options
 PPW=8;                           % points per wavelength
 opt.lambda = 1;                  % wavelength in vacuum (in um)
 opt.energy_threshold = 1E-4;     % simulation has converged when total added energy is lower than threshold 
 opt.pixel_size = opt.lambda/PPW; % grid pixel size (in um)
 opt.boundary_widths = PPW*[2,0]; % absorbing boundaries
-
+opt.usemex = false;
+if(opt.usemex)
+    addpath('..\MexBin');
+end
 
 %% sample properties
 N = PPW*[16,1]; % size of medium (in pixels)
