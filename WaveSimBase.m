@@ -127,7 +127,7 @@ classdef(Abstract) WaveSimBase < Simulation
                 if(state.max_iterations > 0 && state.max_iterations < inf)
                    maxIter = state.max_iterations;
                 else
-                   maxIter = 1000;                 
+                   maxIter = 100000;                 
                 end
                 
                 callbackString = 'NoCallback';
