@@ -6,3 +6,7 @@ G. Osnabrugge, S. Leedumrongwatthanakun, I.M. Vellekoop - A convergent Born seri
 Freely available at: http://www.sciencedirect.com/science/article/pii/S0021999116302595
 
 G. Osnabrugge, M. Benedictus, I.M. Vellekoop - An ultra-thin boundary layer for high-accuracy simulations, Optics Express 29 (2), 11 January 2021, Pages 1649-1658, doi:10.1364/OE.412833
+
+## wavesim.org
+
+We are working to improve and accelerate Wavesim further. On 27 February 2024, we released a new version that uses a CUDA-based acceleration module (cumex) to provide around 2x speed up. Want to find out more? Want to participate in the forum for discussions, queries, and requests? Then please visit www.wavesim.org.
