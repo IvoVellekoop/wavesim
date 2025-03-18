@@ -1,7 +1,7 @@
 %%% Simulate the pulse propagation of a plane wave with a specified bandwidth 
 %%% in a 2D disordered medium
 
-clear all; close all;
+clear; close all;
 addpath('..');
 
 %% simulations options
@@ -10,7 +10,7 @@ opt.lambda = 1;                   % wavelength in vacuum (in um)
 opt.energy_threshold = 1E-10;     % simulation has converged when total added energy is lower than threshold 
 opt.pixel_size = opt.lambda/PPW;  % grid pixel size (in um)
 opt.boundary_widths = [0,4*PPW];  % periodic boundary in y, absorbing boundary in x
-opt.usemex = false;
+opt.usemex = true;
 if(opt.usemex)
     addpath('..\MexBin');
 end

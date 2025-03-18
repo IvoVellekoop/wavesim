@@ -279,12 +279,12 @@ classdef Simulation
             %dimension by default)
             %
             figure(1); clf;
-            energy = state.diff_energy(1:state.it);
-            threshold = obj.energy_threshold * state.source_energy;
+            energy = state.diff_energy(1:state.it) / state.diff_energy(1);
+            % threshold = obj.energy_threshold;% * state.source_energy;
             %E = state.E;
             E = state.dE;
             E = max(max(E, [], 1), [], 1);
-            subplot(2,1,1); plot(1:length(energy),log10(energy),'b',[1,length(energy)],log10(threshold)*ones(1,2),'--r');
+            subplot(2,1,1); plot(1:length(energy),log10(energy),'b',[1,length(energy)],log10(obj.energy_threshold)*ones(1,2),'--r');
             title(length(energy));  xlabel('# iterations'); ylabel('log_{10}(energy added)');
             
             % plot midline along longest dimension

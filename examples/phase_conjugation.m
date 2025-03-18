@@ -5,7 +5,7 @@
 % --> forms sharp focus again
 %%% Gerwin Osnabrugge 2015
 
-clear all; close all;
+clear; close all;
 addpath('..');
 
 %% simulations options
@@ -13,8 +13,8 @@ PPW=4;                                    % points per wavelength
 opt.lambda = 1;                           % wavelength in vacuum (in um)
 opt.energy_threshold = 1E-12;             % simulation has converged when total added energy is lower than threshold 
 opt.pixel_size = opt.lambda/PPW;          % grid pixel size (in um)
-opt.boundary_widths = [4*PPW,4*PPW];      % absorbing boundaries
-opt.usemex = false;
+opt.boundary_widths = PPW*[4,4];      % absorbing boundaries
+opt.usemex = true;
 if(opt.usemex)
     addpath('..\MexBin');
 end
