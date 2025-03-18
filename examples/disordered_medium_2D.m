@@ -1,7 +1,7 @@
 %%% Simulates the wave propagation of a point source in a 2D random medium
 %%% Gerwin Osnabrugge 2015
 
-clear all;close all;
+clear; close all;
 addpath('..');
 
 %% simulation options
@@ -10,7 +10,7 @@ opt.lambda = 1;                  % wavelength in vacuum (in um)
 opt.energy_threshold = 1E-10;    % simulation has converged when total added energy is lower than threshold 
 opt.pixel_size = opt.lambda/PPW; % grid pixel size (in um)
 opt.boundary_widths = [0,0];     % periodic boundaries
-opt.usemex = false;
+opt.usemex = true;
 if(opt.usemex)
     addpath('..\MexBin');
 end
